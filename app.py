@@ -1643,7 +1643,16 @@ def api_cadet():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        # Check if database exists and has tables
+        inspector = db.inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        if not existing_tables:
+            # Only create tables if database is completely empty
+            print("Creating new database tables...")
+            db.create_all()
+        else:
+            print(f"Database exists with {len(existing_tables)} tables")
         
         # Create default admin user if it doesn't exist
         if not User.query.filter_by(username='admin').first():
@@ -1651,6 +1660,10 @@ if __name__ == '__main__':
                 username='admin',
                 email='admin@afrotc695.com',
                 password_hash=generate_password_hash('admin123'),
+                first_name='Admin',
+                last_name='User',
+                secret_question='What is your favorite color?',
+                secret_answer_hash=generate_password_hash('blue'),
                 role='admin'
             )
             db.session.add(admin_user)
