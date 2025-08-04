@@ -137,7 +137,7 @@ class ActivityLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     username = db.Column(db.String(80), nullable=False)  # Store username for easy reference
     action = db.Column(db.String(100), nullable=False)  # e.g., 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'
-    table_name = db.Column(db.String(50))  # e.g., 'user', 'potential_recruit', 'cadre', etc.
+    table_name = db.Column(db.String(50))  # e.g., 'user', 'potential_recruit', 'cadet', etc.
     record_id = db.Column(db.Integer)  # ID of the affected record
     record_description = db.Column(db.String(200))  # Human-readable description of the record
     details = db.Column(db.Text)  # Additional details about the action
@@ -179,7 +179,7 @@ class PotentialRecruit(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class Cadre(db.Model):
+class Cadet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
@@ -349,13 +349,13 @@ def dashboard():
     
     # Get counts for dashboard
     recruit_count = PotentialRecruit.query.count()
-    cadre_count = Cadre.query.filter_by(status='active').count()
+    cadet_count = Cadet.query.filter_by(status='active').count()
     contact_count = UniversityContact.query.filter_by(is_active=True).count()
     event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
     
     return render_template('dashboard.html', 
                          recruit_count=recruit_count,
-                         cadre_count=cadre_count,
+                         cadet_count=cadet_count,
                          contact_count=contact_count,
                          event_count=event_count)
 
@@ -436,8 +436,8 @@ def add_recruit():
     
     return render_template('add_recruit.html')
 
-@app.route('/cadre')
-def cadre():
+@app.route('/cadet')
+def cadet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
@@ -447,16 +447,16 @@ def cadre():
     
     # Define valid sort columns
     valid_sorts = {
-        'first_name': Cadre.first_name,
-        'last_name': Cadre.last_name,
-        'email': Cadre.email,
-        'cadet_rank': Cadre.cadet_rank,
-        'major': Cadre.major,
-        'graduation_year': Cadre.graduation_year,
-        'status': Cadre.status,
-        'gpa': Cadre.gpa,
-        'created_at': Cadre.created_at,
-        'last_modified': Cadre.last_modified
+        'first_name': Cadet.first_name,
+        'last_name': Cadet.last_name,
+        'email': Cadet.email,
+        'cadet_rank': Cadet.cadet_rank,
+        'major': Cadet.major,
+        'graduation_year': Cadet.graduation_year,
+        'status': Cadet.status,
+        'gpa': Cadet.gpa,
+        'created_at': Cadet.created_at,
+        'last_modified': Cadet.last_modified
     }
     
     # Default to created_at if invalid sort column
@@ -465,20 +465,20 @@ def cadre():
     
     # Apply sorting
     if order == 'asc':
-        cadre_members = Cadre.query.order_by(valid_sorts[sort_by].asc()).all()
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
     else:
-        cadre_members = Cadre.query.order_by(valid_sorts[sort_by].desc()).all()
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
     
-    return render_template('cadre.html', cadre_members=cadre_members, sort_by=sort_by, order=order)
+    return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
 
-@app.route('/cadre/add', methods=['GET', 'POST'])
-def add_cadre():
+@app.route('/cadet/add', methods=['GET', 'POST'])
+def add_cadet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
     if request.method == 'POST':
-        # Create backup before adding new cadre
-        backup_database("Pre-add cadre backup")
+        # Create backup before adding new cadet
+        backup_database("Pre-add cadet backup")
         
         # Handle unenrollment_date parsing
         unenrollment_date = None
@@ -487,9 +487,9 @@ def add_cadre():
                 unenrollment_date = datetime.strptime(request.form['unenrollment_date'], '%Y-%m-%d').date()
             except ValueError:
                 flash('Invalid unenrollment date format. Please use YYYY-MM-DD.', 'error')
-                return render_template('add_cadre.html')
+                return render_template('add_cadet.html')
         
-        cadre = Cadre(
+        cadet = Cadet(
             first_name=request.form['first_name'],
             last_name=request.form['last_name'],
             email=request.form['email'],
@@ -505,79 +505,79 @@ def add_cadre():
             gpa=request.form.get('gpa')
         )
         
-        db.session.add(cadre)
+        db.session.add(cadet)
         db.session.commit()
         
         # Log the activity
         log_activity(
             'CREATE',
-            'cadre',
-            cadre.id,
-            f"Cadet: {cadre.first_name} {cadre.last_name} ({cadre.cadet_rank})",
-            f"Added new cadet with status: {cadre.status}"
+            'cadet',
+            cadet.id,
+            f"Cadet: {cadet.first_name} {cadet.last_name} ({cadet.cadet_rank})",
+            f"Added new cadet with status: {cadet.status}"
         )
         
         flash('Cadet added successfully!', 'success')
-        return redirect(url_for('cadre'))
+        return redirect(url_for('cadet'))
     
-    return render_template('add_cadre.html')
+    return render_template('add_cadet.html')
 
-@app.route('/cadre/edit/<int:cadre_id>', methods=['GET', 'POST'])
-def edit_cadre(cadre_id):
+@app.route('/cadet/edit/<int:cadet_id>', methods=['GET', 'POST'])
+def edit_cadet(cadet_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    cadre = Cadre.query.get_or_404(cadre_id)
+    cadet = Cadet.query.get_or_404(cadet_id)
     
     if request.method == 'POST':
         # Store old values for logging
-        old_status = cadre.status
-        old_rank = cadre.cadet_rank
+        old_status = cadet.status
+        old_rank = cadet.cadet_rank
         
-        cadre.first_name = request.form['first_name']
-        cadre.last_name = request.form['last_name']
-        cadre.email = request.form['email']
-        cadre.phone = request.form['phone']
-        cadre.major = request.form['major']
-        cadre.graduation_year = request.form['graduation_year']
-        cadre.cadet_rank = request.form['cadet_rank']
-        cadre.hometown = request.form['hometown']
-        cadre.officer_interest = request.form['officer_interest']
-        cadre.status = request.form['status']
-        cadre.unenrollment_reason = request.form['unenrollment_reason']
-        cadre.gpa = request.form.get('gpa')
+        cadet.first_name = request.form['first_name']
+        cadet.last_name = request.form['last_name']
+        cadet.email = request.form['email']
+        cadet.phone = request.form['phone']
+        cadet.major = request.form['major']
+        cadet.graduation_year = request.form['graduation_year']
+        cadet.cadet_rank = request.form['cadet_rank']
+        cadet.hometown = request.form['hometown']
+        cadet.officer_interest = request.form['officer_interest']
+        cadet.status = request.form['status']
+        cadet.unenrollment_reason = request.form['unenrollment_reason']
+        cadet.gpa = request.form.get('gpa')
         
         # Handle unenrollment_date parsing
         if request.form.get('unenrollment_date'):
             try:
-                cadre.unenrollment_date = datetime.strptime(request.form['unenrollment_date'], '%Y-%m-%d').date()
+                cadet.unenrollment_date = datetime.strptime(request.form['unenrollment_date'], '%Y-%m-%d').date()
             except ValueError:
                 flash('Invalid unenrollment date format. Please use YYYY-MM-DD.', 'error')
-                return render_template('edit_cadre.html', cadre=cadre)
+                return render_template('edit_cadet.html', cadet=cadet)
         else:
-            cadre.unenrollment_date = None
+            cadet.unenrollment_date = None
         
         db.session.commit()
         
         # Log the activity
         changes = []
-        if old_status != cadre.status:
-            changes.append(f"Status: {old_status} → {cadre.status}")
-        if old_rank != cadre.cadet_rank:
-            changes.append(f"Rank: {old_rank} → {cadre.cadet_rank}")
+        if old_status != cadet.status:
+            changes.append(f"Status: {old_status} → {cadet.status}")
+        if old_rank != cadet.cadet_rank:
+            changes.append(f"Rank: {old_rank} → {cadet.cadet_rank}")
         
         log_activity(
             'UPDATE',
-            'cadre',
-            cadre.id,
-            f"Cadet: {cadre.first_name} {cadre.last_name}",
+            'cadet',
+            cadet.id,
+            f"Cadet: {cadet.first_name} {cadet.last_name}",
             f"Updated cadet. Changes: {', '.join(changes) if changes else 'General update'}"
         )
         
         flash('Cadet updated successfully!', 'success')
-        return redirect(url_for('cadre'))
+        return redirect(url_for('cadet'))
     
-    return render_template('edit_cadre.html', cadre=cadre)
+    return render_template('edit_cadet.html', cadet=cadet)
 
 @app.route('/contacts')
 def contacts():
@@ -955,38 +955,38 @@ def download_recruits(format):
     
     return export_data(data, f'potential_recruits_{datetime.now().strftime("%Y%m%d")}', format, 'Potential Recruits')
 
-@app.route('/download/cadre/<format>')
-def download_cadre(format):
+@app.route('/download/cadet/<format>')
+def download_cadet(format):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    cadre_members = Cadre.query.order_by(Cadre.created_at.desc()).all()
+    cadet_members = Cadet.query.order_by(Cadet.created_at.desc()).all()
     
     # Prepare data for export
     data = []
-    for cadre in cadre_members:
+    for cadet in cadet_members:
         data.append({
-            'First Name': cadre.first_name,
-            'Last Name': cadre.last_name,
-            'Email': cadre.email,
-            'Phone': cadre.phone or '',
-            'Major': cadre.major,
-            'Graduation Year': cadre.graduation_year,
-            'Cadet Rank': cadre.cadet_rank,
-            'Hometown': cadre.hometown or '',
-            'Officer Interest': cadre.officer_interest or '',
-            'Status': cadre.status.title(),
-            'Unenrollment Date': cadre.unenrollment_date_display or '',
-            'Unenrollment Reason': cadre.unenrollment_reason or '',
-            'GPA': cadre.gpa or '',
-            'Created Date': utc_to_local(cadre.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadre.created_at) else '',
-            'Last Modified': utc_to_local(cadre.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadre.last_modified) else ''
+            'First Name': cadet.first_name,
+            'Last Name': cadet.last_name,
+            'Email': cadet.email,
+            'Phone': cadet.phone or '',
+            'Major': cadet.major,
+            'Graduation Year': cadet.graduation_year,
+            'Cadet Rank': cadet.cadet_rank,
+            'Hometown': cadet.hometown or '',
+            'Officer Interest': cadet.officer_interest or '',
+            'Status': cadet.status.title(),
+            'Unenrollment Date': cadet.unenrollment_date_display or '',
+            'Unenrollment Reason': cadet.unenrollment_reason or '',
+            'GPA': cadet.gpa or '',
+            'Created Date': utc_to_local(cadet.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.created_at) else '',
+            'Last Modified': utc_to_local(cadet.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.last_modified) else ''
         })
     
     # Log the export activity
-    log_activity('EXPORT', 'cadre', None, 'Cadre Export', f'Exported {len(cadre_members)} cadre members to {format.upper()}')
+    log_activity('EXPORT', 'cadet', None, 'Cadet Export', f'Exported {len(cadet_members)} cadet members to {format.upper()}')
     
-    return export_data(data, f'cadre_members_{datetime.now().strftime("%Y%m%d")}', format, 'Cadre Members')
+    return export_data(data, f'cadet_members_{datetime.now().strftime("%Y%m%d")}', format, 'Cadet Members')
 
 @app.route('/download/contacts/<format>')
 def download_contacts(format):
@@ -1135,9 +1135,9 @@ def api_recruits():
         'created_at': r.created_at.strftime('%Y-%m-%d')
     } for r in recruits])
 
-@app.route('/api/cadre')
-def api_cadre():
-    cadre = Cadre.query.all()
+@app.route('/api/cadet')
+def api_cadet():
+    cadet = Cadet.query.all()
     return jsonify([{
         'id': c.id,
         'name': f"{c.first_name} {c.last_name}",
@@ -1145,7 +1145,7 @@ def api_cadre():
         'major': c.major,
         'graduation_year': c.graduation_year,
         'status': c.status
-    } for c in cadre])
+    } for c in cadet])
 
 if __name__ == '__main__':
     with app.app_context():

@@ -46,7 +46,7 @@ import os
 try:
     conn = sqlite3.connect('instance/afrotc695.db')
     cursor = conn.cursor()
-    cursor.execute('PRAGMA table_info(cadre)')
+    cursor.execute('PRAGMA table_info(cadet)')
     columns = [col[1] for col in cursor.fetchall()]
     if 'status' not in columns:
         print('Database needs migration. Please run: python -c \"from app import app, db; app.app_context().push(); db.create_all()\"')

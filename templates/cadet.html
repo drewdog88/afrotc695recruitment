@@ -11,18 +11,18 @@
                 <i class="fas fa-download"></i> Download
             </button>
             <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
-                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='csv') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_cadet', format='csv') }}">
                     <i class="fas fa-file-csv"></i> CSV
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='excel') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_cadet', format='excel') }}">
                     <i class="fas fa-file-excel"></i> Excel
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='pdf') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_cadet', format='pdf') }}">
                     <i class="fas fa-file-pdf"></i> PDF
                 </a></li>
             </ul>
         </div>
-        <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
+        <a href="{{ url_for('add_cadet') }}" class="btn btn-primary">
             <i class="fas fa-plus"></i> Add Cadet
         </a>
     </div>
@@ -30,13 +30,13 @@
 
 <div class="card">
     <div class="card-body">
-        {% if cadre_members %}
+        {% if cadet_members %}
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead class="table-light">
                     <tr>
                         <th>
-                            <a href="{{ url_for('cadre', sort='first_name', order='asc' if sort_by == 'first_name' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='first_name', order='asc' if sort_by == 'first_name' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Name
                                 {% if sort_by == 'first_name' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -46,7 +46,7 @@
                             </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='cadet_rank', order='asc' if sort_by == 'cadet_rank' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='cadet_rank', order='asc' if sort_by == 'cadet_rank' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Rank
                                 {% if sort_by == 'cadet_rank' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -56,7 +56,7 @@
                             </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='major', order='asc' if sort_by == 'major' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='major', order='asc' if sort_by == 'major' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Major
                                 {% if sort_by == 'major' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -66,7 +66,7 @@
                             </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='graduation_year', order='asc' if sort_by == 'graduation_year' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='graduation_year', order='asc' if sort_by == 'graduation_year' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Graduation Year
                                 {% if sort_by == 'graduation_year' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -76,7 +76,7 @@
                             </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='status', order='asc' if sort_by == 'status' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='status', order='asc' if sort_by == 'status' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Status
                                 {% if sort_by == 'status' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -86,7 +86,7 @@
                             </a>
                         </th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='gpa', order='asc' if sort_by == 'gpa' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='gpa', order='asc' if sort_by == 'gpa' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 GPA
                                 {% if sort_by == 'gpa' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -97,7 +97,7 @@
                         </th>
                         <th>Unenrollment Date</th>
                         <th>
-                            <a href="{{ url_for('cadre', sort='last_modified', order='asc' if sort_by == 'last_modified' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                            <a href="{{ url_for('cadet', sort='last_modified', order='asc' if sort_by == 'last_modified' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
                                 Last Modified
                                 {% if sort_by == 'last_modified' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
@@ -110,7 +110,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for member in cadre_members %}
+                    {% for member in cadet_members %}
                     <tr>
                         <td>
                             <strong>{{ member.first_name }} {{ member.last_name }}</strong>
@@ -136,7 +136,7 @@
                         <td>{{ member.unenrollment_date_display or 'N/A' }}</td>
                         <td data-utc-time="{{ member.last_modified.isoformat() }}">{{ member.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
                         <td>
-                            <a href="{{ url_for('edit_cadre', cadre_id=member.id) }}" class="btn btn-sm btn-outline-primary">
+                            <a href="{{ url_for('edit_cadet', cadet_id=member.id) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-edit"></i>
                             </a>
                         </td>
@@ -150,7 +150,7 @@
             <i class="fas fa-user-check fa-3x text-muted mb-3"></i>
                     <h5>No Cadets Yet</h5>
         <p class="text-muted">Start managing your cadets by adding the first member.</p>
-        <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
+        <a href="{{ url_for('add_cadet') }}" class="btn btn-primary">
             <i class="fas fa-plus"></i> Add First Cadet
             </a>
         </div>

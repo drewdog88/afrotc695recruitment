@@ -135,7 +135,7 @@ afrotc695recruitment/
 │   ├── base.html           # Base template with navigation
 │   ├── dashboard.html      # Main dashboard view
 │   ├── recruits.html       # Potential recruits management
-│   ├── cadre.html          # Cadets management interface
+│   ├── cadet.html          # Cadets management interface
 │   ├── contacts.html       # High school contacts management
 │   ├── calendar.html       # Event calendar view
 │   ├── admin.html          # Administrative panel

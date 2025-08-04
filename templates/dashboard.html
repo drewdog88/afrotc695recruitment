@@ -33,7 +33,7 @@
     </div>
     
     <div class="col-md-3 mb-3">
-        <a href="{{ url_for('cadre') }}" class="text-decoration-none">
+                        <a href="{{ url_for('cadet') }}" class="text-decoration-none">
             <div class="card stats-card clickable-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -41,7 +41,7 @@
                             <i class="fas fa-user-check fa-2x text-white-50"></i>
                         </div>
                         <div class="flex-grow-1 ms-3">
-                            <h3 class="card-title text-white mb-1">{{ cadre_count }}</h3>
+                            <h3 class="card-title text-white mb-1">{{ cadet_count }}</h3>
                             <p class="card-text text-white-50 mb-0">Active Cadets</p>
                         </div>
                     </div>
@@ -103,7 +103,7 @@
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('add_cadre') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                                                    <a href="{{ url_for('add_cadet') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
                             <i class="fas fa-user-check fa-2x mb-2"></i>
                             <span>Add Cadet</span>
                         </a>
