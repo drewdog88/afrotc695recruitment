@@ -3,9 +3,9 @@
 {% block title %}Potential Recruits - AFROTC 695{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Potential Recruits</h1>
-    <div class="d-flex gap-2">
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+    <h1 class="mb-3 mb-md-0">Potential Recruits</h1>
+    <div class="d-flex flex-column flex-sm-row gap-2">
         <div class="dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="fas fa-download"></i> Download
@@ -103,31 +103,50 @@
                     {% for recruit in recruits %}
                     <tr>
                         <td>
-                            <strong>{{ recruit.first_name }} {{ recruit.last_name }}</strong>
-                            {% if recruit.email %}
-                            <br><small class="text-muted">{{ recruit.email }}</small>
-                            {% endif %}
+                            <div class="d-flex flex-column">
+                                <span class="fw-bold">{{ recruit.first_name }} {{ recruit.last_name }}</span>
+                                {% if recruit.email %}
+                                <small class="text-muted">{{ recruit.email }}</small>
+                                {% endif %}
+                            </div>
                         </td>
-                        <td>{{ recruit.current_school }}</td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span>{{ recruit.current_school }}</span>
+                                <small class="text-muted">{{ recruit.school_type|title }}</small>
+                            </div>
+                        </td>
                         <td>{{ recruit.major or 'Not specified' }}</td>
                         <td>
-                            {% if recruit.school_type == 'high_school' %}
-                                HS: {{ recruit.high_school_graduation_year or 'N/A' }}
+                            {% if recruit.school_type == 'high_school' and recruit.high_school_graduation_year %}
+                                {{ recruit.high_school_graduation_year }}
+                            {% elif recruit.school_type == 'college' and recruit.expected_college_graduation_year %}
+                                {{ recruit.expected_college_graduation_year }}
                             {% else %}
-                                College: {{ recruit.expected_college_graduation_year or 'N/A' }}
+                                Not specified
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge bg-{{ 'success' if recruit.status == 'enrolled' else 'warning' if recruit.status == 'interested' else 'info' }}">
-                                {{ recruit.status.title() }}
+                            <span class="badge bg-{{ 'success' if recruit.status == 'prospective' else 'warning' if recruit.status == 'contacted' else 'info' if recruit.status == 'interested' else 'secondary' }}">
+                                {{ recruit.status|title }}
                             </span>
                         </td>
-                        <td data-utc-date="{{ recruit.created_at.isoformat() }}">{{ recruit.created_at.strftime('%m/%d/%Y') }}</td>
-                        <td data-utc-time="{{ recruit.last_modified.isoformat() }}">{{ recruit.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewRecruit({{ recruit.id }})">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                            <small class="text-muted">{{ recruit.created_at.strftime('%Y-%m-%d') }}</small>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ recruit.last_modified.strftime('%Y-%m-%d') }}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('edit_recruit', recruit_id=recruit.id) }}" class="btn btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-danger" title="Delete" 
+                                        onclick="deleteRecruit({{ recruit.id }}, '{{ recruit.first_name }} {{ recruit.last_name }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -137,8 +156,8 @@
         {% else %}
         <div class="text-center py-5">
             <i class="fas fa-users fa-3x text-muted mb-3"></i>
-            <h5>No Potential Recruits Yet</h5>
-            <p class="text-muted">Start tracking potential recruits by adding your first one.</p>
+            <h5 class="text-muted">No Potential Recruits Found</h5>
+            <p class="text-muted">Start by adding your first potential recruit.</p>
             <a href="{{ url_for('add_recruit') }}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add First Recruit
             </a>
@@ -146,30 +165,29 @@
         {% endif %}
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-function viewRecruit(id) {
-    // TODO: Implement view/edit functionality
-    alert('View/Edit functionality coming soon for recruit ID: ' + id);
+function deleteRecruit(recruitId, recruitName) {
+    if (confirm('Are you sure you want to delete ' + recruitName + '? This action cannot be undone.')) {
+        fetch('/recruits/delete/' + recruitId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting recruit: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting recruit. Please try again.');
+        });
+    }
 }
-
-// Convert UTC times to local timezone
-document.addEventListener('DOMContentLoaded', function() {
-    // Convert date elements
-    document.querySelectorAll('[data-utc-date]').forEach(function(element) {
-        const utcDate = element.getAttribute('data-utc-date');
-        const localDate = new Date(utcDate);
-        element.textContent = localDate.toLocaleDateString();
-    });
-    
-    // Convert time elements
-    document.querySelectorAll('[data-utc-time]').forEach(function(element) {
-        const utcTime = element.getAttribute('data-utc-time');
-        const localTime = new Date(utcTime);
-        element.textContent = localTime.toLocaleDateString() + ' ' + localTime.toLocaleTimeString();
-    });
-});
 </script>
 {% endblock %} 

@@ -3,27 +3,29 @@
 {% block title %}Recruitment Materials - AFROTC 695{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center mb-4">
-    <div>
+<div class="d-flex flex-column flex-md-row align-items-start align-items-md-center mb-4">
+    <div class="flex-grow-1">
         <h1 class="h2 mb-1">Recruitment Materials</h1>
         <p class="text-muted mb-0">External links and document library for AFROTC recruitment</p>
     </div>
     {% if session.role == 'admin' %}
-    <div class="ms-auto">
-        <a href="{{ url_for('add_external_link') }}" class="btn btn-primary me-2">
-            <i class="fas fa-plus"></i> Add Link
-        </a>
-        <a href="{{ url_for('add_document') }}" class="btn btn-success">
-            <i class="fas fa-upload"></i> Upload Document
-        </a>
+    <div class="mt-3 mt-md-0">
+        <div class="d-flex flex-column flex-sm-row gap-2">
+            <a href="{{ url_for('add_external_link') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Link
+            </a>
+            <a href="{{ url_for('add_document') }}" class="btn btn-success">
+                <i class="fas fa-upload"></i> Upload Document
+            </a>
+        </div>
     </div>
     {% endif %}
 </div>
 
 <div class="row">
     <!-- External Links Column -->
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-lg-6 col-md-12 mb-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-external-link-alt me-2"></i>
@@ -36,7 +38,7 @@
                         {% for link in external_links %}
                         <div class="list-group-item d-flex justify-content-between align-items-start border-0 px-0">
                             <div class="flex-grow-1">
-                                <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center">
                                     <h6 class="mb-1">
                                         <a href="{{ link.url }}" target="_blank" class="text-decoration-none">
                                             {{ link.title }}
@@ -44,7 +46,7 @@
                                         </a>
                                     </h6>
                                     {% if session.role == 'admin' %}
-                                    <div class="btn-group btn-group-sm">
+                                    <div class="btn-group btn-group-sm mt-2 mt-sm-0">
                                         <a href="{{ url_for('edit_external_link', link_id=link.id) }}" class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -61,7 +63,7 @@
                                 <small class="text-muted">
                                     <span class="badge bg-secondary">{{ link.category }}</span>
                                     {% if link.url %}
-                                    <span class="ms-2">{{ link.url|truncate(50) }}</span>
+                                    <span class="ms-2 d-none d-sm-inline">{{ link.url|truncate(50) }}</span>
                                     {% endif %}
                                 </small>
                             </div>
@@ -84,8 +86,8 @@
     </div>
 
     <!-- Documents Column -->
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-lg-6 col-md-12 mb-4">
+        <div class="card h-100">
             <div class="card-header">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-file-alt me-2"></i>
@@ -98,7 +100,7 @@
                         {% for document in documents %}
                         <div class="list-group-item d-flex justify-content-between align-items-start border-0 px-0">
                             <div class="flex-grow-1">
-                                <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center">
                                     <h6 class="mb-1">
                                         <a href="{{ url_for('download_document', document_id=document.id) }}" class="text-decoration-none">
                                             {{ document.title }}
@@ -106,7 +108,7 @@
                                         </a>
                                     </h6>
                                     {% if session.role == 'admin' %}
-                                    <div class="btn-group btn-group-sm">
+                                    <div class="btn-group btn-group-sm mt-2 mt-sm-0">
                                         <a href="{{ url_for('edit_document', document_id=document.id) }}" class="btn btn-outline-primary btn-sm">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -121,10 +123,9 @@
                                 <p class="mb-1 text-muted small">{{ document.description }}</p>
                                 {% endif %}
                                 <small class="text-muted">
-                                    <span class="badge bg-secondary">{{ document.category }}</span>
                                     <span class="badge bg-info">{{ document.file_type|upper }}</span>
-                                    <span class="ms-2">{{ (document.file_size / 1024)|round(1) }} KB</span>
-                                    <span class="ms-2">{{ document.original_filename }}</span>
+                                    <span class="badge bg-secondary">{{ document.category }}</span>
+                                    <span class="ms-2">{{ document.file_size|filesizeformat }}</span>
                                 </small>
                             </div>
                         </div>
@@ -146,60 +147,51 @@
     </div>
 </div>
 
-<!-- Delete Confirmation Modals -->
-<div class="modal fade" id="deleteLinkModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Delete External Link</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the external link "<span id="linkTitle"></span>"?</p>
-                <p class="text-muted small">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteLinkForm" method="POST" style="display: inline;">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="deleteDocumentModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Delete Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the document "<span id="documentTitle"></span>"?</p>
-                <p class="text-muted small">This will permanently delete the file and cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteDocumentForm" method="POST" style="display: inline;">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-function deleteLink(linkId, title) {
-    document.getElementById('linkTitle').textContent = title;
-    document.getElementById('deleteLinkForm').action = `/materials/delete-link/${linkId}`;
-    new bootstrap.Modal(document.getElementById('deleteLinkModal')).show();
+function deleteLink(linkId, linkTitle) {
+    if (confirm('Are you sure you want to delete "' + linkTitle + '"? This action cannot be undone.')) {
+        fetch('/materials/delete-link/' + linkId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting link: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting link. Please try again.');
+        });
+    }
 }
 
-function deleteDocument(documentId, title) {
-    document.getElementById('documentTitle').textContent = title;
-    document.getElementById('deleteDocumentForm').action = `/materials/delete-document/${documentId}`;
-    new bootstrap.Modal(document.getElementById('deleteDocumentModal')).show();
+function deleteDocument(documentId, documentTitle) {
+    if (confirm('Are you sure you want to delete "' + documentTitle + '"? This action cannot be undone.')) {
+        fetch('/materials/delete-document/' + documentId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting document: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting document. Please try again.');
+        });
+    }
 }
 </script>
 {% endblock %} 

@@ -641,12 +641,16 @@ def dashboard():
     # Get cadet retention data
     retention_data = get_cadet_retention_data()
     
+    # Get recent activities (last 10)
+    recent_activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
+    
     return render_template('dashboard.html', 
                          recruit_count=recruit_count,
                          cadet_count=cadet_count,
                          contact_count=contact_count,
                          event_count=event_count,
-                         retention_data=retention_data)
+                         retention_data=retention_data,
+                         recent_activities=recent_activities)
 
 @app.route('/recruits')
 def recruits():

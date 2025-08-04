@@ -23,10 +23,61 @@
             width: auto;
         }
         
+        /* Mobile-first responsive design */
         .sidebar {
             min-height: 100vh;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
+            transition: transform 0.3s ease;
+        }
+        
+        /* Mobile sidebar behavior */
+        @media (max-width: 767.98px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                z-index: 1040;
+                transform: translateX(0);
+            }
+            
+            .sidebar.show {
+                left: 0;
+            }
+            
+            .sidebar-backdrop {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 1030;
+                display: none;
+            }
+            
+            .sidebar-backdrop.show {
+                display: block;
+            }
+            
+            .main-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+            }
+        }
+        
+        /* Desktop sidebar behavior */
+        @media (min-width: 768px) {
+            .sidebar {
+                position: relative;
+                left: 0;
+                width: auto;
+            }
+            
+            .sidebar-backdrop {
+                display: none !important;
+            }
         }
         
         .sidebar .nav-link {
@@ -35,6 +86,10 @@
             border-radius: 8px;
             margin: 4px 0;
             transition: all 0.3s ease;
+            /* Better touch targets for mobile */
+            min-height: 44px;
+            display: flex;
+            align-items: center;
         }
         
         .sidebar .nav-link:hover,
@@ -47,10 +102,22 @@
         .sidebar .nav-link i {
             width: 20px;
             margin-right: 10px;
+            flex-shrink: 0;
         }
         
         .main-content {
             padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+        
+        /* Mobile menu toggle button */
+        .navbar-toggler {
+            border: none;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        .navbar-toggler:focus {
+            box-shadow: none;
         }
         
         .card {
@@ -74,9 +141,45 @@
             border-color: var(--secondary-color);
         }
         
+        /* Better mobile button sizing */
+        .btn {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-sm {
+            min-height: 38px;
+        }
+        
         .table {
             border-radius: 8px;
             overflow: hidden;
+        }
+        
+        /* Mobile table improvements */
+        @media (max-width: 767.98px) {
+            .table-responsive {
+                border-radius: 8px;
+            }
+            
+            .table th,
+            .table td {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Stack action buttons vertically on mobile */
+            .table .btn-group {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+            
+            .table .btn-group .btn {
+                width: 100%;
+                min-height: 38px;
+            }
         }
         
         .alert {
@@ -87,6 +190,21 @@
         .stats-card {
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
+        }
+        
+        /* Mobile dashboard cards */
+        @media (max-width: 767.98px) {
+            .stats-card .card-body {
+                padding: 1rem;
+            }
+            
+            .stats-card h3 {
+                font-size: 1.5rem;
+            }
+            
+            .stats-card p {
+                font-size: 0.9rem;
+            }
         }
         
         .login-container {
@@ -104,6 +222,14 @@
             padding: 40px;
             max-width: 400px;
             width: 100%;
+        }
+        
+        /* Mobile login adjustments */
+        @media (max-width: 767.98px) {
+            .login-card {
+                margin: 20px;
+                padding: 30px 20px;
+            }
         }
         
         .logo-container {
@@ -124,6 +250,7 @@
             padding: 8px 12px;
             border-radius: 4px;
             transition: all 0.2s ease;
+            min-height: 44px;
         }
         
         .table th a:hover {
@@ -190,6 +317,34 @@
         .clickable-card:hover .card-body {
             background-color: rgba(255, 255, 255, 0.05);
         }
+        
+        /* Mobile form improvements */
+        @media (max-width: 767.98px) {
+            .form-control,
+            .form-select {
+                min-height: 44px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .form-label {
+                font-weight: 500;
+                margin-bottom: 0.5rem;
+            }
+        }
+        
+        /* Mobile dropdown improvements */
+        @media (max-width: 767.98px) {
+            .dropdown-menu {
+                min-width: 200px;
+            }
+            
+            .dropdown-item {
+                padding: 0.75rem 1rem;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -197,14 +352,22 @@
     <!-- Navigation for logged-in users -->
     <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));">
         <div class="container-fluid">
+            <!-- Mobile menu toggle -->
+            <button class="navbar-toggler d-lg-none" type="button" id="sidebarToggle">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
                 <img src="https://www.up.edu/afrotc/images/det-695-full-color-patch.png" alt="AFROTC 695 Logo" class="me-2">
-                <span class="fw-bold">AFROTC 695</span>
+                <span class="fw-bold d-none d-sm-inline">AFROTC 695</span>
+                <span class="fw-bold d-sm-none">AFROTC</span>
             </a>
             <div class="navbar-nav ms-auto">
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="fas fa-user-circle"></i> {{ session.username }}
+                        <i class="fas fa-user-circle"></i> 
+                        <span class="d-none d-sm-inline">{{ session.username }}</span>
+                        <span class="d-sm-none">Menu</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                         <li><a class="dropdown-item" href="{{ url_for('profile') }}">
@@ -223,33 +386,46 @@
         </div>
     </nav>
 
+    <!-- Sidebar backdrop for mobile -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
-            <div class="col-md-3 col-lg-2 px-0">
-                <div class="sidebar p-3">
+            <div class="col-lg-2 col-md-3 px-0">
+                <div class="sidebar p-3" id="sidebar">
                     <nav class="nav flex-column">
                         <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                            <i class="fas fa-tachometer-alt"></i> 
+                            <span>Dashboard</span>
                         </a>
                         <a class="nav-link {% if request.endpoint == 'recruits' %}active{% endif %}" href="{{ url_for('recruits') }}">
-                            <i class="fas fa-users"></i> Potential Recruits
+                            <i class="fas fa-users"></i> 
+                            <span class="d-none d-lg-inline">Potential Recruits</span>
+                            <span class="d-lg-none">Recruits</span>
                         </a>
-                                                                <a class="nav-link {% if request.endpoint == 'cadet' %}active{% endif %}" href="{{ url_for('cadet') }}">
-                            <i class="fas fa-user-check"></i> Cadets
+                        <a class="nav-link {% if request.endpoint == 'cadet' %}active{% endif %}" href="{{ url_for('cadet') }}">
+                            <i class="fas fa-user-check"></i> 
+                            <span>Cadets</span>
                         </a>
                         <a class="nav-link {% if request.endpoint == 'contacts' %}active{% endif %}" href="{{ url_for('contacts') }}">
-                            <i class="fas fa-address-book"></i> Contacts
+                            <i class="fas fa-address-book"></i> 
+                            <span class="d-none d-lg-inline">Contacts</span>
+                            <span class="d-lg-none">Contacts</span>
                         </a>
                         <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="{{ url_for('calendar') }}">
-                            <i class="fas fa-calendar-alt"></i> Calendar
+                            <i class="fas fa-calendar-alt"></i> 
+                            <span>Calendar</span>
                         </a>
                         <a class="nav-link {% if request.endpoint == 'materials' %}active{% endif %}" href="{{ url_for('materials') }}">
-                            <i class="fas fa-file-alt"></i> Materials
+                            <i class="fas fa-file-alt"></i> 
+                            <span class="d-none d-lg-inline">Materials</span>
+                            <span class="d-lg-none">Materials</span>
                         </a>
                         {% if session.role == 'admin' %}
                         <a class="nav-link {% if request.endpoint == 'admin' %}active{% endif %}" href="{{ url_for('admin') }}">
-                            <i class="fas fa-cog"></i> Admin
+                            <i class="fas fa-cog"></i> 
+                            <span>Admin</span>
                         </a>
                         {% endif %}
                     </nav>
@@ -257,7 +433,7 @@
             </div>
             
             <!-- Main Content -->
-            <div class="col-md-9 col-lg-10">
+            <div class="col-lg-10 col-md-9">
                 <div class="main-content">
                     {% block content %}{% endblock %}
                 </div>
@@ -292,6 +468,49 @@
     {% endwith %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Mobile sidebar toggle script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+            
+            if (sidebarToggle && sidebar && sidebarBackdrop) {
+                // Toggle sidebar
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('show');
+                    sidebarBackdrop.classList.toggle('show');
+                });
+                
+                // Close sidebar when clicking backdrop
+                sidebarBackdrop.addEventListener('click', function() {
+                    sidebar.classList.remove('show');
+                    sidebarBackdrop.classList.remove('show');
+                });
+                
+                // Close sidebar when clicking a nav link on mobile
+                const navLinks = sidebar.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth < 768) {
+                            sidebar.classList.remove('show');
+                            sidebarBackdrop.classList.remove('show');
+                        }
+                    });
+                });
+                
+                // Close sidebar on window resize
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth >= 768) {
+                        sidebar.classList.remove('show');
+                        sidebarBackdrop.classList.remove('show');
+                    }
+                });
+            }
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html> 

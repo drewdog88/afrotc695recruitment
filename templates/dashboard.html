@@ -14,7 +14,7 @@
 
 <!-- Statistics Cards -->
 <div class="row mb-4">
-    <div class="col-md-3 mb-3">
+    <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('recruits') }}" class="text-decoration-none">
             <div class="card stats-card clickable-card">
                 <div class="card-body">
@@ -32,8 +32,8 @@
         </a>
     </div>
     
-    <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('cadet') }}" class="text-decoration-none">
+    <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
+        <a href="{{ url_for('cadet') }}" class="text-decoration-none">
             <div class="card stats-card clickable-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -50,7 +50,7 @@
         </a>
     </div>
     
-    <div class="col-md-3 mb-3">
+    <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('contacts') }}" class="text-decoration-none">
             <div class="card stats-card clickable-card">
                 <div class="card-body">
@@ -68,7 +68,7 @@
         </a>
     </div>
     
-    <div class="col-md-3 mb-3">
+    <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('calendar') }}" class="text-decoration-none">
             <div class="card stats-card clickable-card">
                 <div class="card-body">
@@ -88,7 +88,7 @@
 </div>
 
 <!-- Quick Actions -->
-<div class="row">
+<div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
@@ -96,28 +96,28 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-3 mb-3">
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
                         <a href="{{ url_for('add_recruit') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
-                            <i class="fas fa-user-plus fa-2x mb-2"></i>
-                            <span>Add New Recruit</span>
+                            <i class="fas fa-user-plus fa-2x mb-3"></i>
+                            <span class="fw-bold">Add New Recruit</span>
                         </a>
                     </div>
-                    <div class="col-md-3 mb-3">
-                                                    <a href="{{ url_for('add_cadet') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
-                            <i class="fas fa-user-check fa-2x mb-2"></i>
-                            <span>Add Cadet</span>
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
+                        <a href="{{ url_for('add_cadet') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                            <i class="fas fa-user-check fa-2x mb-3"></i>
+                            <span class="fw-bold">Add New Cadet</span>
                         </a>
                     </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
                         <a href="{{ url_for('add_contact') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
-                            <i class="fas fa-address-book fa-2x mb-2"></i>
-                            <span>Add Contact</span>
+                            <i class="fas fa-address-book fa-2x mb-3"></i>
+                            <span class="fw-bold">Add Contact</span>
                         </a>
                     </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
                         <a href="{{ url_for('add_event') }}" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
-                            <i class="fas fa-calendar-plus fa-2x mb-2"></i>
-                            <span>Schedule Event</span>
+                            <i class="fas fa-calendar-plus fa-2x mb-3"></i>
+                            <span class="fw-bold">Add Event</span>
                         </a>
                     </div>
                 </div>
@@ -127,7 +127,7 @@
 </div>
 
 <!-- Cadet Retention Report -->
-<div class="row mt-4">
+<div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
@@ -138,32 +138,24 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-8">
-                        <canvas id="retentionChart" width="400" height="200"></canvas>
+                    <div class="col-lg-8 col-md-12 mb-4">
+                        <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
+                            <canvas id="retentionChart"></canvas>
+                        </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-lg-4 col-md-12">
                         <div class="retention-summary">
                             <h6 class="text-muted mb-3">Retention Summary</h6>
-                            {% for data in retention_data %}
-                            <div class="retention-item mb-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold">Class of {{ data.year }}</span>
-                                    <span class="badge bg-primary">{{ data.total_cadets }} total</span>
+                            {% for item in retention_data %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-medium">Class of {{ item.year }}:</span>
+                                <div class="text-end">
+                                    <div class="text-success fw-bold">{{ item.active_percentage }}% Active</div>
+                                    <div class="text-danger fw-bold">{{ item.inactive_percentage }}% Inactive</div>
+                                    <small class="text-muted">{{ item.total_cadets }} total cadets</small>
                                 </div>
-                                <div class="progress mt-2" style="height: 8px;">
-                                    <div class="progress-bar bg-success" role="progressbar" 
-                                         style="width: {{ data.active_percentage }}%" 
-                                         title="Active: {{ data.active_cadets }} ({{ data.active_percentage }}%)">
-                                    </div>
-                                    <div class="progress-bar bg-danger" role="progressbar" 
-                                         style="width: {{ data.inactive_percentage }}%" 
-                                         title="Inactive: {{ data.inactive_cadets }} ({{ data.inactive_percentage }}%)">
-                                    </div>
-                                </div>
-                                <small class="text-muted">
-                                    Active: {{ data.active_cadets }} | Inactive: {{ data.inactive_cadets }}
-                                </small>
                             </div>
+                            {% if not loop.last %}<hr class="my-2">{% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -173,23 +165,50 @@
     </div>
 </div>
 
-<!-- Welcome Message -->
-<div class="row mt-4">
+<!-- Recent Activity -->
+<div class="row">
     <div class="col-12">
         <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Recent Activity
+                </h5>
+            </div>
             <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-shield-alt fa-2x text-primary"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h5 class="card-title">Welcome to AFROTC 695 Recruitment Management</h5>
-                        <p class="card-text">
-                            This system helps you track potential recruits, manage cadets, coordinate with high school contacts, 
-                            and schedule recruitment events. Use the navigation menu to access different sections of the system.
-                        </p>
-                    </div>
+                {% if recent_activities %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                                <th>Date/Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for activity in recent_activities %}
+                            <tr>
+                                <td>{{ activity.user.username }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if activity.action == 'CREATE' else 'warning' if activity.action == 'UPDATE' else 'danger' }}">
+                                        {{ activity.action }}
+                                    </span>
+                                </td>
+                                <td>{{ activity.details }}</td>
+                                <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No recent activity to display.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -201,21 +220,24 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Register the datalabels plugin
     Chart.register(ChartDataLabels);
     
-    const ctx = document.getElementById('retentionChart').getContext('2d');
+    var ctx = document.getElementById('retentionChart').getContext('2d');
+    var retentionData = {{ retention_data | tojson }};
+    var isMobile = window.innerWidth < 768;
     
-    const retentionData = {{ retention_data | tojson }};
-    
-    const chart = new Chart(ctx, {
+    var chart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: retentionData.map(item => 'Class of ' + item.year),
+            labels: retentionData.map(function(item) { 
+                return 'Class of ' + item.year; 
+            }),
             datasets: [
                 {
                     label: 'Active Cadets (%)',
-                    data: retentionData.map(item => item.active_percentage),
+                    data: retentionData.map(function(item) { 
+                        return item.active_percentage; 
+                    }),
                     backgroundColor: 'rgba(40, 167, 69, 0.8)',
                     borderColor: 'rgba(40, 167, 69, 1)',
                     borderWidth: 1,
@@ -223,7 +245,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 {
                     label: 'Inactive Cadets (%)',
-                    data: retentionData.map(item => item.inactive_percentage),
+                    data: retentionData.map(function(item) { 
+                        return item.inactive_percentage; 
+                    }),
                     backgroundColor: 'rgba(220, 53, 69, 0.8)',
                     borderColor: 'rgba(220, 53, 69, 1)',
                     borderWidth: 1,
@@ -240,6 +264,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: {
                         display: true,
                         text: 'Graduation Year'
+                    },
+                    ticks: {
+                        maxRotation: isMobile ? 45 : 0,
+                        minRotation: isMobile ? 45 : 0
                     }
                 },
                 y: {
@@ -262,27 +290,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     display: true,
                     text: 'Cadet Retention by Graduation Year',
                     font: {
-                        size: 16
+                        size: isMobile ? 14 : 16
                     }
                 },
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: isMobile ? 'bottom' : 'top',
+                    labels: {
+                        boxWidth: isMobile ? 12 : 16,
+                        padding: isMobile ? 8 : 12
+                    }
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            const label = context.dataset.label || '';
-                            const value = context.parsed.y;
-                            const year = retentionData[context.dataIndex].year;
-                            const total = retentionData[context.dataIndex].total_cadets;
-                            const active = retentionData[context.dataIndex].active_cadets;
-                            const inactive = retentionData[context.dataIndex].inactive_cadets;
+                            var label = context.dataset.label || '';
+                            var value = context.parsed.y;
+                            var year = retentionData[context.dataIndex].year;
+                            var total = retentionData[context.dataIndex].total_cadets;
+                            var active = retentionData[context.dataIndex].active_cadets;
+                            var inactive = retentionData[context.dataIndex].inactive_cadets;
                             
                             if (label.includes('Active')) {
-                                return `${label}: ${value}% (${active}/${total} cadets)`;
+                                return label + ': ' + value + '% (' + active + '/' + total + ' cadets)';
                             } else {
-                                return `${label}: ${value}% (${inactive}/${total} cadets)`;
+                                return label + ': ' + value + '% (' + inactive + '/' + total + ' cadets)';
                             }
                         }
                     }
@@ -292,12 +324,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         return context.dataset.data[context.dataIndex] > 0;
                     },
                     color: function(context) {
-                        // Green text for active, red text for inactive
                         return context.dataset.label.includes('Active') ? '#28a745' : '#dc3545';
                     },
                     font: {
                         weight: 'bold',
-                        size: 12
+                        size: isMobile ? 10 : 12
                     },
                     formatter: function(value, context) {
                         return value.toFixed(1) + '%';
@@ -307,6 +338,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     offset: 0
                 }
             }
+        }
+    });
+    
+    window.addEventListener('resize', function() {
+        var newIsMobile = window.innerWidth < 768;
+        if (newIsMobile !== isMobile) {
+            chart.destroy();
+            location.reload();
         }
     });
 });
