@@ -2,7 +2,7 @@
 # Copy this file to .env and replace values with your actual hosting provider credentials
 
 # Database Configuration (MySQL)
-DATABASE_URL=mysql://username:password@localhost/afrotc695
+DATABASE_URL=mysql://cascznjx_afrotcdbadmin:E3@8SXMxNPHG@localhost/cascznjx_afrotc_recruit
 
 # Security
 SECRET_KEY=your-super-secret-key-change-this-in-production

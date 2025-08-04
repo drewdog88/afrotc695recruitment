@@ -269,29 +269,1587 @@ def dashboard():
                          retention_data=retention_data,
                          recent_activities=recent_activities)
 
-# Add more routes here (recruits, cadets, contacts, calendar, materials, admin, etc.)
-# ... (continuing with all the existing routes from the original app.py)
+@app.route('/')
+def index():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return redirect(url_for('dashboard'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            # Check account status
+            access_granted, error_message = check_user_access(user)
+            if not access_granted:
+                flash(f'Login failed: {error_message}', 'error')
+                log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+                return render_template('login.html')
+            
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            
+            # Log successful login
+            log_activity('LOGIN', details=f'User {username} logged in successfully')
+            
+            # Check if password change is required
+            if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                flash('Your password will expire soon. Please change it.', 'warning')
+                return redirect(url_for('change_password'))
+            
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            # Log failed login attempt
+            log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}')
+            flash('Invalid username or password', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    if 'user_id' in session:
+        username = session.get('username', 'Unknown')
+        log_activity('LOGOUT', details=f'User {username} logged out')
+    
+    session.clear()
+    flash('You have been logged out', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        user = User.query.filter_by(username=username).first()
+        
+        if not user:
+            flash('Username not found.', 'error')
+            return render_template('forgot_password.html')
+        
+        if not user.is_active:
+            flash('Account is inactive. Please contact an administrator.', 'error')
+            return render_template('forgot_password.html')
+        
+        # Store username in session for the next step
+        session['reset_username'] = username
+        return redirect(url_for('reset_password_question'))
+    
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password-question', methods=['GET', 'POST'])
+def reset_password_question():
+    username = session.get('reset_username')
+    if not username:
+        flash('Please start the password reset process from the login page.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        secret_answer = request.form.get('secret_answer')
+        
+        if validate_secret_answer(user, secret_answer):
+            # Store user ID in session for password reset
+            session['reset_user_id'] = user.id
+            return redirect(url_for('reset_password'))
+        else:
+            flash('Incorrect answer to security question.', 'error')
+    
+    return render_template('reset_password_question.html', user=user)
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    user_id = session.get('reset_user_id')
+    if not user_id:
+        flash('Please start the password reset process from the login page.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_password.html')
+        
+        # Validate new password
+        validation_errors = validate_password(new_password, user.id)
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return render_template('reset_password.html')
+        
+        # Update password
+        user.password_hash = generate_password_hash(new_password)
+        user.password_changed_at = datetime.utcnow()
+        user.force_password_change = False
+        
+        # Set new password expiry for non-admin users
+        if user.role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        
+        # Add to password history
+        update_password_history(user.id, user.password_hash)
+        
+        db.session.commit()
+        
+        # Log the password reset
+        log_activity('PASSWORD_RESET', table_name='user', record_id=user.id, 
+                    record_description=f'Password reset for user {user.username}')
+        
+        # Clear session
+        session.pop('reset_username', None)
+        session.pop('reset_user_id', None)
+        
+        flash('Password has been reset successfully. You can now log in with your new password.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('reset_password.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get counts for dashboard
+    recruit_count = PotentialRecruit.query.count()
+    cadet_count = Cadet.query.filter_by(status='active').count()
+    contact_count = UniversityContact.query.filter_by(is_active=True).count()
+    event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
+    
+    # Get cadet retention data
+    retention_data = get_cadet_retention_data()
+    
+    # Get recent activities (last 10)
+    recent_activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
+    
+    return render_template('dashboard.html', 
+                         recruit_count=recruit_count,
+                         cadet_count=cadet_count,
+                         contact_count=contact_count,
+                         event_count=event_count,
+                         retention_data=retention_data,
+                         recent_activities=recent_activities)
+
+@app.route('/recruits')
+def recruits():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'first_name': PotentialRecruit.first_name,
+        'last_name': PotentialRecruit.last_name,
+        'email': PotentialRecruit.email,
+        'current_school': PotentialRecruit.current_school,
+        'major': PotentialRecruit.major,
+        'status': PotentialRecruit.status,
+        'created_at': PotentialRecruit.created_at,
+        'last_modified': PotentialRecruit.last_modified
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting
+    if order == 'asc':
+        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
+    else:
+        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
+    
+    return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+
+@app.route('/recruits/add', methods=['GET', 'POST'])
+def add_recruit():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        # Create backup before adding new recruit
+        backup_database("Pre-add recruit backup")
+        
+        recruit = PotentialRecruit(
+            first_name=request.form['first_name'],
+            last_name=request.form['last_name'],
+            email=request.form['email'],
+            phone=request.form['phone'],
+            major=request.form['major'],
+            current_school=request.form['current_school'],
+            school_type=request.form['school_type'],
+            high_school_graduation_year=request.form.get('high_school_graduation_year'),
+            expected_college_graduation_year=request.form.get('expected_college_graduation_year'),
+            gpa=request.form.get('gpa'),
+            sat_score=request.form.get('sat_score'),
+            act_score=request.form.get('act_score'),
+            interests=request.form['interests'],
+            notes=request.form['notes'],
+            status=request.form['status']
+        )
+        
+        db.session.add(recruit)
+        db.session.commit()
+        
+        # Log the activity
+        log_activity(
+            'CREATE',
+            'potential_recruit',
+            recruit.id,
+            f"Recruit: {recruit.first_name} {recruit.last_name}",
+            f"Added new recruit from {recruit.current_school}"
+        )
+        
+        flash('Recruit added successfully!', 'success')
+        return redirect(url_for('recruits'))
+    
+    return render_template('add_recruit.html')
+
+@app.route('/cadet')
+def cadet():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'first_name': Cadet.first_name,
+        'last_name': Cadet.last_name,
+        'email': Cadet.email,
+        'cadet_rank': Cadet.cadet_rank,
+        'major': Cadet.major,
+        'graduation_year': Cadet.graduation_year,
+        'status': Cadet.status,
+        'gpa': Cadet.gpa,
+        'created_at': Cadet.created_at,
+        'last_modified': Cadet.last_modified
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting
+    if order == 'asc':
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
+    else:
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
+    
+    return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
+
+@app.route('/cadet/add', methods=['GET', 'POST'])
+def add_cadet():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        # Create backup before adding new cadet
+        backup_database("Pre-add cadet backup")
+        
+        # Handle unenrollment_date parsing
+        unenrollment_date = None
+        if request.form.get('unenrollment_date'):
+            try:
+                unenrollment_date = datetime.strptime(request.form['unenrollment_date'], '%Y-%m-%d').date()
+            except ValueError:
+                flash('Invalid unenrollment date format. Please use YYYY-MM-DD.', 'error')
+                return render_template('add_cadet.html')
+        
+        cadet = Cadet(
+            first_name=request.form['first_name'],
+            last_name=request.form['last_name'],
+            email=request.form['email'],
+            phone=request.form['phone'],
+            major=request.form['major'],
+            graduation_year=request.form['graduation_year'],
+            cadet_rank=request.form['cadet_rank'],
+            hometown=request.form['hometown'],
+            officer_interest=request.form['officer_interest'],
+            status=request.form['status'],
+            unenrollment_reason=request.form['unenrollment_reason'],
+            unenrollment_date=unenrollment_date,
+            gpa=request.form.get('gpa')
+        )
+        
+        db.session.add(cadet)
+        db.session.commit()
+        
+        # Log the activity
+        log_activity(
+            'CREATE',
+            'cadet',
+            cadet.id,
+            f"Cadet: {cadet.first_name} {cadet.last_name} ({cadet.cadet_rank})",
+            f"Added new cadet with status: {cadet.status}"
+        )
+        
+        flash('Cadet added successfully!', 'success')
+        return redirect(url_for('cadet'))
+    
+    return render_template('add_cadet.html')
+
+@app.route('/cadet/edit/<int:cadet_id>', methods=['GET', 'POST'])
+def edit_cadet(cadet_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    cadet = Cadet.query.get_or_404(cadet_id)
+    
+    if request.method == 'POST':
+        # Store old values for logging
+        old_status = cadet.status
+        old_rank = cadet.cadet_rank
+        
+        cadet.first_name = request.form['first_name']
+        cadet.last_name = request.form['last_name']
+        cadet.email = request.form['email']
+        cadet.phone = request.form['phone']
+        cadet.major = request.form['major']
+        cadet.graduation_year = request.form['graduation_year']
+        cadet.cadet_rank = request.form['cadet_rank']
+        cadet.hometown = request.form['hometown']
+        cadet.officer_interest = request.form['officer_interest']
+        cadet.status = request.form['status']
+        cadet.unenrollment_reason = request.form['unenrollment_reason']
+        cadet.gpa = request.form.get('gpa')
+        
+        # Handle unenrollment_date parsing
+        if request.form.get('unenrollment_date'):
+            try:
+                cadet.unenrollment_date = datetime.strptime(request.form['unenrollment_date'], '%Y-%m-%d').date()
+            except ValueError:
+                flash('Invalid unenrollment date format. Please use YYYY-MM-DD.', 'error')
+                return render_template('edit_cadet.html', cadet=cadet)
+        else:
+            cadet.unenrollment_date = None
+        
+        db.session.commit()
+        
+        # Log the activity
+        changes = []
+        if old_status != cadet.status:
+            changes.append(f"Status: {old_status} → {cadet.status}")
+        if old_rank != cadet.cadet_rank:
+            changes.append(f"Rank: {old_rank} → {cadet.cadet_rank}")
+        
+        log_activity(
+            'UPDATE',
+            'cadet',
+            cadet.id,
+            f"Cadet: {cadet.first_name} {cadet.last_name}",
+            f"Updated cadet. Changes: {', '.join(changes) if changes else 'General update'}"
+        )
+        
+        flash('Cadet updated successfully!', 'success')
+        return redirect(url_for('cadet'))
+    
+    return render_template('edit_cadet.html', cadet=cadet)
+
+@app.route('/contacts')
+def contacts():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'university_name': UniversityContact.university_name,
+        'contact_name': UniversityContact.contact_name,
+        'contact_title': UniversityContact.contact_title,
+        'email': UniversityContact.email,
+        'phone': UniversityContact.phone,
+        'is_active': UniversityContact.is_active,
+        'created_at': UniversityContact.created_at,
+        'last_modified': UniversityContact.last_modified
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting
+    if order == 'asc':
+        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
+    else:
+        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
+    
+    return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
+
+@app.route('/contacts/add', methods=['GET', 'POST'])
+def add_contact():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        # Create backup before adding new contact
+        backup_database("Pre-add contact backup")
+        
+        contact = UniversityContact(
+            university_name=request.form['university_name'],
+            contact_name=request.form['contact_name'],
+            contact_title=request.form['contact_title'],
+            email=request.form['email'],
+            phone=request.form['phone'],
+            address=request.form['address'],
+            notes=request.form['notes']
+        )
+        
+        db.session.add(contact)
+        db.session.commit()
+        
+        # Log the activity
+        log_activity(
+            'CREATE',
+            'university_contact',
+            contact.id,
+            f"Contact: {contact.contact_name} at {contact.university_name}",
+            f"Added new university contact"
+        )
+        
+        flash('Contact added successfully!', 'success')
+        return redirect(url_for('contacts'))
+    
+    return render_template('add_contact.html')
+
+@app.route('/contacts/edit/<int:contact_id>', methods=['GET', 'POST'])
+def edit_contact(contact_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    contact = UniversityContact.query.get_or_404(contact_id)
+    
+    if request.method == 'POST':
+        # Store old values for logging
+        old_active = contact.is_active
+        
+        contact.university_name = request.form['university_name']
+        contact.contact_name = request.form['contact_name']
+        contact.contact_title = request.form['contact_title']
+        contact.email = request.form['email']
+        contact.phone = request.form['phone']
+        contact.address = request.form['address']
+        contact.notes = request.form['notes']
+        contact.is_active = request.form.get('is_active') == 'on'
+        
+        db.session.commit()
+        
+        # Log the activity
+        changes = []
+        if old_active != contact.is_active:
+            changes.append(f"Status: {'Active' if old_active else 'Inactive'} → {'Active' if contact.is_active else 'Inactive'}")
+        
+        log_activity(
+            'UPDATE',
+            'university_contact',
+            contact.id,
+            f"Contact: {contact.contact_name} at {contact.university_name}",
+            f"Updated contact. Changes: {', '.join(changes) if changes else 'General update'}"
+        )
+        
+        flash('Contact updated successfully!', 'success')
+        return redirect(url_for('contacts'))
+    
+    return render_template('edit_contact.html', contact=contact)
+
+@app.route('/calendar')
+def calendar():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        events = RecruitmentEvent.query.order_by(RecruitmentEvent.event_date).all()
+        contacts = UniversityContact.query.filter_by(is_active=True).all()
+        return render_template('calendar.html', events=events, contacts=contacts)
+    except Exception as e:
+        print(f"Error loading calendar: {e}")
+        flash('Error loading calendar data. Please try again.', 'error')
+        return render_template('calendar.html', events=[], contacts=[])
+
+@app.route('/calendar/add', methods=['GET', 'POST'])
+def add_event():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        try:
+            # Create backup before adding new event
+            backup_database("Pre-add event backup")
+            
+            event = RecruitmentEvent(
+                title=request.form['title'],
+                description=request.form['description'],
+                event_date=datetime.strptime(request.form['event_date'], '%Y-%m-%d').date(),
+                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
+                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
+                location=request.form['location'],
+                university_id=request.form.get('university_id'),
+                event_type=request.form['event_type'],
+                notes=request.form['notes']
+            )
+            
+            db.session.add(event)
+            db.session.commit()
+            
+            # Log the activity
+            log_activity(
+                'CREATE',
+                'recruitment_event',
+                event.id,
+                f"Event: {event.title} on {event.event_date}",
+                f"Added new recruitment event of type: {event.event_type}"
+            )
+            
+            flash('Event added successfully!', 'success')
+            return redirect(url_for('calendar'))
+        except Exception as e:
+            print(f"Error adding event: {e}")
+            flash('Error adding event. Please check your input and try again.', 'error')
+            db.session.rollback()
+    
+    try:
+        contacts = UniversityContact.query.filter_by(is_active=True).all()
+        return render_template('add_event.html', contacts=contacts)
+    except Exception as e:
+        print(f"Error loading contacts for event form: {e}")
+        return render_template('add_event.html', contacts=[])
+
+@app.route('/admin')
+def admin():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    backup_files = get_backup_files()
+    return render_template('admin.html', users=users, backup_files=backup_files)
+
+@app.route('/admin/database')
+def database_management():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    backup_files = get_backup_files()
+    return render_template('database_management.html', backup_files=backup_files)
+
+@app.route('/admin/activity-log')
+def activity_log():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'username': ActivityLog.username,
+        'action': ActivityLog.action,
+        'table_name': ActivityLog.table_name,
+        'created_at': ActivityLog.created_at
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting and pagination
+    if order == 'asc':
+        activities = ActivityLog.query.order_by(valid_sorts[sort_by].asc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+    else:
+        activities = ActivityLog.query.order_by(valid_sorts[sort_by].desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+    
+    return render_template('activity_log.html', activities=activities, sort_by=sort_by, order=order)
+
+@app.route('/admin/backup', methods=['GET', 'POST'])
+def backup():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        try:
+            backup_filename, backup_path = backup_database()
+            if backup_filename:
+                flash(f'Database backed up successfully to {backup_filename}', 'success')
+                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_path}')
+            else:
+                flash('Failed to create database backup.', 'error')
+        except Exception as e:
+            print(f"Error during backup: {e}")
+            flash('Error creating database backup. Please check logs.', 'error')
+        
+        return redirect(url_for('database_management'))
+    
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/download-backup/<filename>')
+def download_backup(filename):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        backup_path = os.path.join(BACKUP_DIR, filename)
+        if os.path.exists(backup_path):
+            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+            return send_file(backup_path, as_attachment=True, download_name=filename)
+        else:
+            flash('Backup file not found.', 'error')
+    except Exception as e:
+        print(f"Error downloading backup: {e}")
+        flash('Error downloading backup file.', 'error')
+    
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/delete-backup/<filename>', methods=['POST'])
+def delete_backup(filename):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        backup_path = os.path.join(BACKUP_DIR, filename)
+        metadata_path = backup_path.replace('.db', '_metadata.json')
+        
+        if os.path.exists(backup_path):
+            # Delete the backup file
+            os.remove(backup_path)
+            
+            # Delete the metadata file if it exists
+            if os.path.exists(metadata_path):
+                os.remove(metadata_path)
+            
+            flash(f'Backup "{filename}" deleted successfully.', 'success')
+            log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
+        else:
+            flash('Backup file not found.', 'error')
+    except Exception as e:
+        print(f"Error deleting backup: {e}")
+        flash('Error deleting backup file.', 'error')
+        log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Failed to delete backup: {filename}', f'Error: {e}')
+    
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/restore', methods=['GET', 'POST'])
+def restore():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        if 'backup_file' not in request.files:
+            flash('No file selected for restore.', 'error')
+            return redirect(request.url)
+        
+        backup_file = request.files['backup_file']
+        if backup_file.filename == '':
+            flash('No selected file', 'error')
+            return redirect(request.url)
+        
+        if backup_file and backup_file.filename.endswith('.db'):
+            try:
+                # Create a temporary file to hold the uploaded backup
+                temp_dir = tempfile.mkdtemp()
+                temp_backup_path = os.path.join(temp_dir, backup_file.filename)
+                backup_file.save(temp_backup_path)
+                
+                if restore_database(temp_backup_path):
+                    flash('Database restored successfully!', 'success')
+                    log_activity('RESTORE', 'database', None, 'Database restored', f'Restored from {backup_file.filename}')
+                else:
+                    flash('Failed to restore database. Ensure backup file is valid and not corrupted.', 'error')
+                    log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Attempted to restore from {backup_file.filename}')
+                
+                # Clean up the temporary file
+                os.remove(temp_backup_path)
+                shutil.rmtree(temp_dir)
+                
+            except Exception as e:
+                print(f"Error during restore: {e}")
+                flash('Error restoring database. Please check logs.', 'error')
+                log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
+        else:
+            flash('Invalid file type. Please select a .db file.', 'error')
+    
+    backup_files = get_backup_files()
+    return render_template('restore.html', backup_files=backup_files)
+
+# User Management Routes
+@app.route('/admin/users')
+def user_management():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    return render_template('user_management.html', users=users)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+def add_user():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        role = request.form['role']
+        password = request.form['password']
+        secret_question = request.form['secret_question']
+        secret_answer = request.form['secret_answer']
+        
+        # Validation
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+            return render_template('add_user.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists.', 'error')
+            return render_template('add_user.html')
+        
+        if not secret_question.strip():
+            flash('Secret question is required.', 'error')
+            return render_template('add_user.html')
+        
+        if not secret_answer.strip():
+            flash('Secret answer is required.', 'error')
+            return render_template('add_user.html')
+        
+        # Validate password
+        password_errors = validate_password(password)
+        if password_errors:
+            for error in password_errors:
+                flash(error, 'error')
+            return render_template('add_user.html')
+        
+        # Create user
+        password_hash = generate_password_hash(password)
+        secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
+        user = User(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            role=role,
+            password_hash=password_hash,
+            secret_question=secret_question,
+            secret_answer_hash=secret_answer_hash
+        )
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            # Add password to history
+            update_password_history(user.id, password_hash)
+            
+            flash('User created successfully!', 'success')
+            log_activity('CREATE', 'user', user.id, f'Created user: {user.full_name}')
+            return redirect(url_for('user_management'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating user. Please try again.', 'error')
+            print(f"Error creating user: {e}")
+    
+    return render_template('add_user.html')
+
+@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+def edit_user(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        role = request.form['role']
+        is_active = 'is_active' in request.form
+        is_locked = 'is_locked' in request.form
+        force_password_change = 'force_password_change' in request.form
+        secret_question = request.form['secret_question']
+        secret_answer = request.form['secret_answer']
+        
+        # Check if email is already taken by another user
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user and existing_user.id != user_id:
+            flash('Email already exists.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        if not secret_question.strip():
+            flash('Secret question is required.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        if not secret_answer.strip():
+            flash('Secret answer is required.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        # Update user
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.phone = phone
+        user.role = role
+        user.is_active = is_active
+        user.is_locked = is_locked
+        user.force_password_change = force_password_change
+        user.secret_question = secret_question
+        user.secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
+        
+        # Update password expiry for non-admin users
+        if role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        else:
+            user.password_expires_at = None
+        
+        try:
+            db.session.commit()
+            flash('User updated successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, f'Updated user: {user.full_name}')
+            return redirect(url_for('user_management'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating user. Please try again.', 'error')
+            print(f"Error updating user: {e}")
+    
+    return render_template('edit_user.html', user=user)
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent deleting the current user
+    if user.id == session['user_id']:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('user_management'))
+    
+    try:
+        # Delete password history
+        PasswordHistory.query.filter_by(user_id=user_id).delete()
+        
+        # Delete activity logs
+        ActivityLog.query.filter_by(user_id=user_id).delete()
+        
+        # Delete user
+        db.session.delete(user)
+        db.session.commit()
+        
+        flash('User deleted successfully!', 'success')
+        log_activity('DELETE', 'user', user_id, f'Deleted user: {user.full_name}')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting user. Please try again.', 'error')
+        print(f"Error deleting user: {e}")
+    
+    return redirect(url_for('user_management'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+def change_password():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        # Verify current password
+        if not check_password_hash(user.password_hash, current_password):
+            flash('Current password is incorrect.', 'error')
+            return render_template('change_password.html')
+        
+        # Check if new passwords match
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'error')
+            return render_template('change_password.html')
+        
+        # Validate new password
+        password_errors = validate_password(new_password, user.id)
+        if password_errors:
+            for error in password_errors:
+                flash(error, 'error')
+            return render_template('change_password.html')
+        
+        # Update password
+        new_password_hash = generate_password_hash(new_password)
+        user.password_hash = new_password_hash
+        user.password_changed_at = datetime.utcnow()
+        user.force_password_change = False
+        
+        # Update password expiry for non-admin users
+        if user.role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        
+        try:
+            # Add to password history
+            update_password_history(user.id, new_password_hash)
+            
+            db.session.commit()
+            flash('Password changed successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, 'Password changed')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error changing password. Please try again.', 'error')
+            print(f"Error changing password: {e}")
+    
+    return render_template('change_password.html')
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        
+        # Check if email is already taken by another user
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user and existing_user.id != user.id:
+            flash('Email already exists.', 'error')
+            return render_template('profile.html', user=user)
+        
+        # Update user
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.phone = phone
+        
+        try:
+            db.session.commit()
+            flash('Profile updated successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, 'Profile updated')
+            return redirect(url_for('profile'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating profile. Please try again.', 'error')
+            print(f"Error updating profile: {e}")
+    
+    return render_template('profile.html', user=user)
+
+# Download routes for data export
+@app.route('/download/recruits/<format>')
+def download_recruits(format):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    recruits = PotentialRecruit.query.order_by(PotentialRecruit.created_at.desc()).all()
+    
+    # Prepare data for export
+    data = []
+    for recruit in recruits:
+        data.append({
+            'First Name': recruit.first_name,
+            'Last Name': recruit.last_name,
+            'Email': recruit.email or '',
+            'Phone': recruit.phone or '',
+            'Major': recruit.major or '',
+            'Current School': recruit.current_school,
+            'School Type': recruit.school_type,
+            'HS Graduation Year': recruit.high_school_graduation_year or '',
+            'College Graduation Year': recruit.expected_college_graduation_year or '',
+            'GPA': recruit.gpa or '',
+            'SAT Score': recruit.sat_score or '',
+            'ACT Score': recruit.act_score or '',
+            'Interests': recruit.interests or '',
+            'Status': recruit.status,
+            'Notes': recruit.notes or '',
+            'Created Date': utc_to_local(recruit.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.created_at) else '',
+            'Last Modified': utc_to_local(recruit.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.last_modified) else ''
+        })
+    
+    # Log the export activity
+    log_activity('EXPORT', 'potential_recruit', None, 'Recruits Export', f'Exported {len(recruits)} recruits to {format.upper()}')
+    
+    return export_data(data, f'potential_recruits_{datetime.now().strftime("%Y%m%d")}', format, 'Potential Recruits')
+
+@app.route('/download/cadet/<format>')
+def download_cadet(format):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    cadet_members = Cadet.query.order_by(Cadet.created_at.desc()).all()
+    
+    # Prepare data for export
+    data = []
+    for cadet in cadet_members:
+        data.append({
+            'First Name': cadet.first_name,
+            'Last Name': cadet.last_name,
+            'Email': cadet.email,
+            'Phone': cadet.phone or '',
+            'Major': cadet.major,
+            'Graduation Year': cadet.graduation_year,
+            'Cadet Rank': cadet.cadet_rank,
+            'Hometown': cadet.hometown or '',
+            'Officer Interest': cadet.officer_interest or '',
+            'Status': cadet.status.title(),
+            'Unenrollment Date': cadet.unenrollment_date_display or '',
+            'Unenrollment Reason': cadet.unenrollment_reason or '',
+            'GPA': cadet.gpa or '',
+            'Created Date': utc_to_local(cadet.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.created_at) else '',
+            'Last Modified': utc_to_local(cadet.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.last_modified) else ''
+        })
+    
+    # Log the export activity
+    log_activity('EXPORT', 'cadet', None, 'Cadet Export', f'Exported {len(cadet_members)} cadet members to {format.upper()}')
+    
+    return export_data(data, f'cadet_members_{datetime.now().strftime("%Y%m%d")}', format, 'Cadet Members')
+
+@app.route('/download/contacts/<format>')
+def download_contacts(format):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    contacts = UniversityContact.query.order_by(UniversityContact.created_at.desc()).all()
+    
+    # Prepare data for export
+    data = []
+    for contact in contacts:
+        data.append({
+            'University Name': contact.university_name,
+            'Contact Name': contact.contact_name,
+            'Contact Title': contact.contact_title or '',
+            'Email': contact.email,
+            'Phone': contact.phone or '',
+            'Address': contact.address or '',
+            'Status': 'Active' if contact.is_active else 'Inactive',
+            'Notes': contact.notes or '',
+            'Created Date': utc_to_local(contact.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.created_at) else '',
+            'Last Modified': utc_to_local(contact.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.last_modified) else ''
+        })
+    
+    # Log the export activity
+    log_activity('EXPORT', 'university_contact', None, 'Contacts Export', f'Exported {len(contacts)} contacts to {format.upper()}')
+    
+    return export_data(data, f'high_school_contacts_{datetime.now().strftime("%Y%m%d")}', format, 'High School Contacts')
+
+@app.route('/download/activity-log/<format>')
+def download_activity_log(format):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
+    
+    # Prepare data for export
+    data = []
+    for activity in activities:
+        # Convert UTC time to local time
+        local_time = utc_to_local(activity.created_at)
+        data.append({
+            'Date & Time': local_time.strftime('%Y-%m-%d %H:%M:%S') if local_time else '',
+            'Username': activity.username,
+            'Action': activity.action,
+            'Table': activity.table_name.replace('_', ' ').title() if activity.table_name else '',
+            'Record Description': activity.record_description or '',
+            'Details': activity.details or '',
+            'IP Address': activity.ip_address,
+            'User Agent': activity.user_agent
+        })
+    
+    # Log the export activity
+    log_activity('EXPORT', 'activity_log', None, 'Activity Log Export', f'Exported {len(activities)} activity logs to {format.upper()}')
+    
+    return export_data(data, f'activity_log_{datetime.now().strftime("%Y%m%d")}', format, 'Activity Log')
+
+def export_data(data, filename, format, title):
+    """Helper function to export data in different formats"""
+    if format == 'csv':
+        df = pd.DataFrame(data)
+        output = BytesIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'{filename}.csv'
+        )
+    
+    elif format == 'excel':
+        df = pd.DataFrame(data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name=title, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'{filename}.xlsx'
+        )
+    
+    elif format == 'pdf':
+        output = BytesIO()
+        # Use landscape orientation for better table fit
+        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
+        elements = []
+        
+        # Add title
+        styles = getSampleStyleSheet()
+        title_para = Paragraph(f"<h1>{title}</h1>", styles['Title'])
+        elements.append(title_para)
+        elements.append(Paragraph("<br/>", styles['Normal']))
+        
+        # Prepare table data
+        if data:
+            headers = list(data[0].keys())
+            table_data = [headers]  # Header row
+            
+            for row in data:
+                table_data.append([str(value) for value in row.values()])
+            
+            # Calculate available width for table (landscape A4 width minus margins)
+            available_width = landscape(A4)[0] - 72  # 72 points = 1 inch margin on each side
+            num_columns = len(headers)
+            
+            # Create table with calculated column widths
+            table = Table(table_data, colWidths=[available_width/num_columns] * num_columns)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),  # Reduced font size for headers
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Reduced font size for data
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),  # Alternating row colors
+                ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
+            ]))
+            elements.append(table)
+        
+        doc.build(elements)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'{filename}.pdf'
+        )
+    
+    else:
+        flash('Invalid format specified', 'error')
+        return redirect(url_for('dashboard'))
+
+# Recruitment Materials Routes
+@app.route('/materials')
+def materials():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get active external links and documents, sorted by sort_order
+    external_links = ExternalLink.query.filter_by(is_active=True).order_by(ExternalLink.sort_order, ExternalLink.title).all()
+    documents = RecruitmentDocument.query.filter_by(is_active=True).order_by(RecruitmentDocument.sort_order, RecruitmentDocument.title).all()
+    
+    return render_template('materials.html', external_links=external_links, documents=documents)
+
+@app.route('/materials/add-link', methods=['GET', 'POST'])
+def add_external_link():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        url = request.form.get('url')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        
+        if not title or not url:
+            flash('Title and URL are required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                link = ExternalLink(
+                    title=title,
+                    url=url,
+                    description=description,
+                    category=category,
+                    sort_order=sort_order
+                )
+                db.session.add(link)
+                db.session.commit()
+                
+                log_activity('CREATE', 'external_link', link.id, f"External link: {title}")
+                flash('External link added successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error adding external link: {str(e)}', 'error')
+    
+    return render_template('add_external_link.html')
+
+@app.route('/materials/edit-link/<int:link_id>', methods=['GET', 'POST'])
+def edit_external_link(link_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    link = ExternalLink.query.get_or_404(link_id)
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        url = request.form.get('url')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        is_active = 'is_active' in request.form
+        
+        if not title or not url:
+            flash('Title and URL are required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                link.title = title
+                link.url = url
+                link.description = description
+                link.category = category
+                link.sort_order = sort_order
+                link.is_active = is_active
+                
+                db.session.commit()
+                
+                log_activity('UPDATE', 'external_link', link.id, f"External link: {title}")
+                flash('External link updated successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating external link: {str(e)}', 'error')
+    
+    return render_template('edit_external_link.html', link=link)
+
+@app.route('/materials/delete-link/<int:link_id>', methods=['POST'])
+def delete_external_link(link_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    link = ExternalLink.query.get_or_404(link_id)
+    title = link.title
+    
+    try:
+        db.session.delete(link)
+        db.session.commit()
+        
+        log_activity('DELETE', 'external_link', link_id, f"External link: {title}")
+        flash('External link deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting external link: {str(e)}', 'error')
+    
+    return redirect(url_for('materials'))
+
+@app.route('/materials/add-document', methods=['GET', 'POST'])
+def add_document():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        
+        if 'file' not in request.files:
+            flash('No file selected.', 'error')
+            return render_template('add_document.html')
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected.', 'error')
+            return render_template('add_document.html')
+        
+        if not title:
+            flash('Title is required.', 'error')
+            return render_template('add_document.html')
+        
+        # Check file type
+        allowed_extensions = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
+        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        
+        if file_extension not in allowed_extensions:
+            flash('Invalid file type. Allowed types: PDF, PPT, PPTX, DOC, DOCX, XLS, XLSX, TXT', 'error')
+            return render_template('add_document.html')
+        
+        try:
+            sort_order = int(sort_order) if sort_order else 0
+            
+            # Create documents directory if it doesn't exist
+            documents_dir = os.path.join(app.root_path, 'documents')
+            if not os.path.exists(documents_dir):
+                os.makedirs(documents_dir)
+            
+            # Generate unique filename
+            import uuid
+            unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+            file_path = os.path.join(documents_dir, unique_filename)
+            
+            # Save file
+            file.save(file_path)
+            file_size = os.path.getsize(file_path)
+            
+            document = RecruitmentDocument(
+                title=title,
+                description=description,
+                filename=unique_filename,
+                original_filename=file.filename,
+                file_size=file_size,
+                file_type=file_extension,
+                category=category,
+                sort_order=sort_order
+            )
+            
+            db.session.add(document)
+            db.session.commit()
+            
+            log_activity('CREATE', 'recruitment_document', document.id, f"Document: {title}")
+            flash('Document uploaded successfully.', 'success')
+            return redirect(url_for('materials'))
+            
+        except Exception as e:
+            db.session.rollback()
+            # Clean up uploaded file if database operation fails
+            if 'file_path' in locals() and os.path.exists(file_path):
+                os.remove(file_path)
+            flash(f'Error uploading document: {str(e)}', 'error')
+    
+    return render_template('add_document.html')
+
+@app.route('/materials/edit-document/<int:document_id>', methods=['GET', 'POST'])
+def edit_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        is_active = 'is_active' in request.form
+        
+        if not title:
+            flash('Title is required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                document.title = title
+                document.description = description
+                document.category = category
+                document.sort_order = sort_order
+                document.is_active = is_active
+                
+                db.session.commit()
+                
+                log_activity('UPDATE', 'recruitment_document', document.id, f"Document: {title}")
+                flash('Document updated successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating document: {str(e)}', 'error')
+    
+    return render_template('edit_document.html', document=document)
+
+@app.route('/materials/delete-document/<int:document_id>', methods=['POST'])
+def delete_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    title = document.title
+    filename = document.filename
+    
+    try:
+        # Delete file from filesystem
+        documents_dir = os.path.join(app.root_path, 'documents')
+        file_path = os.path.join(documents_dir, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Delete from database
+        db.session.delete(document)
+        db.session.commit()
+        
+        log_activity('DELETE', 'recruitment_document', document_id, f"Document: {title}")
+        flash('Document deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting document: {str(e)}', 'error')
+    
+    return redirect(url_for('materials'))
+
+@app.route('/materials/download/<int:document_id>')
+def download_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    
+    if not document.is_active:
+        flash('Document is not available.', 'error')
+        return redirect(url_for('materials'))
+    
+    try:
+        documents_dir = os.path.join(app.root_path, 'documents')
+        file_path = os.path.join(documents_dir, document.filename)
+        
+        if not os.path.exists(file_path):
+            flash('File not found.', 'error')
+            return redirect(url_for('materials'))
+        
+        log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=document.original_filename,
+            mimetype='application/octet-stream'
+        )
+    except Exception as e:
+        flash(f'Error downloading document: {str(e)}', 'error')
+        return redirect(url_for('materials'))
+
+# API endpoints for AJAX requests
+@app.route('/api/recruits')
+def api_recruits():
+    recruits = PotentialRecruit.query.all()
+    return jsonify([{
+        'id': r.id,
+        'name': f"{r.first_name} {r.last_name}",
+        'school': r.current_school,
+        'status': r.status,
+        'created_at': r.created_at.strftime('%Y-%m-%d')
+    } for r in recruits])
+
+@app.route('/api/cadet')
+def api_cadet():
+    cadet = Cadet.query.all()
+    return jsonify([{
+        'id': c.id,
+        'name': f"{c.first_name} {c.last_name}",
+        'rank': c.cadet_rank,
+        'major': c.major,
+        'graduation_year': c.graduation_year,
+        'status': c.status
+    } for c in cadet])
 
 if __name__ == '__main__':
-    # Create database tables
     with app.app_context():
-        db.create_all()
+        # Check if database exists and has tables
+        inspector = db.inspect(db.engine)
+        existing_tables = inspector.get_table_names()
         
-        # Create admin user if it doesn't exist
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
+        if not existing_tables:
+            # Only create tables if database is completely empty
+            print("Creating new database tables...")
+            db.create_all()
+        else:
+            print(f"Database exists with {len(existing_tables)} tables")
+        
+        # Create default admin user if it doesn't exist
+        if not User.query.filter_by(username='admin').first():
             admin_user = User(
                 username='admin',
+                email='admin@afrotc695.com',
                 password_hash=generate_password_hash('admin123'),
                 first_name='Admin',
                 last_name='User',
-                email='admin@afrotc695.com',
-                role='admin',
                 secret_question='What is your favorite color?',
-                secret_answer_hash=generate_password_hash('blue')
+                secret_answer_hash=generate_password_hash('blue'),
+                role='admin'
             )
             db.session.add(admin_user)
             db.session.commit()
-            print("Admin user created: username=admin, password=admin123")
+            print("Default admin user created: username=admin, password=admin123")
     
-    app.run(debug=False, host='0.0.0.0', port=5000) 
+    app.run(debug=True, host='0.0.0.0', port=5000) 
