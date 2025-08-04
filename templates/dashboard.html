@@ -126,6 +126,53 @@
     </div>
 </div>
 
+<!-- Cadet Retention Report -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Cadet Retention Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="retentionChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="retention-summary">
+                            <h6 class="text-muted mb-3">Retention Summary</h6>
+                            {% for data in retention_data %}
+                            <div class="retention-item mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold">Class of {{ data.year }}</span>
+                                    <span class="badge bg-primary">{{ data.total_cadets }} total</span>
+                                </div>
+                                <div class="progress mt-2" style="height: 8px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ data.active_percentage }}%" 
+                                         title="Active: {{ data.active_cadets }} ({{ data.active_percentage }}%)">
+                                    </div>
+                                    <div class="progress-bar bg-danger" role="progressbar" 
+                                         style="width: {{ data.inactive_percentage }}%" 
+                                         title="Inactive: {{ data.inactive_cadets }} ({{ data.inactive_percentage }}%)">
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    Active: {{ data.active_cadets }} | Inactive: {{ data.inactive_cadets }}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Welcome Message -->
 <div class="row mt-4">
     <div class="col-12">
@@ -148,4 +195,97 @@
     </div>
 </div>
 </div>
+
+<!-- Chart.js for retention chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('retentionChart').getContext('2d');
+    
+    const retentionData = {{ retention_data | tojson }};
+    
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: retentionData.map(item => 'Class of ' + item.year),
+            datasets: [
+                {
+                    label: 'Active Cadets (%)',
+                    data: retentionData.map(item => item.active_percentage),
+                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 1,
+                    stack: 'Stack 0'
+                },
+                {
+                    label: 'Inactive Cadets (%)',
+                    data: retentionData.map(item => item.inactive_percentage),
+                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1,
+                    stack: 'Stack 0'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Graduation Year'
+                    }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Retention Rate (%)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cadet Retention by Graduation Year',
+                    font: {
+                        size: 16
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.parsed.y;
+                            const year = retentionData[context.dataIndex].year;
+                            const total = retentionData[context.dataIndex].total_cadets;
+                            const active = retentionData[context.dataIndex].active_cadets;
+                            const inactive = retentionData[context.dataIndex].inactive_cadets;
+                            
+                            if (label.includes('Active')) {
+                                return `${label}: ${value}% (${active}/${total} cadets)`;
+                            } else {
+                                return `${label}: ${value}% (${inactive}/${total} cadets)`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
 {% endblock %} 

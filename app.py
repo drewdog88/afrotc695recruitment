@@ -408,6 +408,49 @@ def validate_secret_answer(user, secret_answer):
     """Validate user's secret answer"""
     return check_password_hash(user.secret_answer_hash, secret_answer.lower().strip())
 
+def get_cadet_retention_data():
+    """Calculate cadet retention data by graduation year"""
+    current_year = datetime.now().year
+    retention_data = []
+    
+    # Get the 4 graduation years (current year + 3 years)
+    graduation_years = [current_year + i for i in range(4)]
+    
+    for year in graduation_years:
+        # Get total cadets for this graduation year
+        total_cadets = Cadet.query.filter_by(graduation_year=year).count()
+        
+        if total_cadets > 0:
+            # Get active cadets for this graduation year
+            active_cadets = Cadet.query.filter_by(graduation_year=year, status='active').count()
+            
+            # Calculate percentages
+            active_percentage = (active_cadets / total_cadets) * 100
+            inactive_percentage = 100 - active_percentage
+            
+            retention_data.append({
+                'year': year,
+                'total_cadets': total_cadets,
+                'active_cadets': active_cadets,
+                'inactive_cadets': total_cadets - active_cadets,
+                'active_percentage': round(active_percentage, 1),
+                'inactive_percentage': round(inactive_percentage, 1)
+            })
+        else:
+            # No cadets for this year, but still include it for the chart
+            retention_data.append({
+                'year': year,
+                'total_cadets': 0,
+                'active_cadets': 0,
+                'inactive_cadets': 0,
+                'active_percentage': 0,
+                'inactive_percentage': 0
+            })
+    
+    # Sort by year in ascending order
+    retention_data.sort(key=lambda x: x['year'])
+    return retention_data
+
 # Routes
 @app.route('/')
 def index():
@@ -570,11 +613,15 @@ def dashboard():
     contact_count = UniversityContact.query.filter_by(is_active=True).count()
     event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
     
+    # Get cadet retention data
+    retention_data = get_cadet_retention_data()
+    
     return render_template('dashboard.html', 
                          recruit_count=recruit_count,
                          cadet_count=cadet_count,
                          contact_count=contact_count,
-                         event_count=event_count)
+                         event_count=event_count,
+                         retention_data=retention_data)
 
 @app.route('/recruits')
 def recruits():
