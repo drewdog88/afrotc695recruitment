@@ -1,25 +1,133 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, date, time
 import os
+import shutil
+import sqlite3
+from dotenv import load_dotenv
 import pandas as pd
 from io import BytesIO
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-from dotenv import load_dotenv
+import tempfile
+import zipfile
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI', 'sqlite:///afrotc695.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS', 'False').lower() == 'true'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/afrotc695.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+# Database backup configuration
+BACKUP_DIR = 'backups'
+if not os.path.exists(BACKUP_DIR):
+    os.makedirs(BACKUP_DIR)
+
+def backup_database(description="Manual backup"):
+    """Create a database backup with timestamp and description"""
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f"afrotc695_backup_{timestamp}.db"
+        backup_path = os.path.join(BACKUP_DIR, backup_filename)
+        
+        # Get the current database path
+        db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+        if not db_path.startswith('/'):
+            db_path = os.path.join(os.getcwd(), db_path)
+        
+        # Create backup
+        shutil.copy2(db_path, backup_path)
+        
+        # Create backup metadata
+        metadata = {
+            'timestamp': timestamp,
+            'description': description,
+            'filename': backup_filename,
+            'size': os.path.getsize(backup_path),
+            'user': session.get('username', 'Unknown')
+        }
+        
+        # Save metadata to a JSON file
+        import json
+        metadata_file = backup_path.replace('.db', '_metadata.json')
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print(f"Database backup created: {backup_filename}")
+        return backup_filename, backup_path
+        
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        return None, None
+
+def restore_database(backup_file_path):
+    """Restore database from backup file"""
+    try:
+        # Get the current database path
+        db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+        if not db_path.startswith('/'):
+            db_path = os.path.join(os.getcwd(), db_path)
+        
+        # Create a backup of current database before restore
+        current_backup = backup_database("Pre-restore backup")
+        
+        # Close database connections
+        db.session.close()
+        
+        # Restore from backup
+        shutil.copy2(backup_file_path, db_path)
+        
+        print(f"Database restored from: {backup_file_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error restoring database: {e}")
+        return False
+
+def get_backup_files():
+    """Get list of available backup files with metadata"""
+    backups = []
+    try:
+        for filename in os.listdir(BACKUP_DIR):
+            if filename.endswith('.db'):
+                backup_path = os.path.join(BACKUP_DIR, filename)
+                metadata_file = backup_path.replace('.db', '_metadata.json')
+                
+                # Get basic file info
+                file_stat = os.stat(backup_path)
+                backup_info = {
+                    'filename': filename,
+                    'size': file_stat.st_size,
+                    'created': datetime.fromtimestamp(file_stat.st_ctime),
+                    'description': 'Manual backup'
+                }
+                
+                # Try to load metadata
+                if os.path.exists(metadata_file):
+                    try:
+                        import json
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                            backup_info.update(metadata)
+                    except:
+                        pass
+                
+                backups.append(backup_info)
+        
+        # Sort by creation time (newest first)
+        backups.sort(key=lambda x: x['created'], reverse=True)
+        return backups
+        
+    except Exception as e:
+        print(f"Error getting backup files: {e}")
+        return []
 
 # Activity Log Model for tracking all user actions
 class ActivityLog(db.Model):
@@ -280,6 +388,9 @@ def add_recruit():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
+        # Create backup before adding new recruit
+        backup_database("Pre-add recruit backup")
+        
         recruit = PotentialRecruit(
             first_name=request.form['first_name'],
             last_name=request.form['last_name'],
@@ -356,6 +467,9 @@ def add_cadre():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
+        # Create backup before adding new cadre
+        backup_database("Pre-add cadre backup")
+        
         # Handle unenrollment_date parsing
         unenrollment_date = None
         if request.form.get('unenrollment_date'):
@@ -494,6 +608,9 @@ def add_contact():
         return redirect(url_for('login'))
     
     if request.method == 'POST':
+        # Create backup before adding new contact
+        backup_database("Pre-add contact backup")
+        
         contact = UniversityContact(
             university_name=request.form['university_name'],
             contact_name=request.form['contact_name'],
@@ -582,6 +699,9 @@ def add_event():
     
     if request.method == 'POST':
         try:
+            # Create backup before adding new event
+            backup_database("Pre-add event backup")
+            
             event = RecruitmentEvent(
                 title=request.form['title'],
                 description=request.form['description'],
@@ -627,7 +747,17 @@ def admin():
         return redirect(url_for('dashboard'))
     
     users = User.query.all()
-    return render_template('admin.html', users=users)
+    backup_files = get_backup_files()
+    return render_template('admin.html', users=users, backup_files=backup_files)
+
+@app.route('/admin/database')
+def database_management():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    backup_files = get_backup_files()
+    return render_template('database_management.html', backup_files=backup_files)
 
 @app.route('/admin/activity-log')
 def activity_log():
@@ -664,6 +794,91 @@ def activity_log():
         )
     
     return render_template('activity_log.html', activities=activities, sort_by=sort_by, order=order)
+
+@app.route('/admin/backup', methods=['GET', 'POST'])
+def backup():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        try:
+            backup_filename, backup_path = backup_database()
+            if backup_filename:
+                flash(f'Database backed up successfully to {backup_filename}', 'success')
+                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_path}')
+            else:
+                flash('Failed to create database backup.', 'error')
+        except Exception as e:
+            print(f"Error during backup: {e}")
+            flash('Error creating database backup. Please check logs.', 'error')
+        
+        return redirect(url_for('database_management'))
+    
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/download-backup/<filename>')
+def download_backup(filename):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        backup_path = os.path.join(BACKUP_DIR, filename)
+        if os.path.exists(backup_path):
+            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+            return send_file(backup_path, as_attachment=True, download_name=filename)
+        else:
+            flash('Backup file not found.', 'error')
+    except Exception as e:
+        print(f"Error downloading backup: {e}")
+        flash('Error downloading backup file.', 'error')
+    
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/restore', methods=['GET', 'POST'])
+def restore():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        if 'backup_file' not in request.files:
+            flash('No file selected for restore.', 'error')
+            return redirect(request.url)
+        
+        backup_file = request.files['backup_file']
+        if backup_file.filename == '':
+            flash('No selected file', 'error')
+            return redirect(request.url)
+        
+        if backup_file and backup_file.filename.endswith('.db'):
+            try:
+                # Create a temporary file to hold the uploaded backup
+                temp_dir = tempfile.mkdtemp()
+                temp_backup_path = os.path.join(temp_dir, backup_file.filename)
+                backup_file.save(temp_backup_path)
+                
+                if restore_database(temp_backup_path):
+                    flash('Database restored successfully!', 'success')
+                    log_activity('RESTORE', 'database', None, 'Database restored', f'Restored from {backup_file.filename}')
+                else:
+                    flash('Failed to restore database. Ensure backup file is valid and not corrupted.', 'error')
+                    log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Attempted to restore from {backup_file.filename}')
+                
+                # Clean up the temporary file
+                os.remove(temp_backup_path)
+                shutil.rmtree(temp_dir)
+                
+            except Exception as e:
+                print(f"Error during restore: {e}")
+                flash('Error restoring database. Please check logs.', 'error')
+                log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
+        else:
+            flash('Invalid file type. Please select a .db file.', 'error')
+    
+    backup_files = get_backup_files()
+    return render_template('restore.html', backup_files=backup_files)
 
 # Download routes for data export
 @app.route('/download/recruits/<format>')

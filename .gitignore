@@ -36,6 +36,10 @@ instance/
 *.sqlite
 *.sqlite3
 
+# Backups
+backups/
+*.backup
+
 # IDE
 .vscode/
 .idea/
