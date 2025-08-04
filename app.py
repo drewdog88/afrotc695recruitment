@@ -8,7 +8,7 @@ import sqlite3
 from dotenv import load_dotenv
 import pandas as pd
 from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -1640,7 +1640,8 @@ def export_data(data, filename, format, title):
     
     elif format == 'pdf':
         output = BytesIO()
-        doc = SimpleDocTemplate(output, pagesize=A4)
+        # Use landscape orientation for better table fit
+        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
         elements = []
         
         # Add title
@@ -1657,22 +1658,28 @@ def export_data(data, filename, format, title):
             for row in data:
                 table_data.append([str(value) for value in row.values()])
             
-            # Create table
-            table = Table(table_data)
+            # Calculate available width for table (landscape A4 width minus margins)
+            available_width = landscape(A4)[0] - 72  # 72 points = 1 inch margin on each side
+            num_columns = len(headers)
+            
+            # Create table with calculated column widths
+            table = Table(table_data, colWidths=[available_width/num_columns] * num_columns)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),  # Reduced font size for headers
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Reduced font size for data
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),  # Alternating row colors
+                ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
             ]))
             elements.append(table)
         
