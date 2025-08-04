@@ -303,6 +303,31 @@ class RecruitmentEvent(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class ExternalLink(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), default='general')  # general, official, resources, etc.
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class RecruitmentDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer)  # Size in bytes
+    file_type = db.Column(db.String(50))  # pdf, pptx, docx, etc.
+    category = db.Column(db.String(50), default='general')  # presentations, forms, guides, etc.
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 def utc_to_local(utc_dt):
     """Convert UTC datetime to local timezone"""
     if utc_dt is None:
@@ -1663,6 +1688,313 @@ def export_data(data, filename, format, title):
     else:
         flash('Invalid format specified', 'error')
         return redirect(url_for('dashboard'))
+
+# Recruitment Materials Routes
+@app.route('/materials')
+def materials():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get active external links and documents, sorted by sort_order
+    external_links = ExternalLink.query.filter_by(is_active=True).order_by(ExternalLink.sort_order, ExternalLink.title).all()
+    documents = RecruitmentDocument.query.filter_by(is_active=True).order_by(RecruitmentDocument.sort_order, RecruitmentDocument.title).all()
+    
+    return render_template('materials.html', external_links=external_links, documents=documents)
+
+@app.route('/materials/add-link', methods=['GET', 'POST'])
+def add_external_link():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        url = request.form.get('url')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        
+        if not title or not url:
+            flash('Title and URL are required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                link = ExternalLink(
+                    title=title,
+                    url=url,
+                    description=description,
+                    category=category,
+                    sort_order=sort_order
+                )
+                db.session.add(link)
+                db.session.commit()
+                
+                log_activity('CREATE', 'external_link', link.id, f"External link: {title}")
+                flash('External link added successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error adding external link: {str(e)}', 'error')
+    
+    return render_template('add_external_link.html')
+
+@app.route('/materials/edit-link/<int:link_id>', methods=['GET', 'POST'])
+def edit_external_link(link_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    link = ExternalLink.query.get_or_404(link_id)
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        url = request.form.get('url')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        is_active = 'is_active' in request.form
+        
+        if not title or not url:
+            flash('Title and URL are required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                link.title = title
+                link.url = url
+                link.description = description
+                link.category = category
+                link.sort_order = sort_order
+                link.is_active = is_active
+                
+                db.session.commit()
+                
+                log_activity('UPDATE', 'external_link', link.id, f"External link: {title}")
+                flash('External link updated successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating external link: {str(e)}', 'error')
+    
+    return render_template('edit_external_link.html', link=link)
+
+@app.route('/materials/delete-link/<int:link_id>', methods=['POST'])
+def delete_external_link(link_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    link = ExternalLink.query.get_or_404(link_id)
+    title = link.title
+    
+    try:
+        db.session.delete(link)
+        db.session.commit()
+        
+        log_activity('DELETE', 'external_link', link_id, f"External link: {title}")
+        flash('External link deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting external link: {str(e)}', 'error')
+    
+    return redirect(url_for('materials'))
+
+@app.route('/materials/add-document', methods=['GET', 'POST'])
+def add_document():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        
+        if 'file' not in request.files:
+            flash('No file selected.', 'error')
+            return render_template('add_document.html')
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected.', 'error')
+            return render_template('add_document.html')
+        
+        if not title:
+            flash('Title is required.', 'error')
+            return render_template('add_document.html')
+        
+        # Check file type
+        allowed_extensions = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
+        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        
+        if file_extension not in allowed_extensions:
+            flash('Invalid file type. Allowed types: PDF, PPT, PPTX, DOC, DOCX, XLS, XLSX, TXT', 'error')
+            return render_template('add_document.html')
+        
+        try:
+            sort_order = int(sort_order) if sort_order else 0
+            
+            # Create documents directory if it doesn't exist
+            documents_dir = os.path.join(app.root_path, 'documents')
+            if not os.path.exists(documents_dir):
+                os.makedirs(documents_dir)
+            
+            # Generate unique filename
+            import uuid
+            unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+            file_path = os.path.join(documents_dir, unique_filename)
+            
+            # Save file
+            file.save(file_path)
+            file_size = os.path.getsize(file_path)
+            
+            document = RecruitmentDocument(
+                title=title,
+                description=description,
+                filename=unique_filename,
+                original_filename=file.filename,
+                file_size=file_size,
+                file_type=file_extension,
+                category=category,
+                sort_order=sort_order
+            )
+            
+            db.session.add(document)
+            db.session.commit()
+            
+            log_activity('CREATE', 'recruitment_document', document.id, f"Document: {title}")
+            flash('Document uploaded successfully.', 'success')
+            return redirect(url_for('materials'))
+            
+        except Exception as e:
+            db.session.rollback()
+            # Clean up uploaded file if database operation fails
+            if 'file_path' in locals() and os.path.exists(file_path):
+                os.remove(file_path)
+            flash(f'Error uploading document: {str(e)}', 'error')
+    
+    return render_template('add_document.html')
+
+@app.route('/materials/edit-document/<int:document_id>', methods=['GET', 'POST'])
+def edit_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category', 'general')
+        sort_order = request.form.get('sort_order', 0)
+        is_active = 'is_active' in request.form
+        
+        if not title:
+            flash('Title is required.', 'error')
+        else:
+            try:
+                sort_order = int(sort_order) if sort_order else 0
+                document.title = title
+                document.description = description
+                document.category = category
+                document.sort_order = sort_order
+                document.is_active = is_active
+                
+                db.session.commit()
+                
+                log_activity('UPDATE', 'recruitment_document', document.id, f"Document: {title}")
+                flash('Document updated successfully.', 'success')
+                return redirect(url_for('materials'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error updating document: {str(e)}', 'error')
+    
+    return render_template('edit_document.html', document=document)
+
+@app.route('/materials/delete-document/<int:document_id>', methods=['POST'])
+def delete_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not check_user_access(user, 'admin'):
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('materials'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    title = document.title
+    filename = document.filename
+    
+    try:
+        # Delete file from filesystem
+        documents_dir = os.path.join(app.root_path, 'documents')
+        file_path = os.path.join(documents_dir, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Delete from database
+        db.session.delete(document)
+        db.session.commit()
+        
+        log_activity('DELETE', 'recruitment_document', document_id, f"Document: {title}")
+        flash('Document deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting document: {str(e)}', 'error')
+    
+    return redirect(url_for('materials'))
+
+@app.route('/materials/download/<int:document_id>')
+def download_document(document_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    document = RecruitmentDocument.query.get_or_404(document_id)
+    
+    if not document.is_active:
+        flash('Document is not available.', 'error')
+        return redirect(url_for('materials'))
+    
+    try:
+        documents_dir = os.path.join(app.root_path, 'documents')
+        file_path = os.path.join(documents_dir, document.filename)
+        
+        if not os.path.exists(file_path):
+            flash('File not found.', 'error')
+            return redirect(url_for('materials'))
+        
+        log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=document.original_filename,
+            mimetype='application/octet-stream'
+        )
+    except Exception as e:
+        flash(f'Error downloading document: {str(e)}', 'error')
+        return redirect(url_for('materials'))
 
 # API endpoints for AJAX requests
 @app.route('/api/recruits')

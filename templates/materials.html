@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Recruitment Materials - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <div>
+        <h1 class="h2 mb-1">Recruitment Materials</h1>
+        <p class="text-muted mb-0">External links and document library for AFROTC recruitment</p>
+    </div>
+    {% if session.role == 'admin' %}
+    <div class="ms-auto">
+        <a href="{{ url_for('add_external_link') }}" class="btn btn-primary me-2">
+            <i class="fas fa-plus"></i> Add Link
+        </a>
+        <a href="{{ url_for('add_document') }}" class="btn btn-success">
+            <i class="fas fa-upload"></i> Upload Document
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row">
+    <!-- External Links Column -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-external-link-alt me-2"></i>
+                    External Links
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if external_links %}
+                    <div class="list-group list-group-flush">
+                        {% for link in external_links %}
+                        <div class="list-group-item d-flex justify-content-between align-items-start border-0 px-0">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-1">
+                                        <a href="{{ link.url }}" target="_blank" class="text-decoration-none">
+                                            {{ link.title }}
+                                            <i class="fas fa-external-link-alt ms-1 text-muted" style="font-size: 0.8em;"></i>
+                                        </a>
+                                    </h6>
+                                    {% if session.role == 'admin' %}
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('edit_external_link', link_id=link.id) }}" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                onclick="deleteLink({{ link.id }}, '{{ link.title }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% if link.description %}
+                                <p class="mb-1 text-muted small">{{ link.description }}</p>
+                                {% endif %}
+                                <small class="text-muted">
+                                    <span class="badge bg-secondary">{{ link.category }}</span>
+                                    {% if link.url %}
+                                    <span class="ms-2">{{ link.url|truncate(50) }}</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-external-link-alt fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No external links available.</p>
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('add_external_link') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add First Link
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Documents Column -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    Document Library
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                    <div class="list-group list-group-flush">
+                        {% for document in documents %}
+                        <div class="list-group-item d-flex justify-content-between align-items-start border-0 px-0">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('download_document', document_id=document.id) }}" class="text-decoration-none">
+                                            {{ document.title }}
+                                            <i class="fas fa-download ms-1 text-muted" style="font-size: 0.8em;"></i>
+                                        </a>
+                                    </h6>
+                                    {% if session.role == 'admin' %}
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('edit_document', document_id=document.id) }}" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                onclick="deleteDocument({{ document.id }}, '{{ document.title }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% if document.description %}
+                                <p class="mb-1 text-muted small">{{ document.description }}</p>
+                                {% endif %}
+                                <small class="text-muted">
+                                    <span class="badge bg-secondary">{{ document.category }}</span>
+                                    <span class="badge bg-info">{{ document.file_type|upper }}</span>
+                                    <span class="ms-2">{{ (document.file_size / 1024)|round(1) }} KB</span>
+                                    <span class="ms-2">{{ document.original_filename }}</span>
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No documents available.</p>
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('add_document') }}" class="btn btn-success">
+                            <i class="fas fa-upload"></i> Upload First Document
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modals -->
+<div class="modal fade" id="deleteLinkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete External Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the external link "<span id="linkTitle"></span>"?</p>
+                <p class="text-muted small">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteLinkForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteDocumentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the document "<span id="documentTitle"></span>"?</p>
+                <p class="text-muted small">This will permanently delete the file and cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteDocumentForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function deleteLink(linkId, title) {
+    document.getElementById('linkTitle').textContent = title;
+    document.getElementById('deleteLinkForm').action = `/materials/delete-link/${linkId}`;
+    new bootstrap.Modal(document.getElementById('deleteLinkModal')).show();
+}
+
+function deleteDocument(documentId, title) {
+    document.getElementById('documentTitle').textContent = title;
+    document.getElementById('deleteDocumentForm').action = `/materials/delete-document/${documentId}`;
+    new bootstrap.Modal(document.getElementById('deleteDocumentModal')).show();
+}
+</script>
+{% endblock %} 
