@@ -51,9 +51,9 @@
                     <input type="text" class="form-control" id="location" name="location">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="university_id" class="form-label">Associated University</label>
+                    <label for="university_id" class="form-label">Associated High School</label>
                     <select class="form-select" id="university_id" name="university_id">
-                        <option value="">Select university...</option>
+                        <option value="">Select high school...</option>
                         {% for contact in contacts %}
                         <option value="{{ contact.id }}">{{ contact.university_name }}</option>
                         {% endfor %}
