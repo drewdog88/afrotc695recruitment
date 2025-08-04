@@ -11,8 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  Shield,
 } from 'lucide-react';
+import Logo from './Logo';
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,7 +41,7 @@ const Layout = () => {
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
           <div className="flex h-16 items-center justify-between px-4">
             <div className="flex items-center">
-              <Shield className="h-8 w-8 text-primary-600" />
+              <Logo size="medium" showText={false} />
               <span className="ml-2 text-lg font-semibold text-gray-900">AFROTC 695</span>
             </div>
             <button
@@ -99,7 +99,7 @@ const Layout = () => {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="flex h-16 items-center px-4">
-            <Shield className="h-8 w-8 text-primary-600" />
+            <Logo size="medium" showText={false} />
             <span className="ml-2 text-lg font-semibold text-gray-900">AFROTC 695</span>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
@@ -158,7 +158,11 @@ const Layout = () => {
           </button>
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-            <div className="flex flex-1"></div>
+            <div className="flex flex-1 items-center">
+              <div className="hidden lg:flex lg:items-center lg:space-x-2">
+                <Logo size="small" showText={true} />
+              </div>
+            </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
               <div className="flex items-center gap-x-4">

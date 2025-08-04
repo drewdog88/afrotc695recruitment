@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, Phone, Calendar, TrendingUp, Shield } from 'lucide-react';
+import { Users, UserCheck, Phone, Calendar, TrendingUp } from 'lucide-react';
+import Logo from '../components/Logo';
 
 const Dashboard = () => {
   const stats = [
@@ -76,11 +77,14 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Welcome to AFROTC 695 Recruitment Management System
-        </p>
+      <div className="flex items-center space-x-4">
+        <Logo size="large" />
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Welcome to AFROTC 695 Recruitment Management System
+          </p>
+        </div>
       </div>
 
       {/* Stats */}

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, Shield } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import Logo from '../components/Logo';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -30,11 +31,11 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-primary-100">
-            <Shield className="h-8 w-8 text-primary-600" />
+          <div className="mx-auto flex justify-center">
+            <Logo size="xlarge" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            AFROTC 695 Recruitment
+            Recruitment Management System
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Sign in to your account
