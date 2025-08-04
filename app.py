@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date, time, timezone
+from datetime import datetime, date, time, timezone, timedelta
 import os
 import shutil
 import sqlite3
@@ -148,16 +148,59 @@ class ActivityLog(db.Model):
     # Relationship to user
     user = db.relationship('User', backref='activity_logs')
 
+class PasswordHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    password_hash = db.Column(db.String(120), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to user
+    user = db.relationship('User', backref='password_history')
+
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
-    role = db.Column(db.String(20), default='user')
+    first_name = db.Column(db.String(50), nullable=False)
+    last_name = db.Column(db.String(50), nullable=False)
+    phone = db.Column(db.String(20))
+    role = db.Column(db.String(20), default='recruiter')  # admin or recruiter
     is_active = db.Column(db.Boolean, default=True)
+    is_locked = db.Column(db.Boolean, default=False)
+    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_expires_at = db.Column(db.DateTime)
+    force_password_change = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Set password expiry for non-admin users (180 days)
+        if self.role != 'admin':
+            self.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        else:
+            self.password_expires_at = None  # Admin passwords never expire
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def is_password_expired(self):
+        if self.role == 'admin':
+            return False
+        if self.password_expires_at:
+            return datetime.utcnow() > self.password_expires_at
+        return False
+    
+    @property
+    def days_until_password_expiry(self):
+        if self.role == 'admin' or not self.password_expires_at:
+            return None
+        days_left = (self.password_expires_at - datetime.utcnow()).days
+        return max(0, days_left)
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -301,6 +344,64 @@ def log_activity(action, table_name=None, record_id=None, record_description=Non
         # Don't fail the main operation if logging fails
         db.session.rollback()
 
+# Password validation helper functions
+def validate_password(password, user_id=None):
+    """Validate password strength and check against history"""
+    errors = []
+    
+    # Check minimum length
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+    
+    # Check for complexity requirements
+    if not any(c.isupper() for c in password):
+        errors.append("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password):
+        errors.append("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password):
+        errors.append("Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
+        errors.append("Password must contain at least one special character")
+    
+    # Check against password history (last 5 passwords)
+    if user_id:
+        recent_passwords = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).limit(5).all()
+        for hist in recent_passwords:
+            if check_password_hash(hist.password_hash, password):
+                errors.append("Password cannot be the same as any of your last 5 passwords")
+                break
+    
+    return errors
+
+def update_password_history(user_id, password_hash):
+    """Add password to history and clean up old entries"""
+    # Add new password to history
+    history_entry = PasswordHistory(user_id=user_id, password_hash=password_hash)
+    db.session.add(history_entry)
+    
+    # Keep only last 10 password entries
+    old_entries = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).offset(10).all()
+    for entry in old_entries:
+        db.session.delete(entry)
+    
+    db.session.commit()
+
+def check_user_access(user, required_role='recruiter'):
+    """Check if user has required role access"""
+    if not user.is_active:
+        return False, "Account is inactive"
+    
+    if user.is_locked:
+        return False, "Account is locked"
+    
+    if user.is_password_expired:
+        return False, "Password has expired"
+    
+    if required_role == 'admin' and user.role != 'admin':
+        return False, "Admin access required"
+    
+    return True, None
+
 # Routes
 @app.route('/')
 def index():
@@ -316,12 +417,24 @@ def login():
         
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
+            # Check account status
+            access_granted, error_message = check_user_access(user)
+            if not access_granted:
+                flash(f'Login failed: {error_message}', 'error')
+                log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+                return render_template('login.html')
+            
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user.role
             
             # Log successful login
             log_activity('LOGIN', details=f'User {username} logged in successfully')
+            
+            # Check if password change is required
+            if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                flash('Your password will expire soon. Please change it.', 'warning')
+                return redirect(url_for('change_password'))
             
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard'))
@@ -918,6 +1031,258 @@ def restore():
     
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
+
+# User Management Routes
+@app.route('/admin/users')
+def user_management():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    return render_template('user_management.html', users=users)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+def add_user():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        role = request.form['role']
+        password = request.form['password']
+        
+        # Validation
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+            return render_template('add_user.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists.', 'error')
+            return render_template('add_user.html')
+        
+        # Validate password
+        password_errors = validate_password(password)
+        if password_errors:
+            for error in password_errors:
+                flash(error, 'error')
+            return render_template('add_user.html')
+        
+        # Create user
+        password_hash = generate_password_hash(password)
+        user = User(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            role=role,
+            password_hash=password_hash
+        )
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            # Add password to history
+            update_password_history(user.id, password_hash)
+            
+            flash('User created successfully!', 'success')
+            log_activity('CREATE', 'user', user.id, f'Created user: {user.full_name}')
+            return redirect(url_for('user_management'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating user. Please try again.', 'error')
+            print(f"Error creating user: {e}")
+    
+    return render_template('add_user.html')
+
+@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+def edit_user(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        role = request.form['role']
+        is_active = 'is_active' in request.form
+        is_locked = 'is_locked' in request.form
+        force_password_change = 'force_password_change' in request.form
+        
+        # Check if email is already taken by another user
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user and existing_user.id != user_id:
+            flash('Email already exists.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        # Update user
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.phone = phone
+        user.role = role
+        user.is_active = is_active
+        user.is_locked = is_locked
+        user.force_password_change = force_password_change
+        
+        # Update password expiry for non-admin users
+        if role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        else:
+            user.password_expires_at = None
+        
+        try:
+            db.session.commit()
+            flash('User updated successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, f'Updated user: {user.full_name}')
+            return redirect(url_for('user_management'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating user. Please try again.', 'error')
+            print(f"Error updating user: {e}")
+    
+    return render_template('edit_user.html', user=user)
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent deleting the current user
+    if user.id == session['user_id']:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('user_management'))
+    
+    try:
+        # Delete password history
+        PasswordHistory.query.filter_by(user_id=user_id).delete()
+        
+        # Delete activity logs
+        ActivityLog.query.filter_by(user_id=user_id).delete()
+        
+        # Delete user
+        db.session.delete(user)
+        db.session.commit()
+        
+        flash('User deleted successfully!', 'success')
+        log_activity('DELETE', 'user', user_id, f'Deleted user: {user.full_name}')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting user. Please try again.', 'error')
+        print(f"Error deleting user: {e}")
+    
+    return redirect(url_for('user_management'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+def change_password():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        # Verify current password
+        if not check_password_hash(user.password_hash, current_password):
+            flash('Current password is incorrect.', 'error')
+            return render_template('change_password.html')
+        
+        # Check if new passwords match
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'error')
+            return render_template('change_password.html')
+        
+        # Validate new password
+        password_errors = validate_password(new_password, user.id)
+        if password_errors:
+            for error in password_errors:
+                flash(error, 'error')
+            return render_template('change_password.html')
+        
+        # Update password
+        new_password_hash = generate_password_hash(new_password)
+        user.password_hash = new_password_hash
+        user.password_changed_at = datetime.utcnow()
+        user.force_password_change = False
+        
+        # Update password expiry for non-admin users
+        if user.role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        
+        try:
+            # Add to password history
+            update_password_history(user.id, new_password_hash)
+            
+            db.session.commit()
+            flash('Password changed successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, 'Password changed')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error changing password. Please try again.', 'error')
+            print(f"Error changing password: {e}")
+    
+    return render_template('change_password.html')
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        phone = request.form['phone']
+        
+        # Check if email is already taken by another user
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user and existing_user.id != user.id:
+            flash('Email already exists.', 'error')
+            return render_template('profile.html', user=user)
+        
+        # Update user
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.phone = phone
+        
+        try:
+            db.session.commit()
+            flash('Profile updated successfully!', 'success')
+            log_activity('UPDATE', 'user', user.id, 'Profile updated')
+            return redirect(url_for('profile'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating profile. Please try again.', 'error')
+            print(f"Error updating profile: {e}")
+    
+    return render_template('profile.html', user=user)
 
 # Download routes for data export
 @app.route('/download/recruits/<format>')

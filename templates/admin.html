@@ -33,10 +33,9 @@
                     <p><strong>Total Users:</strong> {{ users|length }}</p>
                     <p><strong>Active Users:</strong> {{ users|selectattr('is_active', 'equalto', true)|list|length }}</p>
                 </div>
-                <button class="btn btn-success" disabled>
+                <a href="{{ url_for('user_management') }}" class="btn btn-success">
                     <i class="fas fa-cog"></i> Manage Users
-                </button>
-                <small class="text-muted d-block mt-2">Coming Soon</small>
+                </a>
             </div>
         </div>
     </div>
