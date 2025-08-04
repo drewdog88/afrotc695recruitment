@@ -7,15 +7,43 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        /* Theme Variables - Original Theme */
         :root {
             --primary-color: #1e3a8a;
             --secondary-color: #3b82f6;
             --accent-color: #f59e0b;
+            --text-color: #374151;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --sidebar-gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --navbar-gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --stats-gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --border-color: #e5e7eb;
+            --hover-color: rgba(255, 255, 255, 0.1);
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Air Force Theme */
+        [data-theme="airforce"] {
+            --primary-color: #1C2347; /* Stealth Blue */
+            --secondary-color: #007BFE; /* Force Blue */
+            --accent-color: #25BAF9; /* Sky Blue */
+            --text-color: #707070; /* Graphite Gray */
+            --background-color: #E9E8E8; /* Cloud Gray */
+            --card-background: #ffffff;
+            --sidebar-gradient: linear-gradient(135deg, #1C2347, #007BFE);
+            --navbar-gradient: linear-gradient(135deg, #1C2347, #007BFE);
+            --stats-gradient: linear-gradient(135deg, #1C2347, #007BFE);
+            --border-color: #E0DEDE; /* Fog Gray */
+            --hover-color: rgba(37, 186, 249, 0.1);
+            --shadow-color: rgba(28, 35, 71, 0.1);
         }
         
         body {
-            background-color: #f8fafc;
+            background-color: var(--background-color);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            transition: all 0.3s ease;
         }
         
         .navbar-brand img {
@@ -26,7 +54,7 @@
         /* Mobile-first responsive design */
         .sidebar {
             min-height: 100vh;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--sidebar-gradient);
             color: white;
             transition: transform 0.3s ease;
         }
@@ -95,7 +123,7 @@
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
             color: white;
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--hover-color);
             transform: translateX(5px);
         }
         
@@ -123,8 +151,9 @@
         .card {
             border: none;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px var(--shadow-color);
             transition: transform 0.2s ease;
+            background-color: var(--card-background);
         }
         
         .card:hover {
@@ -139,6 +168,36 @@
         .btn-primary:hover {
             background-color: var(--secondary-color);
             border-color: var(--secondary-color);
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-success {
+            color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-outline-success:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-outline-info {
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .btn-outline-info:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
         }
         
         /* Better mobile button sizing */
@@ -188,7 +247,7 @@
         }
         
         .stats-card {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: var(--stats-gradient);
             color: white;
         }
         
@@ -209,7 +268,7 @@
         
         .login-container {
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--sidebar-gradient);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -218,7 +277,7 @@
         .login-card {
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 40px var(--shadow-color);
             padding: 40px;
             max-width: 400px;
             width: 100%;
@@ -254,7 +313,7 @@
         }
         
         .table th a:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--hover-color);
             text-decoration: none;
         }
         
@@ -311,7 +370,7 @@
         
         .clickable-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 25px var(--shadow-color);
         }
         
         .clickable-card:hover .card-body {
@@ -345,12 +404,124 @@
                 align-items: center;
             }
         }
+
+        /* Theme Toggle Button Styles */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1060;
+            display: flex;
+            gap: 10px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            border: 2px solid;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .theme-btn-original {
+            background-color: #1e3a8a;
+            border-color: #1e3a8a;
+            color: white;
+        }
+
+        .theme-btn-original:hover {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .theme-btn-airforce {
+            background-color: #1C2347;
+            border-color: #1C2347;
+            color: white;
+        }
+
+        .theme-btn-airforce:hover {
+            background-color: #007BFE;
+            border-color: #007BFE;
+            color: white;
+        }
+
+        .theme-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Mobile theme toggle adjustments */
+        @media (max-width: 767.98px) {
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .theme-btn {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Air Force specific styling */
+        [data-theme="airforce"] .navbar {
+            background: var(--navbar-gradient) !important;
+        }
+
+        [data-theme="airforce"] .text-primary {
+            color: var(--primary-color) !important;
+        }
+
+        [data-theme="airforce"] .text-secondary {
+            color: var(--secondary-color) !important;
+        }
+
+        [data-theme="airforce"] .text-muted {
+            color: var(--text-color) !important;
+        }
+
+        [data-theme="airforce"] .border {
+            border-color: var(--border-color) !important;
+        }
+
+        [data-theme="airforce"] .table-light {
+            background-color: var(--background-color) !important;
+        }
+
+        [data-theme="airforce"] .card-header {
+            background-color: var(--background-color);
+            border-bottom-color: var(--border-color);
+        }
     </style>
 </head>
-<body>
+<body data-theme="original">
     {% if session.user_id %}
+    <!-- Theme Toggle Buttons -->
+    <div class="theme-toggle">
+        <a href="#" class="theme-btn theme-btn-original active" data-theme="original">
+            <i class="fas fa-palette"></i>
+            <span class="d-none d-sm-inline">Original</span>
+            <span class="d-sm-none">Orig</span>
+        </a>
+        <a href="#" class="theme-btn theme-btn-airforce" data-theme="airforce">
+            <i class="fas fa-star"></i>
+            <span class="d-none d-sm-inline">Air Force</span>
+            <span class="d-sm-none">AF</span>
+        </a>
+    </div>
+
     <!-- Navigation for logged-in users -->
-    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));">
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: var(--navbar-gradient);">
         <div class="container-fluid">
             <!-- Mobile menu toggle -->
             <button class="navbar-toggler d-lg-none" type="button" id="sidebarToggle">
@@ -468,6 +639,40 @@
     {% endwith %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Theme Toggle Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme toggle functionality
+            const themeButtons = document.querySelectorAll('.theme-btn');
+            const body = document.body;
+            
+            // Load saved theme from localStorage
+            const savedTheme = localStorage.getItem('afrotc-theme') || 'original';
+            body.setAttribute('data-theme', savedTheme);
+            updateThemeButtons(savedTheme);
+            
+            // Theme button click handlers
+            themeButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const theme = this.getAttribute('data-theme');
+                    body.setAttribute('data-theme', theme);
+                    localStorage.setItem('afrotc-theme', theme);
+                    updateThemeButtons(theme);
+                });
+            });
+            
+            function updateThemeButtons(activeTheme) {
+                themeButtons.forEach(button => {
+                    button.classList.remove('active');
+                    if (button.getAttribute('data-theme') === activeTheme) {
+                        button.classList.add('active');
+                    }
+                });
+            }
+        });
+    </script>
     
     <!-- Mobile sidebar toggle script -->
     <script>
