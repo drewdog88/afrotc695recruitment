@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 import os
 import shutil
 import sqlite3
@@ -257,6 +257,14 @@ class RecruitmentEvent(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+def utc_to_local(utc_dt):
+    """Convert UTC datetime to local timezone"""
+    if utc_dt is None:
+        return None
+    # Convert UTC to local time (this will use the server's timezone)
+    local_dt = utc_dt.replace(tzinfo=timezone.utc).astimezone()
+    return local_dt
 
 # Helper function to log activities
 def log_activity(action, table_name=None, record_id=None, record_description=None, details=None):
@@ -909,8 +917,8 @@ def download_recruits(format):
             'Interests': recruit.interests or '',
             'Status': recruit.status,
             'Notes': recruit.notes or '',
-            'Created Date': recruit.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'Last Modified': recruit.last_modified.strftime('%Y-%m-%d %H:%M:%S')
+            'Created Date': utc_to_local(recruit.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.created_at) else '',
+            'Last Modified': utc_to_local(recruit.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.last_modified) else ''
         })
     
     # Log the export activity
@@ -942,8 +950,8 @@ def download_cadre(format):
             'Unenrollment Date': cadre.unenrollment_date_display or '',
             'Unenrollment Reason': cadre.unenrollment_reason or '',
             'GPA': cadre.gpa or '',
-            'Created Date': cadre.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'Last Modified': cadre.last_modified.strftime('%Y-%m-%d %H:%M:%S')
+            'Created Date': utc_to_local(cadre.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadre.created_at) else '',
+            'Last Modified': utc_to_local(cadre.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadre.last_modified) else ''
         })
     
     # Log the export activity
@@ -970,8 +978,8 @@ def download_contacts(format):
             'Address': contact.address or '',
             'Status': 'Active' if contact.is_active else 'Inactive',
             'Notes': contact.notes or '',
-            'Created Date': contact.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'Last Modified': contact.last_modified.strftime('%Y-%m-%d %H:%M:%S')
+            'Created Date': utc_to_local(contact.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.created_at) else '',
+            'Last Modified': utc_to_local(contact.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.last_modified) else ''
         })
     
     # Log the export activity
@@ -990,8 +998,10 @@ def download_activity_log(format):
     # Prepare data for export
     data = []
     for activity in activities:
+        # Convert UTC time to local time
+        local_time = utc_to_local(activity.created_at)
         data.append({
-            'Date & Time': activity.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'Date & Time': local_time.strftime('%Y-%m-%d %H:%M:%S') if local_time else '',
             'Username': activity.username,
             'Action': activity.action,
             'Table': activity.table_name.replace('_', ' ').title() if activity.table_name else '',

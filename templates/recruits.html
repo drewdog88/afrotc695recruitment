@@ -122,8 +122,8 @@
                                 {{ recruit.status.title() }}
                             </span>
                         </td>
-                        <td>{{ recruit.created_at.strftime('%m/%d/%Y') }}</td>
-                        <td>{{ recruit.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
+                        <td data-utc-date="{{ recruit.created_at.isoformat() }}">{{ recruit.created_at.strftime('%m/%d/%Y') }}</td>
+                        <td data-utc-time="{{ recruit.last_modified.isoformat() }}">{{ recruit.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
                         <td>
                             <button class="btn btn-sm btn-outline-primary" onclick="viewRecruit({{ recruit.id }})">
                                 <i class="fas fa-eye"></i>
@@ -154,5 +154,22 @@ function viewRecruit(id) {
     // TODO: Implement view/edit functionality
     alert('View/Edit functionality coming soon for recruit ID: ' + id);
 }
+
+// Convert UTC times to local timezone
+document.addEventListener('DOMContentLoaded', function() {
+    // Convert date elements
+    document.querySelectorAll('[data-utc-date]').forEach(function(element) {
+        const utcDate = element.getAttribute('data-utc-date');
+        const localDate = new Date(utcDate);
+        element.textContent = localDate.toLocaleDateString();
+    });
+    
+    // Convert time elements
+    document.querySelectorAll('[data-utc-time]').forEach(function(element) {
+        const utcTime = element.getAttribute('data-utc-time');
+        const localTime = new Date(utcTime);
+        element.textContent = localTime.toLocaleDateString() + ' ' + localTime.toLocaleTimeString();
+    });
+});
 </script>
 {% endblock %} 

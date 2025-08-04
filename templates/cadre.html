@@ -134,7 +134,7 @@
                         </td>
                         <td>{{ member.gpa or 'N/A' }}</td>
                         <td>{{ member.unenrollment_date_display or 'N/A' }}</td>
-                        <td>{{ member.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
+                        <td data-utc-time="{{ member.last_modified.isoformat() }}">{{ member.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
                         <td>
                             <a href="{{ url_for('edit_cadre', cadre_id=member.id) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-edit"></i>
@@ -157,6 +157,18 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+// Convert UTC times to local timezone
+document.addEventListener('DOMContentLoaded', function() {
+    // Convert time elements
+    document.querySelectorAll('[data-utc-time]').forEach(function(element) {
+        const utcTime = element.getAttribute('data-utc-time');
+        const localTime = new Date(utcTime);
+        element.textContent = localTime.toLocaleDateString() + ' ' + localTime.toLocaleTimeString();
+    });
+});
+</script>
 {% endblock %}
 
  
