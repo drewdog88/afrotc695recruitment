@@ -76,6 +76,9 @@
                                 <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup.filename }}')">
                                     <i class="fas fa-undo"></i>
                                 </button>
+                                <button class="btn btn-outline-danger" title="Delete" onclick="confirmDelete('{{ backup.filename }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -150,6 +153,17 @@ function confirmRestore(filename) {
     if (confirm(`Are you sure you want to restore the database from "${filename}"?\n\nThis will overwrite all current data and cannot be undone!`)) {
         // Redirect to restore page with filename
         window.location.href = "{{ url_for('restore') }}?file=" + encodeURIComponent(filename);
+    }
+}
+
+function confirmDelete(filename) {
+    if (confirm(`Are you sure you want to delete the backup "${filename}"?\n\nThis action cannot be undone and the backup will be permanently removed.`)) {
+        // Create and submit a form to delete the backup
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = "{{ url_for('delete_backup', filename='PLACEHOLDER') }}".replace('PLACEHOLDER', filename);
+        document.body.appendChild(form);
+        form.submit();
     }
 }
 </script>

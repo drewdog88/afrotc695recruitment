@@ -846,6 +846,35 @@ def download_backup(filename):
     
     return redirect(url_for('database_management'))
 
+@app.route('/admin/delete-backup/<filename>', methods=['POST'])
+def delete_backup(filename):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        backup_path = os.path.join(BACKUP_DIR, filename)
+        metadata_path = backup_path.replace('.db', '_metadata.json')
+        
+        if os.path.exists(backup_path):
+            # Delete the backup file
+            os.remove(backup_path)
+            
+            # Delete the metadata file if it exists
+            if os.path.exists(metadata_path):
+                os.remove(metadata_path)
+            
+            flash(f'Backup "{filename}" deleted successfully.', 'success')
+            log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
+        else:
+            flash('Backup file not found.', 'error')
+    except Exception as e:
+        print(f"Error deleting backup: {e}")
+        flash('Error deleting backup file.', 'error')
+        log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Failed to delete backup: {filename}', f'Error: {e}')
+    
+    return redirect(url_for('database_management'))
+
 @app.route('/admin/restore', methods=['GET', 'POST'])
 def restore():
     if 'user_id' not in session or session.get('role') != 'admin':
