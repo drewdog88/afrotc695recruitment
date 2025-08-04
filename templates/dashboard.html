@@ -129,17 +129,12 @@
 <!-- Cadet Retention Report -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card clickable-card" id="retentionReportCard" style="cursor: pointer;">
-            <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card">
+            <div class="card-header">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-chart-bar me-2"></i>
                     Cadet Retention Report
                 </h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="openFullScreenReport()">
-                    <i class="fas fa-expand-alt me-1"></i>
-                    <span class="d-none d-sm-inline">Full Screen</span>
-                    <span class="d-sm-none">Full</span>
-                </button>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -165,55 +160,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Full Screen Retention Report Modal -->
-<div class="modal fade" id="fullScreenRetentionModal" tabindex="-1" aria-labelledby="fullScreenRetentionModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="fullScreenRetentionModalLabel">
-                    <i class="fas fa-chart-bar me-2"></i>
-                    Cadet Retention Report - Full View
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row h-100">
-                    <div class="col-lg-8 col-md-12">
-                        <div class="chart-container-full" style="position: relative; height: 70vh; width: 100%;">
-                            <canvas id="retentionChartFull"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-lg-4 col-md-12">
-                        <div class="retention-summary-full">
-                            <h6 class="text-muted mb-3">Retention Summary</h6>
-                            {% for item in retention_data %}
-                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                                <div>
-                                    <h6 class="fw-bold mb-1">Class of {{ item.year }}</h6>
-                                    <small class="text-muted">{{ item.total_cadets }} total cadets</small>
-                                </div>
-                                <div class="text-end">
-                                    <div class="text-success fw-bold fs-5">{{ item.active_percentage }}%</div>
-                                    <small class="text-success">Active ({{ item.active_cadets }})</small>
-                                    <div class="text-danger fw-bold fs-5 mt-1">{{ item.inactive_percentage }}%</div>
-                                    <small class="text-danger">Inactive ({{ item.inactive_cadets }})</small>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="exportRetentionData()">
-                    <i class="fas fa-download me-1"></i>Export Data
-                </button>
             </div>
         </div>
     </div>
@@ -402,193 +348,6 @@ document.addEventListener('DOMContentLoaded', function() {
             location.reload();
         }
     });
-});
-
-// Full Screen Retention Report Functions
-function openFullScreenReport() {
-    var modal = new bootstrap.Modal(document.getElementById('fullScreenRetentionModal'));
-    modal.show();
-    
-    // Create full-screen chart after modal is shown
-    setTimeout(function() {
-        createFullScreenChart();
-    }, 300);
-}
-
-function createFullScreenChart() {
-    var ctx = document.getElementById('retentionChartFull').getContext('2d');
-    var retentionData = {{ retention_data | tojson }};
-    var isMobile = window.innerWidth < 768;
-    
-    // Destroy existing chart if it exists
-    if (window.fullScreenChart) {
-        window.fullScreenChart.destroy();
-    }
-    
-    window.fullScreenChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: retentionData.map(function(item) { 
-                return 'Class of ' + item.year; 
-            }),
-            datasets: [
-                {
-                    label: 'Active Cadets (%)',
-                    data: retentionData.map(function(item) { 
-                        return item.active_percentage; 
-                    }),
-                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
-                    borderColor: 'rgba(40, 167, 69, 1)',
-                    borderWidth: 1,
-                    stack: 'Stack 0'
-                },
-                {
-                    label: 'Inactive Cadets (%)',
-                    data: retentionData.map(function(item) { 
-                        return item.inactive_percentage; 
-                    }),
-                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                    borderColor: 'rgba(220, 53, 69, 1)',
-                    borderWidth: 1,
-                    stack: 'Stack 0'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Graduation Year',
-                        font: {
-                            size: isMobile ? 14 : 18
-                        }
-                    },
-                    ticks: {
-                        maxRotation: isMobile ? 45 : 0,
-                        minRotation: isMobile ? 45 : 0,
-                        font: {
-                            size: isMobile ? 12 : 16
-                        }
-                    }
-                },
-                y: {
-                    stacked: true,
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Retention Rate (%)',
-                        font: {
-                            size: isMobile ? 14 : 18
-                        }
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return value + '%';
-                        },
-                        font: {
-                            size: isMobile ? 12 : 16
-                        }
-                    }
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Cadet Retention by Graduation Year - Full View',
-                    font: {
-                        size: isMobile ? 16 : 24
-                    }
-                },
-                legend: {
-                    display: true,
-                    position: isMobile ? 'bottom' : 'top',
-                    labels: {
-                        boxWidth: isMobile ? 16 : 20,
-                        padding: isMobile ? 10 : 15,
-                        font: {
-                            size: isMobile ? 12 : 16
-                        }
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            var label = context.dataset.label || '';
-                            var value = context.parsed.y;
-                            var year = retentionData[context.dataIndex].year;
-                            var total = retentionData[context.dataIndex].total_cadets;
-                            var active = retentionData[context.dataIndex].active_cadets;
-                            var inactive = retentionData[context.dataIndex].inactive_cadets;
-                            
-                            if (label.includes('Active')) {
-                                return label + ': ' + value + '% (' + active + '/' + total + ' cadets)';
-                            } else {
-                                return label + ': ' + value + '% (' + inactive + '/' + total + ' cadets)';
-                            }
-                        }
-                    }
-                },
-                datalabels: {
-                    display: function(context) {
-                        return context.dataset.data[context.dataIndex] > 0;
-                    },
-                    color: function(context) {
-                        return context.dataset.label.includes('Active') ? '#28a745' : '#dc3545';
-                    },
-                    font: {
-                        weight: 'bold',
-                        size: isMobile ? 14 : 18
-                    },
-                    formatter: function(value, context) {
-                        return value.toFixed(1) + '%';
-                    },
-                    anchor: 'center',
-                    align: 'center',
-                    offset: 0
-                }
-            }
-        }
-    });
-}
-
-function exportRetentionData() {
-    var retentionData = {{ retention_data | tojson }};
-    var csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Add header
-    csvContent += "Graduation Year,Total Cadets,Active Cadets,Inactive Cadets,Active Percentage,Inactive Percentage\n";
-    
-    // Add data rows
-    retentionData.forEach(function(item) {
-        csvContent += item.year + "," + item.total_cadets + "," + item.active_cadets + "," + item.inactive_cadets + "," + item.active_percentage + "," + item.inactive_percentage + "\n";
-    });
-    
-    // Create download link
-    var encodedUri = encodeURI(csvContent);
-    var link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "cadet_retention_report.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// Make the retention report card clickable
-document.addEventListener('DOMContentLoaded', function() {
-    var retentionCard = document.getElementById('retentionReportCard');
-    if (retentionCard) {
-        retentionCard.addEventListener('click', function(e) {
-            // Don't trigger if clicking the full screen button
-            if (!e.target.closest('.btn')) {
-                openFullScreenReport();
-            }
-        });
-    }
 });
 </script>
 {% endblock %} 

@@ -409,24 +409,24 @@
         .theme-toggle {
             position: fixed;
             top: 20px;
-            right: 20px;
+            right: 120px;
             z-index: 1060;
             display: flex;
-            gap: 10px;
+            gap: 5px;
         }
 
         .theme-btn {
-            padding: 8px 16px;
-            border: 2px solid;
-            border-radius: 20px;
-            font-size: 0.875rem;
+            padding: 4px 8px;
+            border: 1px solid;
+            border-radius: 10px;
+            font-size: 0.625rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 3px;
         }
 
         .theme-btn-original {
@@ -458,18 +458,40 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
+        .theme-btn img {
+            width: 14px;
+            height: 14px;
+            filter: brightness(0) invert(1);
+            flex-shrink: 0;
+        }
+
+        .theme-btn-airforce img {
+            width: 12px;
+            height: 12px;
+        }
+
         /* Mobile theme toggle adjustments */
         @media (max-width: 767.98px) {
             .theme-toggle {
                 top: 10px;
-                right: 10px;
+                right: 80px;
                 flex-direction: column;
-                gap: 5px;
+                gap: 3px;
             }
 
             .theme-btn {
-                padding: 6px 12px;
-                font-size: 0.75rem;
+                padding: 3px 6px;
+                font-size: 0.5rem;
+            }
+
+            .theme-btn img {
+                width: 10px;
+                height: 10px;
+            }
+
+            .theme-btn-airforce img {
+                width: 8px;
+                height: 8px;
             }
         }
 
@@ -514,7 +536,7 @@
             <span class="d-sm-none">Orig</span>
         </a>
         <a href="#" class="theme-btn theme-btn-airforce" data-theme="airforce">
-            <i class="fas fa-star"></i>
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgwIiBoZWlnaHQ9Ijk5Ny44NjIiIHZpZXdCb3g9IjAgMCAzMzguNjY3IDI2NC4wMTgiIHhtbG5zOnY9Imh0dHBzOi8vdmVjdGEuaW8vbmFubyI+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM2Ni4xMjQgLTQ5NS42NjgpIj48cGF0aCBjbGlwLXBhdGg9Im5vbmUiIGQ9Ik01MC4wMDkgNjYuNjkyTDM2LjMzIDU2Ljc0OSAxMy41MTIgNzMuMzI1bDI3Ljc4NCAyMC4xODl6bTE4LjIwOSAxMy4yMjVMNDUuNDAxIDk2LjVsMjIuODE3IDE2LjU3NEw5MS4wMjIgOTYuNXptLTQ3LjY3Mi0zNC42NGgzNi4zODFsLTgzLjY1MS02MC43ODNMLTcuMTk3IDI1LjEzem0zOC4xNzctNS40MDFsNi45NTktMjEuMzk4LTExNi44NzMtODQuOTE5IDE5LjUyNSA0MC42NDR6TS02LjA1Ni00MC4zNDJsLTI4LjU2Ni01OS40MzktMTMuNzggMjguNjc0em0xMDYuMTQ4IDk3LjA5MWwtMTMuNjc0IDkuOTQzIDguNzIgMjYuODIyIDI3Ljc3NC0yMC4xODl6bS0yMC41OS0xMS40NzJoMzYuMzhsMjcuNzQzLTIwLjE0NyAxOS41MTktNDAuNjM2ek0xODcuNjItNjYuNDQxTDcwLjc1MSAxOC40NzggNzcuNyAzOS44NzZsOTAuMzktNjUuNjczem0tMi43OTEtNC42NjZMMTcwLjA1LTk5Ljc4MWwtMjguNTc0IDU5LjQzOXoiIGZpbGw9IiMwMDUyOWIiIHRyYW5zZm9ybT0ibWF0cml4KC45NDA3NDMgMCAwIC45NDA3NDMgNDcxLjM0NjE0IDU4OS41MzYxOSkiLz48cGF0aCBmaWxsPSIjMDA1MjliIiBkPSJNNTIzLjU5NyA2NDYuNjg0YzAtNi41ODIgNS4zNC0xMS45MjYgMTEuOTMtMTEuOTI2YTExLjk0IDExLjk0IDAgMCAxIDExLjkyNiAxMS45MjZjMCA2LjU5LTUuMzUgMTEuOTI5LTExLjkyNiAxMS45MjlhMTEuOTMgMTEuOTMgMCAwIDEtMTEuOTMtMTEuOTI5em0tMTU3LjQ3MyA4Ny45NjloOC42Mjl2MTMuNzMxYzAgMS41MDguMTM3IDIuNjA0LjY4NSAzLjUyOCAxLjA5NiAxLjg4MiAzLjI4NyAyLjM5NyA1LjAzNCAyLjM5NyAyLjI2IDAgMy41NjEtLjc4NyA0LjE0My0xLjMzNiAxLjQ3MS0xLjM2OSAxLjUwNy0zLjU2MSAxLjUwNy00LjcyNXYtMTMuNTk0aDguNjI5djEyLjY2OWMwIDIuODQyLS4wNjcgNS44MjEtMS40MDMgNy44NzctMi42MzcgNC4xMDgtOS4wMDYgNC40ODUtMTIuODQxIDQuNDg1LTUuMzc2IDAtOC40MjMtLjc1NC0xMC4yMzgtMS44NDctMy43NjctMS44NTEtNC4xNDMtNS42ODYtNC4xNDMtNy42Mzh2LTE1LjU0OHptMzAuOTMzIDE3Ljg3NWg3Ljg3NnY2LjNoLTcuODc2em0yMS4wNjgtMTEuNjQzYzAgLjM0My4xMDIuNjUxLjI3NC44NTcuNTgyLjc1NCAzLjAxMyAxLjMgNC4zNDkgMS41NzVsNC45NjQgMS4wNmMxLjA2Mi4yMDYgMi4wODkuNDQ3IDMuMTE3Ljg1NyAzLjIxOCAxLjE5OSA0LjI0NyAzLjU5NiA0LjI0NyA1Ljc4N2E3LjUyIDcuNTIgMCAwIDEtMS4yNjcgNC4xNDNjLTIuMDIxIDMuMDQ4LTYuMDk2IDQuMzg0LTEyLjYwMiA0LjM4NC0yLjQzMSAwLTcuMjU5LS4yMDUtMTAuMS0yLjczOS0yLjA4OS0xLjg1LTIuMzk4LTQuMDc1LTIuNTM0LTUuMTdsOC41MjYtLjI0MWMuMzA4IDEuNTc2IDEuOTE3IDIuNzc0IDUuMzQyIDIuNzc0Ljg5MSAwIDIuMTU3LS4xMDMgMy4wMTMtLjU4MS41ODItLjM0MyAxLjE5OS0xLjAyOSAxLjE5OS0xLjg1IDAtMS4xMzEtLjkyNC0xLjYxMS0xLjYwOS0xLjg1LTEuMDYyLS4zNDItNi41MDYtMS4zMDItNy43MDYtMS41NzZhMjUuNSAyNS41IDAgMCAxLTIuNzcyLS43NTRjLS45MjQtLjM0Mi00Ljc5NS0xLjcxMy00Ljc5NS02LjEzIDAtMS44MTYuNzU0LTMuNDkzIDEuOTUyLTQuNzI1IDIuNzA1LTIuODA3IDcuNTY4LTMuMDgxIDEwLjIzOC0zLjA4MSAyLjk0NSAwIDUuODU3LjQxIDcuMzYyLjkyMyA0LjUyIDEuNDM5IDUuMTAzIDQuODMgNS4zNDMgNi4xMzFsLTguNDkyLjQ4Yy0uMjA2LS43ODktLjYxNy0yLjIyNy00LjI0Ny0yLjIyNy0xLjEzMSAwLTMuODAyLjE3Mi0zLjgwMiAxLjk1M3ptMTkuNzY1IDExLjY0M2g3Ljg3NnY2LjNoLTcuODc2em0zOS4zMTYtMi45NzloLTUuNjE1bDIuNzczLTguMTg0em0tMTguMjE3IDkuMjc5aDkuNDg2bDEuMzAxLTMuOTM5aDkuMjQ2bDEuMzAxIDMuOTM5aDkuNDE4bC0xMC40OC0yNC4xNzVINjY5LjR6bTQyLjYyNS0yNC4xNzV2MjQuMTc1aC04LjY2NHYtMjQuMTc1em0xNS4wOTggNS40NzloNy4xOTJjLjY1IDAgMS41NC4wNjcgMi4yMjUuNjg2LjQ0Ni40MTEuNjE3Ljk5Mi42MTcgMS41NDEgMCAyLjE1Ny0yLjE5MiAyLjE5MS0zLjUyOCAyLjE5MWgtNi41MDZ6bS04LjY2MyAxOC42OTZoOC42NjN2LTguOGg0LjYyM2w0Ljk2NCA4LjhoOS41ODlsLTYuMDYxLTkuNjU3YzEuMDI3LS4yNzQgMi42NzEtLjYxNyA0LjA0LTIuMjYuOTk0LTEuMTk4IDEuNTQyLTIuODc4IDEuNTQyLTQuNTg5IDAtMi40MzItMS4wOTYtNC43OTMtMi44NDMtNi4xMy0yLjAyLTEuNDczLTQuNjIzLTEuNTA4LTYuNzQ1LTEuNTQxaC0xNy43NzN6bTQwLjc2MS0yNC4xNzVoMjMuNjk1djUuNDQ0aC0xNS4wMzJ2NC42MjNoMTMuNzk5djUuNDFoLTEzLjc5OXY4LjY5OGgtOC42NjR2LTI0LjE3NXptNDMuMDk4IDQuNDg1YzUuOTIzLjA2OSA3LjA4OSA0LjkzMSA3LjA4OSA3LjU2OCAwIDIuNDMtLjkyNCA1LjU4Mi0zLjU5NiA2LjkxNy0xLjA2MS41NDgtMi4yOTQuNjg2LTMuNDkzLjY4Ni01LjIzOCAwLTcuMjYtMy44NjktNy4yNi03LjYwMiAwLTMuMzIyIDEuODE2LTcuNjM3IDcuMjYtNy41Njl6bS0uNTE0LTUuMzc2Yy00LjI4MS4wNjktMTAuMDMzLjg1Ny0xMy40MjMgNS42NTItMS41NDMgMi4xODktMi4yMjggNC44NjItMi4yMjggNy41NjcgMCAyLjc3My42NTEgNS4xMDIgMi4yOTQgNy4yOTMgMS43ODEgMi40MzIgNS4yNCA1LjQxIDEzLjY2MyA1LjQxIDQuMzgyIDAgOC4yODYtLjYxNCAxMS41NzQtMy4yMTggMS4xNjMtLjg5MSAyLjEyMi0xLjk4NSAyLjg3Ny0zLjI1NCAxLjE5OC0xLjk4NiAxLjc0Ny00LjMxMyAxLjc0Ny02LjU3MyAwLTQuMTQzLTEuOTUyLTkuMjEzLTcuNTAxLTExLjQ3MS0yLjc3MS0xLjEzMy01Ljk5Mi0xLjQzOS05LjAwNC0xLjQwNnptMjkuOTk4IDYuMzdoNy4xOTJjLjY1IDAgMS41NDEuMDY3IDIuMjI1LjY4Ni40NDcuNDExLjYxNy45OTIuNjE3IDEuNTQxIDAgMi4xNTctMi4xOTIgMi4xOTEtMy41MjcgMi4xOTFoLTYuNTA3em0tOC42NjQgMTguNjk2aDguNjY0di04LjhoNC42MjNsNC45NjUgOC44aDkuNTg4bC02LjA2Mi05LjY1N2MxLjAyOC0uMjc0IDIuNjcyLS42MTcgNC4wNDEtMi4yNi45OTQtMS4xOTggMS41NDEtMi44NzggMS41NDEtNC41ODkgMC0yLjQzMi0xLjA5NS00Ljc5My0yLjg0Mi02LjEzLTIuMDItMS40NzMtNC42MjItMS41MDgtNi43NDQtMS41NDFoLTE3Ljc3NHptNDAuNDQyLTEyLjA4N2MwIDMuNjY0IDIuMTU2IDcuNDY2IDcuMTIyIDcuNDY2IDEuODgyIDAgMy42MjgtLjU4MyA0Ljg5Ny0xLjYxIDEuMTI5LS45MjYgMS40NzItMS43MTEgMS43NDYtMi40MzNsOC4yNTEuODU2Yy0uMjc0Ljg5MS0uNTgxIDEuNzgxLTEuMzcgMy4wMTMtMi44NDIgNC4zODQtOC4zOSA1LjYxNy0xMy42OTcgNS42MTctMi4zNjMgMC00LjY5Mi0uMjA3LTYuOTE3LS44OTEtNC45NjYtMS41NDItOS4wNzQtNS4zNDItOS4wNzQtMTEuOTg0IDAtNC42OTIgMi40NjQtMTMuMTUgMTYuMjMtMTMuMTUgMTEuNzQ0IDAgMTMuNTk2IDUuMzQyIDE0LjM4MiA3LjYzNmwtOC4wMTIgMS40MzhjLS4zNDEtLjY4Ni0uNzU0LTEuNjExLTIuMDIxLTIuNDMyLTEuMzAyLS44MjItMi45MTEtMS4wOTctNC4xNDMtMS4wOTctMy45MDEgMC03LjM5MyAyLjQzMS03LjM5MyA3LjU2OXptNTEuMjgtMTIuMDg4djUuNDQ0aC0xNi44MTR2My45MzhoMTUuNTQ3djUuNDc5aC0xNS41ODJ2My44MzVoMTcuMTg5djUuNDc5aC0yNS44MTh2LTI0LjE3NXoiIGNsaXAtcGF0aD0ibm9uZSIvPjwvZz48L3N2Zz4=" alt="US Air Force Logo" style="width: 16px; height: 16px; filter: brightness(0) invert(1);">
             <span class="d-none d-sm-inline">Air Force</span>
             <span class="d-sm-none">AF</span>
         </a>
@@ -579,11 +601,11 @@
                             <i class="fas fa-user-check"></i> 
                             <span>Cadets</span>
                         </a>
-                        <a class="nav-link {% if request.endpoint == 'contacts' %}active{% endif %}" href="{{ url_for('contacts') }}">
-                            <i class="fas fa-address-book"></i> 
-                            <span class="d-none d-lg-inline">Contacts</span>
-                            <span class="d-lg-none">Contacts</span>
-                        </a>
+                                                 <a class="nav-link {% if request.endpoint == 'contacts' %}active{% endif %}" href="{{ url_for('contacts') }}">
+                             <i class="fas fa-address-book"></i> 
+                             <span class="d-none d-lg-inline">Outreach Contacts</span>
+                             <span class="d-lg-none">Outreach</span>
+                         </a>
                         <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="{{ url_for('calendar') }}">
                             <i class="fas fa-calendar-alt"></i> 
                             <span>Calendar</span>
