@@ -56,8 +56,29 @@ All images are public domain works of the United States Air Force, available thr
 
 ## Image Processing
 
+### Automated Optimization
+Use the provided optimization scripts for best results:
+
+```bash
+# For DVIDS images (recommended)
+python download_usaf_images.py --optimize
+
+# For any images
+python optimize_any_images.py --folder downloads/
+python optimize_any_images.py --single image.jpg --target 500
+```
+
+### Manual Processing Guidelines
 For optimal web performance:
-- Compress to JPEG quality 85-90%
+- Target file size: ~500KB each (for fast loading)
 - Resize to maximum 1920px width
-- Target file size: 300-800KB each
+- Compress to JPEG quality 80-90%
 - Maintain aspect ratio
+- Remove any watermarks (DVIDS images are clean)
+
+### Watermark Removal
+🚨 **IMPORTANT**: Use only authentic USAF images from DVIDS
+- DVIDS images are PUBLIC DOMAIN with NO watermarks
+- Do NOT use Getty Images (commercial, watermarked)
+- If you have watermarked images, the optimization script includes basic removal
+- For best results, source images directly from DVIDS

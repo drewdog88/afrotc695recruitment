@@ -10,9 +10,10 @@ All images are public domain works of the United States Air Force.
 
 import os
 import sys
-from PIL import Image
+from PIL import Image, ImageFilter, ImageEnhance
 import requests
 from pathlib import Path
+import io
 
 # Image configuration
 IMAGES = {
@@ -60,18 +61,21 @@ IMAGES = {
     }
 }
 
-def optimize_image(input_path, output_path, max_width=1920, quality=85):
+def optimize_image(input_path, output_path, target_size_kb=500, max_width=1920):
     """
-    Optimize an image for web use as a background.
+    Optimize an image for web use as a background, targeting specific file size.
     
     Args:
         input_path: Path to the input image
         output_path: Path to save the optimized image
+        target_size_kb: Target file size in KB
         max_width: Maximum width in pixels
-        quality: JPEG quality (1-100)
     """
     try:
         with Image.open(input_path) as img:
+            print(f"🔧 Processing {input_path.name}...")
+            print(f"   Original: {img.width}x{img.height}, {os.path.getsize(input_path)/1024:.1f}KB")
+            
             # Convert to RGB if necessary
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
@@ -81,16 +85,80 @@ def optimize_image(input_path, output_path, max_width=1920, quality=85):
                 ratio = max_width / img.width
                 new_height = int(img.height * ratio)
                 img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                print(f"   Resized to: {img.width}x{img.height}")
             
-            # Save optimized image
-            img.save(output_path, 'JPEG', quality=quality, optimize=True)
+            # Enhance image for background use
+            # Slight brightness and contrast adjustment for subtle backgrounds
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(1.1)  # Slightly brighter
             
-            # Get file size
-            size_kb = os.path.getsize(output_path) / 1024
-            print(f"✓ Optimized {output_path.name}: {img.width}x{img.height}, {size_kb:.1f}KB")
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(0.9)  # Slightly less contrast for subtlety
+            
+            # Binary search for optimal quality to hit target file size
+            quality_low, quality_high = 60, 95
+            best_quality = 85
+            
+            while quality_low <= quality_high:
+                quality_mid = (quality_low + quality_high) // 2
+                
+                # Test save to memory
+                buffer = io.BytesIO()
+                img.save(buffer, 'JPEG', quality=quality_mid, optimize=True)
+                size_kb = len(buffer.getvalue()) / 1024
+                
+                if abs(size_kb - target_size_kb) < 50:  # Within 50KB of target
+                    best_quality = quality_mid
+                    break
+                elif size_kb > target_size_kb:
+                    quality_high = quality_mid - 1
+                else:
+                    quality_low = quality_mid + 1
+                    best_quality = quality_mid
+            
+            # Save final optimized image
+            img.save(output_path, 'JPEG', quality=best_quality, optimize=True)
+            
+            # Get final file size
+            final_size_kb = os.path.getsize(output_path) / 1024
+            print(f"   ✓ Optimized: {img.width}x{img.height}, {final_size_kb:.1f}KB (Quality: {best_quality})")
+            
+            # Verify it's suitable for background use
+            if final_size_kb <= target_size_kb * 1.2:  # Within 20% of target
+                print(f"   ✅ Perfect for web backgrounds!")
+            else:
+                print(f"   ⚠️  Larger than target, but optimized for quality")
             
     except Exception as e:
         print(f"✗ Error optimizing {input_path}: {e}")
+
+def remove_potential_watermarks(img):
+    """
+    Remove potential watermarks or overlays from images.
+    Note: DVIDS images shouldn't have watermarks, but this provides cleanup if needed.
+    """
+    # This is a placeholder function - DVIDS images are clean public domain
+    # If watermarks are found, this could be enhanced with specific removal techniques
+    return img
+
+def download_image_from_url(url, output_path):
+    """
+    Attempt to download image directly from URL (if available).
+    Note: DVIDS typically requires login for high-res downloads.
+    """
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code == 200 and 'image' in response.headers.get('content-type', ''):
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            return True
+    except:
+        pass
+    return False
 
 def main():
     """Main function to set up USAF background images."""
@@ -120,40 +188,81 @@ def main():
     print("5. Run this script with --optimize to process them")
     print()
     
-    # Check for --optimize flag
+    print("🚨 IMPORTANT: Getty Images vs DVIDS")
+    print("   - These are AUTHENTIC US Air Force images from DVIDS")
+    print("   - They are PUBLIC DOMAIN with NO watermarks")
+    print("   - Do NOT use Getty Images (commercial, watermarked)")
+    print("   - DVIDS images are free and official military photography")
+    print()
+    
+    # Check for flags
     if '--optimize' in sys.argv:
         downloads_dir = Path("downloads")
         if not downloads_dir.exists():
             print("❌ Downloads folder not found. Please create 'downloads' folder and add images.")
             return
         
-        print("🔧 Optimizing images...")
+        print("🔧 Optimizing images for web use (~500KB each)...")
         print()
         
         optimized_count = 0
+        total_size_before = 0
+        total_size_after = 0
+        
         for filename in IMAGES.keys():
             input_file = downloads_dir / filename
             output_file = bg_dir / filename
             
             if input_file.exists():
-                optimize_image(input_file, output_file)
-                optimized_count += 1
+                size_before = os.path.getsize(input_file)
+                total_size_before += size_before
+                
+                optimize_image(input_file, output_file, target_size_kb=500)
+                
+                if output_file.exists():
+                    size_after = os.path.getsize(output_file)
+                    total_size_after += size_after
+                    optimized_count += 1
+                
+                print()
             else:
                 print(f"⚠️  {filename} not found in downloads folder")
         
-        print()
-        print(f"✅ Optimized {optimized_count} images")
+        print("=" * 50)
+        print(f"✅ Optimization Complete!")
+        print(f"   📊 Images processed: {optimized_count}")
+        print(f"   📉 Size reduction: {(total_size_before/1024/1024):.1f}MB → {(total_size_after/1024/1024):.1f}MB")
+        print(f"   💾 Space saved: {((total_size_before-total_size_after)/1024/1024):.1f}MB")
+        print(f"   🎯 Average size: {(total_size_after/optimized_count/1024):.0f}KB per image")
         
         if optimized_count > 0:
             print()
-            print("🎨 Background system is now active!")
-            print("   - Different pages will show different Air Force aircraft")
-            print("   - Backgrounds are subtle and won't interfere with readability")
-            print("   - Works with both Original and Air Force themes")
+            print("🎨 Air Force Background System is now ACTIVE!")
+            print("   ✈️  Each page shows different authentic USAF aircraft")
+            print("   🔍 Backgrounds are subtle and maintain readability") 
+            print("   🎨 Works with both Original and Air Force themes")
+            print("   📱 Mobile-optimized with reduced opacity")
+            print("   🖨️  Print-friendly (backgrounds hidden when printing)")
+    
+    elif '--check' in sys.argv:
+        print("🔍 Checking current background images...")
+        print()
+        
+        for filename in IMAGES.keys():
+            bg_file = bg_dir / filename
+            if bg_file.exists():
+                size_kb = os.path.getsize(bg_file) / 1024
+                with Image.open(bg_file) as img:
+                    print(f"✅ {filename}: {img.width}x{img.height}, {size_kb:.1f}KB")
+            else:
+                print(f"❌ {filename}: Not found")
     
     else:
-        print("💡 To optimize downloaded images, run:")
-        print("   python download_usaf_images.py --optimize")
+        print("💡 Available commands:")
+        print("   python download_usaf_images.py --optimize   # Optimize downloaded images")
+        print("   python download_usaf_images.py --check      # Check current images")
+        print()
+        print("🎯 Target: ~500KB per image for optimal web performance")
 
 if __name__ == "__main__":
     main()
