@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, Phone, Calendar, TrendingUp } from 'lucide-react';
+import { Users, UserCheck, Phone, Calendar, TrendingUp, Shield } from 'lucide-react';
 import Logo from '../components/Logo';
 
 const Dashboard = () => {

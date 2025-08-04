@@ -1,0 +1,12 @@
+{"level":"info","message":"Connected to SQLite database","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:50"}
+{"level":"info","message":"All tables created successfully","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:51"}
+{"level":"info","message":"Default admin user created","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:52"}
+{"level":"warn","message":"IMPORTANT: Change the default admin password immediately!","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:52"}
+{"level":"info","message":"Database initialized successfully","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:52"}
+{"level":"info","message":"Server running on port 5000","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:52"}
+{"level":"info","message":"Environment: development","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:51:52"}
+{"level":"info","message":"GET /favicon.ico - ::1","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:52:06"}
+{"level":"info","message":"GET /manifest.json - ::1","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:52:06"}
+{"level":"info","message":"GET /manifest.json - ::1","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:52:52"}
+{"level":"info","message":"GET /manifest.json - ::1","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:53:10"}
+{"level":"info","message":"GET /favicon.ico - ::1","service":"afrotc695-recruitment","timestamp":"2025-08-03 19:53:10"}
