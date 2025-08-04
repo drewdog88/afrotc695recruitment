@@ -198,8 +198,12 @@
 
 <!-- Chart.js for retention chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Register the datalabels plugin
+    Chart.register(ChartDataLabels);
+    
     const ctx = document.getElementById('retentionChart').getContext('2d');
     
     const retentionData = {{ retention_data | tojson }};
@@ -282,6 +286,25 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         }
                     }
+                },
+                datalabels: {
+                    display: function(context) {
+                        return context.dataset.data[context.dataIndex] > 0;
+                    },
+                    color: function(context) {
+                        // Green text for active, red text for inactive
+                        return context.dataset.label.includes('Active') ? '#28a745' : '#dc3545';
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 12
+                    },
+                    formatter: function(value, context) {
+                        return value.toFixed(1) + '%';
+                    },
+                    anchor: 'center',
+                    align: 'center',
+                    offset: 0
                 }
             }
         }
