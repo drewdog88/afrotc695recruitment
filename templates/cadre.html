@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Cadre - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Cadre Management</h1>
+    <div class="d-flex gap-2">
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-download"></i> Download
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
+                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='csv') }}">
+                    <i class="fas fa-file-csv"></i> CSV
+                </a></li>
+                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='excel') }}">
+                    <i class="fas fa-file-excel"></i> Excel
+                </a></li>
+                <li><a class="dropdown-item" href="{{ url_for('download_cadre', format='pdf') }}">
+                    <i class="fas fa-file-pdf"></i> PDF
+                </a></li>
+            </ul>
+        </div>
+        <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add Cadre Member
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if cadre_members %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='first_name', order='asc' if sort_by == 'first_name' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Name
+                                {% if sort_by == 'first_name' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='cadet_rank', order='asc' if sort_by == 'cadet_rank' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Rank
+                                {% if sort_by == 'cadet_rank' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='major', order='asc' if sort_by == 'major' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Major
+                                {% if sort_by == 'major' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='graduation_year', order='asc' if sort_by == 'graduation_year' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Graduation Year
+                                {% if sort_by == 'graduation_year' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='status', order='asc' if sort_by == 'status' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Status
+                                {% if sort_by == 'status' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='gpa', order='asc' if sort_by == 'gpa' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                GPA
+                                {% if sort_by == 'gpa' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Unenrollment Date</th>
+                        <th>
+                            <a href="{{ url_for('cadre', sort='last_modified', order='asc' if sort_by == 'last_modified' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Last Modified
+                                {% if sort_by == 'last_modified' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in cadre_members %}
+                    <tr>
+                        <td>
+                            <strong>{{ member.first_name }} {{ member.last_name }}</strong>
+                            {% if member.email %}
+                            <br><small class="text-muted">{{ member.email }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ member.cadet_rank }}</td>
+                        <td>{{ member.major }}</td>
+                        <td>{{ member.graduation_year }}</td>
+                        <td>
+                            {% if member.status == 'active' %}
+                                <span class="badge bg-success">Active</span>
+                            {% elif member.status == 'inactive' %}
+                                <span class="badge bg-warning">Inactive</span>
+                            {% elif member.status == 'graduated' %}
+                                <span class="badge bg-info">Graduated</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ member.status.title() }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ member.gpa or 'N/A' }}</td>
+                        <td>{{ member.unenrollment_date_display or 'N/A' }}</td>
+                        <td>{{ member.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
+                        <td>
+                            <a href="{{ url_for('edit_cadre', cadre_id=member.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-user-check fa-3x text-muted mb-3"></i>
+            <h5>No Cadre Members Yet</h5>
+            <p class="text-muted">Start managing your cadre by adding the first member.</p>
+            <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add First Cadre Member
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+ 

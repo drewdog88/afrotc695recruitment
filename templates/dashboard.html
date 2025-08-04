@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="dashboard-background">
+    <div class="d-flex align-items-center mb-4">
+        <img src="https://www.up.edu/afrotc/images/det-695-full-color-patch.png" alt="AFROTC 695 Logo" style="height: 60px; width: auto;" class="me-3">
+        <div>
+            <h1 class="h2 mb-1">Dashboard</h1>
+            <p class="text-muted mb-0">Welcome to AFROTC 695 Recruitment Management System</p>
+        </div>
+    </div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-users fa-2x text-white-50"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h3 class="card-title text-white mb-1">{{ recruit_count }}</h3>
+                        <p class="card-text text-white-50 mb-0">Potential Recruits</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-user-check fa-2x text-white-50"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h3 class="card-title text-white mb-1">{{ cadre_count }}</h3>
+                        <p class="card-text text-white-50 mb-0">Active Cadre</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-address-book fa-2x text-white-50"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h3 class="card-title text-white mb-1">{{ contact_count }}</h3>
+                        <p class="card-text text-white-50 mb-0">University Contacts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-calendar-alt fa-2x text-white-50"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h3 class="card-title text-white mb-1">{{ event_count }}</h3>
+                        <p class="card-text text-white-50 mb-0">Upcoming Events</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_recruit') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                            <i class="fas fa-user-plus fa-2x mb-2"></i>
+                            <span>Add New Recruit</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_cadre') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                            <i class="fas fa-user-check fa-2x mb-2"></i>
+                            <span>Add Cadre Member</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_contact') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                            <i class="fas fa-address-book fa-2x mb-2"></i>
+                            <span>Add Contact</span>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_event') }}" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                            <i class="fas fa-calendar-plus fa-2x mb-2"></i>
+                            <span>Schedule Event</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Welcome Message -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-shield-alt fa-2x text-primary"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="card-title">Welcome to AFROTC 695 Recruitment Management</h5>
+                        <p class="card-text">
+                            This system helps you track potential recruits, manage cadre, coordinate with university contacts, 
+                            and schedule recruitment events. Use the navigation menu to access different sections of the system.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %} 

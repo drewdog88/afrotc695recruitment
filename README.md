@@ -32,21 +32,38 @@ This web application is designed to streamline and secure the recruitment proces
 
 ## Technology Stack
 
-- **Frontend**: React.js with TypeScript
-- **Backend**: Node.js with Express
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **Authentication**: JWT tokens
-- **Styling**: Tailwind CSS
-- **Deployment**: Docker-ready
+- **Backend**: Python Flask
+- **Frontend**: HTML/CSS/JavaScript with Bootstrap 5
+- **Database**: SQLite
+- **Authentication**: Session-based with Werkzeug
+- **Styling**: Bootstrap 5 with custom CSS
+- **Templates**: Jinja2
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
+- Python 3.8 or higher
+- pip (Python package installer)
 - Git
 
 ### Installation
+
+#### Option 1: Quick Start (Recommended)
+
+**Windows:**
+```bash
+# Double-click start.bat or run:
+start.bat
+```
+
+**macOS/Linux:**
+```bash
+# Make executable and run:
+chmod +x start.sh
+./start.sh
+```
+
+#### Option 2: Manual Installation
 
 1. Clone the repository:
 ```bash
@@ -54,33 +71,51 @@ git clone https://github.com/drewdog88/afrotc695recruitment.git
 cd afrotc695recruitment
 ```
 
-2. Install dependencies:
+2. Create and activate a virtual environment:
 ```bash
-npm install
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+source .venv/bin/activate
 ```
 
-3. Set up environment variables:
+3. Install dependencies:
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+pip install -r requirements.txt
 ```
 
-4. Start the development server:
+4. Set up environment variables:
 ```bash
-npm run dev
+cp env.example .env
+# Edit .env with your configuration (optional)
 ```
 
-The application will be available at `http://localhost:3000`
+5. Start the application:
+```bash
+python run.py
+```
+
+The application will be available at `http://localhost:5000`
+
+**Default Login:**
+- Username: `admin`
+- Password: `admin123`
 
 ## Project Structure
 
 ```
 afrotc695recruitment/
-├── client/                 # React frontend
-├── server/                 # Node.js backend
-├── database/              # Database schemas and migrations
-├── docs/                  # Documentation
-└── docker/                # Docker configuration
+├── app.py                 # Main Flask application
+├── run.py                 # Application startup script
+├── start.bat              # Windows startup script
+├── start.sh               # macOS/Linux startup script
+├── templates/             # HTML templates (Jinja2)
+├── static/                # Static files (CSS, JS, images)
+├── instance/              # Database and instance files
+├── requirements.txt       # Python dependencies
+├── env.example           # Environment variables template
+└── .env                  # Environment variables (created automatically)
 ```
 
 ## Contributing

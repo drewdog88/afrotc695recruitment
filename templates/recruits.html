@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Potential Recruits - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Potential Recruits</h1>
+    <div class="d-flex gap-2">
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-download"></i> Download
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
+                <li><a class="dropdown-item" href="{{ url_for('download_recruits', format='csv') }}">
+                    <i class="fas fa-file-csv"></i> CSV
+                </a></li>
+                <li><a class="dropdown-item" href="{{ url_for('download_recruits', format='excel') }}">
+                    <i class="fas fa-file-excel"></i> Excel
+                </a></li>
+                <li><a class="dropdown-item" href="{{ url_for('download_recruits', format='pdf') }}">
+                    <i class="fas fa-file-pdf"></i> PDF
+                </a></li>
+            </ul>
+        </div>
+        <a href="{{ url_for('add_recruit') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add New Recruit
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if recruits %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='first_name', order='asc' if sort_by == 'first_name' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Name
+                                {% if sort_by == 'first_name' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='current_school', order='asc' if sort_by == 'current_school' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                School
+                                {% if sort_by == 'current_school' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='major', order='asc' if sort_by == 'major' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Major
+                                {% if sort_by == 'major' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Graduation Year</th>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='status', order='asc' if sort_by == 'status' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Status
+                                {% if sort_by == 'status' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='created_at', order='asc' if sort_by == 'created_at' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Added
+                                {% if sort_by == 'created_at' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('recruits', sort='last_modified', order='asc' if sort_by == 'last_modified' and order == 'desc' else 'desc') }}" class="text-decoration-none text-dark">
+                                Last Modified
+                                {% if sort_by == 'last_modified' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
+                                {% else %}
+                                    <i class="fas fa-sort text-muted"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recruit in recruits %}
+                    <tr>
+                        <td>
+                            <strong>{{ recruit.first_name }} {{ recruit.last_name }}</strong>
+                            {% if recruit.email %}
+                            <br><small class="text-muted">{{ recruit.email }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ recruit.current_school }}</td>
+                        <td>{{ recruit.major or 'Not specified' }}</td>
+                        <td>
+                            {% if recruit.school_type == 'high_school' %}
+                                HS: {{ recruit.high_school_graduation_year or 'N/A' }}
+                            {% else %}
+                                College: {{ recruit.expected_college_graduation_year or 'N/A' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if recruit.status == 'enrolled' else 'warning' if recruit.status == 'interested' else 'info' }}">
+                                {{ recruit.status.title() }}
+                            </span>
+                        </td>
+                        <td>{{ recruit.created_at.strftime('%m/%d/%Y') }}</td>
+                        <td>{{ recruit.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewRecruit({{ recruit.id }})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            <h5>No Potential Recruits Yet</h5>
+            <p class="text-muted">Start tracking potential recruits by adding your first one.</p>
+            <a href="{{ url_for('add_recruit') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add First Recruit
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewRecruit(id) {
+    // TODO: Implement view/edit functionality
+    alert('View/Edit functionality coming soon for recruit ID: ' + id);
+}
+</script>
+{% endblock %} 
