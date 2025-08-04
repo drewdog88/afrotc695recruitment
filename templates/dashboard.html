@@ -15,67 +15,75 @@
 <!-- Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-users fa-2x text-white-50"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h3 class="card-title text-white mb-1">{{ recruit_count }}</h3>
-                        <p class="card-text text-white-50 mb-0">Potential Recruits</p>
+        <a href="{{ url_for('recruits') }}" class="text-decoration-none">
+            <div class="card stats-card clickable-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-users fa-2x text-white-50"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h3 class="card-title text-white mb-1">{{ recruit_count }}</h3>
+                            <p class="card-text text-white-50 mb-0">Potential Recruits</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
     
     <div class="col-md-3 mb-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-user-check fa-2x text-white-50"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h3 class="card-title text-white mb-1">{{ cadre_count }}</h3>
-                        <p class="card-text text-white-50 mb-0">Active Cadre</p>
+        <a href="{{ url_for('cadre') }}" class="text-decoration-none">
+            <div class="card stats-card clickable-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-user-check fa-2x text-white-50"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h3 class="card-title text-white mb-1">{{ cadre_count }}</h3>
+                            <p class="card-text text-white-50 mb-0">Active Cadre</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
     
     <div class="col-md-3 mb-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-address-book fa-2x text-white-50"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h3 class="card-title text-white mb-1">{{ contact_count }}</h3>
-                        <p class="card-text text-white-50 mb-0">High School Contacts</p>
+        <a href="{{ url_for('contacts') }}" class="text-decoration-none">
+            <div class="card stats-card clickable-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-address-book fa-2x text-white-50"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h3 class="card-title text-white mb-1">{{ contact_count }}</h3>
+                            <p class="card-text text-white-50 mb-0">High School Contacts</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
     
     <div class="col-md-3 mb-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-calendar-alt fa-2x text-white-50"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h3 class="card-title text-white mb-1">{{ event_count }}</h3>
-                        <p class="card-text text-white-50 mb-0">Upcoming Events</p>
+        <a href="{{ url_for('calendar') }}" class="text-decoration-none">
+            <div class="card stats-card clickable-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-calendar-alt fa-2x text-white-50"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h3 class="card-title text-white mb-1">{{ event_count }}</h3>
+                            <p class="card-text text-white-50 mb-0">Upcoming Events</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
