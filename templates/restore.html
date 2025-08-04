@@ -17,9 +17,9 @@
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="backup_file" class="form-label">Select Backup File (.db)</label>
-                        <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".db" required>
-                        <div class="form-text">Select a database backup file to restore from.</div>
+                        <label for="backup_file" class="form-label">Select Backup File (.sql)</label>
+                        <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".sql" required>
+                        <div class="form-text">Select a MySQL database backup file (.sql) to restore from.</div>
                     </div>
                     <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to restore the database? This will overwrite all current data!')">
                         <i class="fas fa-undo"></i> Restore Database
@@ -94,7 +94,7 @@
             </div>
             <div class="card-body">
                 <ol>
-                    <li>Ensure you have a valid backup file (.db format)</li>
+                    <li>Ensure you have a valid MySQL backup file (.sql format)</li>
                     <li>Upload the backup file using the form on the left</li>
                     <li>Confirm the restoration when prompted</li>
                     <li>Wait for the restoration to complete</li>

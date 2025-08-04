@@ -1,29 +1,20 @@
-#!/usr/bin/env python3
-"""
-AFROTC 695 Recruitment Management System - Production Version
-Configured for MySQL database and web hosting deployment
-"""
-
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timezone, timedelta
 import os
-import pandas as pd
-import uuid
-import zipfile
-import tempfile
 import shutil
+import sqlite3
+from dotenv import load_dotenv
+import pandas as pd
+from io import BytesIO
 from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-from reportlab.lib.units import inch
-import schedule
-import threading
-import time
-from dotenv import load_dotenv
+import tempfile
+import zipfile
+import calendar
 
 # Load environment variables
 load_dotenv()
@@ -32,7 +23,11 @@ app = Flask(__name__)
 
 # Production Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mysql://username:password@localhost/afrotc695')
+# Fix the database URL to use PyMySQL driver
+database_url = os.getenv('DATABASE_URL', 'mysql://username:password@localhost/afrotc695')
+if database_url.startswith('mysql://'):
+    database_url = database_url.replace('mysql://', 'mysql+pymysql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -42,22 +37,352 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
+# Database backup configuration
+BACKUP_DIR = 'backups'
+if not os.path.exists(BACKUP_DIR):
+    os.makedirs(BACKUP_DIR)
+
+def check_mysql_tools():
+    """Check if MySQL tools (mysqldump, mysql) are available"""
+    try:
+        import subprocess
+        
+        # Define full paths to MySQL tools
+        mysql_bin_path = r"C:\Program Files\MySQL\MySQL Server 8.0\bin"
+        mysqldump_path = os.path.join(mysql_bin_path, "mysqldump.exe")
+        mysql_path = os.path.join(mysql_bin_path, "mysql.exe")
+        
+        # Check if files exist
+        if not os.path.exists(mysqldump_path):
+            return False, f"mysqldump not found at {mysqldump_path}"
+        if not os.path.exists(mysql_path):
+            return False, f"mysql not found at {mysql_path}"
+        
+        # Check mysqldump
+        result = subprocess.run([mysqldump_path, '--version'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return False, "mysqldump not accessible"
+        
+        # Check mysql
+        result = subprocess.run([mysql_path, '--version'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return False, "mysql not accessible"
+        
+        return True, "MySQL tools available"
+    except Exception as e:
+        return False, f"Error checking MySQL tools: {e}"
+
+def backup_database(description="Manual backup"):
+    """Create a MySQL database backup with timestamp and description"""
+    # Check if MySQL tools are available
+    tools_available, error_msg = check_mysql_tools()
+    if not tools_available:
+        print(f"MySQL tools not available: {error_msg}")
+        return None, None
+    
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f"afrotc695_backup_{timestamp}.sql"
+        backup_path = os.path.join(BACKUP_DIR, backup_filename)
+        
+        # Parse database connection details from SQLALCHEMY_DATABASE_URI
+        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+        # Format: mysql+pymysql://username:password@host:port/database
+        if db_uri.startswith('mysql+pymysql://'):
+            db_uri = db_uri.replace('mysql+pymysql://', '')
+        
+        # Extract connection details
+        if '@' in db_uri:
+            auth_part, rest = db_uri.split('@', 1)
+            if ':' in auth_part:
+                username, password = auth_part.split(':', 1)
+                password = password.replace('%40', '@')  # URL decode @ symbol
+            else:
+                username = auth_part
+                password = ''
+            
+            if '/' in rest:
+                host_port, database = rest.split('/', 1)
+                if ':' in host_port:
+                    host, port = host_port.split(':', 1)
+                else:
+                    host = host_port
+                    port = '3306'
+            else:
+                host = rest
+                port = '3306'
+                database = ''
+        else:
+            # Fallback parsing
+            username = 'cascznjx_afrotcdbadmin'
+            password = 'E3@8SXMxNPHG'
+            host = 'localhost'
+            port = '3306'
+            database = 'cascznjx_afrotc_recruit'
+        
+        # Build mysqldump command
+        import subprocess
+        
+        # Define full path to mysqldump
+        mysql_bin_path = r"C:\Program Files\MySQL\MySQL Server 8.0\bin"
+        mysqldump_path = os.path.join(mysql_bin_path, "mysqldump.exe")
+        
+        # Create mysqldump command with proper escaping
+        cmd = [
+            mysqldump_path,
+            f'--host={host}',
+            f'--port={port}',
+            f'--user={username}',
+            '--single-transaction',
+            '--routines',
+            '--triggers',
+            '--add-drop-database',
+            '--create-options',
+            database
+        ]
+        
+        # Set password via environment variable for security
+        env = os.environ.copy()
+        env['MYSQL_PWD'] = password
+        
+        # Execute mysqldump
+        with open(backup_path, 'w') as backup_file:
+            result = subprocess.run(
+                cmd,
+                stdout=backup_file,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True
+            )
+        
+        if result.returncode != 0:
+            raise Exception(f"mysqldump failed: {result.stderr}")
+        
+        # Create backup metadata
+        try:
+            from flask import session
+            username = session.get('username', 'Unknown')
+        except:
+            username = 'System'
+            
+        metadata = {
+            'timestamp': timestamp,
+            'description': description,
+            'filename': backup_filename,
+            'size': os.path.getsize(backup_path),
+            'user': username,
+            'database': database,
+            'host': host
+        }
+        
+        # Save metadata to a JSON file
+        import json
+        metadata_file = backup_path.replace('.sql', '_metadata.json')
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print(f"Database backup created: {backup_filename}")
+        return backup_filename, backup_path
+        
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        return None, None
+
+def restore_database(backup_file_path):
+    """Restore MySQL database from backup file"""
+    try:
+        # Parse database connection details from SQLALCHEMY_DATABASE_URI
+        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+        # Format: mysql+pymysql://username:password@host:port/database
+        if db_uri.startswith('mysql+pymysql://'):
+            db_uri = db_uri.replace('mysql+pymysql://', '')
+        
+        # Extract connection details
+        if '@' in db_uri:
+            auth_part, rest = db_uri.split('@', 1)
+            if ':' in auth_part:
+                username, password = auth_part.split(':', 1)
+                password = password.replace('%40', '@')  # URL decode @ symbol
+            else:
+                username = auth_part
+                password = ''
+            
+            if '/' in rest:
+                host_port, database = rest.split('/', 1)
+                if ':' in host_port:
+                    host, port = host_port.split(':', 1)
+                else:
+                    host = host_port
+                    port = '3306'
+            else:
+                host = rest
+                port = '3306'
+                database = ''
+        else:
+            # Fallback parsing
+            username = 'cascznjx_afrotcdbadmin'
+            password = 'E3@8SXMxNPHG'
+            host = 'localhost'
+            port = '3306'
+            database = 'cascznjx_afrotc_recruit'
+        
+        # Create a backup of current database before restore
+        current_backup = backup_database("Pre-restore backup")
+        
+        # Close database connections
+        db.session.close()
+        
+        # Build mysql command for restore
+        import subprocess
+        
+        # Define full path to mysql
+        mysql_bin_path = r"C:\Program Files\MySQL\MySQL Server 8.0\bin"
+        mysql_path = os.path.join(mysql_bin_path, "mysql.exe")
+        
+        cmd = [
+            mysql_path,
+            f'--host={host}',
+            f'--port={port}',
+            f'--user={username}',
+            database
+        ]
+        
+        # Set password via environment variable for security
+        env = os.environ.copy()
+        env['MYSQL_PWD'] = password
+        
+        # Execute mysql restore
+        with open(backup_file_path, 'r') as backup_file:
+            result = subprocess.run(
+                cmd,
+                stdin=backup_file,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True
+            )
+        
+        if result.returncode != 0:
+            raise Exception(f"mysql restore failed: {result.stderr}")
+        
+        print(f"Database restored from: {backup_file_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error restoring database: {e}")
+        return False
+
+def get_backup_files():
+    """Get list of available backup files with metadata"""
+    backups = []
+    try:
+        for filename in os.listdir(BACKUP_DIR):
+            if filename.endswith('.sql'):  # Changed from .db to .sql for MySQL
+                backup_path = os.path.join(BACKUP_DIR, filename)
+                metadata_file = backup_path.replace('.sql', '_metadata.json')
+                
+                # Get basic file info
+                file_stat = os.stat(backup_path)
+                backup_info = {
+                    'filename': filename,
+                    'size': file_stat.st_size,
+                    'created': datetime.fromtimestamp(file_stat.st_ctime),
+                    'description': 'Manual backup'
+                }
+                
+                # Try to load metadata
+                if os.path.exists(metadata_file):
+                    try:
+                        import json
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                            backup_info.update(metadata)
+                    except:
+                        pass
+                
+                backups.append(backup_info)
+        
+        # Sort by creation time (newest first)
+        backups.sort(key=lambda x: x['created'], reverse=True)
+        return backups
+        
+    except Exception as e:
+        print(f"Error getting backup files: {e}")
+        return []
+
+# Activity Log Model for tracking all user actions
+class ActivityLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    username = db.Column(db.String(80), nullable=False)  # Store username for easy reference
+    action = db.Column(db.String(100), nullable=False)  # e.g., 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'
+    table_name = db.Column(db.String(50))  # e.g., 'user', 'potential_recruit', 'cadet', etc.
+    record_id = db.Column(db.Integer)  # ID of the affected record
+    record_description = db.Column(db.String(200))  # Human-readable description of the record
+    details = db.Column(db.Text)  # Additional details about the action
+    ip_address = db.Column(db.String(45))  # Store IP address for security
+    user_agent = db.Column(db.String(500))  # Store user agent for security
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to user
+    user = db.relationship('User', backref='activity_logs')
+
+class PasswordHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    password_hash = db.Column(db.String(120), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to user
+    user = db.relationship('User', backref='password_history')
+
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(20))
     role = db.Column(db.String(20), default='recruiter')  # admin or recruiter
     is_active = db.Column(db.Boolean, default=True)
+    is_locked = db.Column(db.Boolean, default=False)
     password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    password_expires_at = db.Column(db.DateTime)
+    force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Set password expiry for non-admin users (180 days)
+        if self.role != 'admin':
+            self.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        else:
+            self.password_expires_at = None  # Admin passwords never expire
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def is_password_expired(self):
+        if self.role == 'admin':
+            return False
+        if self.password_expires_at:
+            return datetime.utcnow() > self.password_expires_at
+        return False
+    
+    @property
+    def days_until_password_expiry(self):
+        if self.role == 'admin' or not self.password_expires_at:
+            return None
+        days_left = (self.password_expires_at - datetime.utcnow()).days
+        return max(0, days_left)
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -65,11 +390,17 @@ class PotentialRecruit(db.Model):
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
-    high_school = db.Column(db.String(100))
-    graduation_year = db.Column(db.Integer)
-    interest_level = db.Column(db.String(20))  # high, medium, low
-    status = db.Column(db.String(20), default='active')  # active, inactive
+    major = db.Column(db.String(100))
+    current_school = db.Column(db.String(100), nullable=False)
+    school_type = db.Column(db.String(20), nullable=False)  # high_school or college
+    high_school_graduation_year = db.Column(db.Integer)
+    expected_college_graduation_year = db.Column(db.Integer)
+    gpa = db.Column(db.Float)
+    sat_score = db.Column(db.Integer)
+    act_score = db.Column(db.Integer)
+    interests = db.Column(db.Text)
     notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='prospective')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -77,27 +408,62 @@ class Cadet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(120))
+    email = db.Column(db.String(120), unique=True, nullable=False)
     phone = db.Column(db.String(20))
+    major = db.Column(db.String(100), nullable=False)
     graduation_year = db.Column(db.Integer, nullable=False)
-    cadet_rank = db.Column(db.String(50))
-    position = db.Column(db.String(100))
+    cadet_rank = db.Column(db.String(50), nullable=False)
+    hometown = db.Column(db.String(100))
+    officer_interest = db.Column(db.String(100))
     status = db.Column(db.String(20), default='active')  # active, inactive, graduated
-    notes = db.Column(db.Text)
+    unenrollment_reason = db.Column(db.Text)
+    unenrollment_date = db.Column(db.Date)
+    gpa = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __init__(self, **kwargs):
+        # Handle unenrollment_date parsing
+        if 'unenrollment_date' in kwargs and kwargs['unenrollment_date']:
+            try:
+                if isinstance(kwargs['unenrollment_date'], str):
+                    kwargs['unenrollment_date'] = datetime.strptime(kwargs['unenrollment_date'], '%Y-%m-%d').date()
+                elif hasattr(kwargs['unenrollment_date'], 'date'):
+                    # If it's already a date object
+                    kwargs['unenrollment_date'] = kwargs['unenrollment_date'].date()
+                else:
+                    kwargs['unenrollment_date'] = None
+            except (ValueError, TypeError, AttributeError):
+                kwargs['unenrollment_date'] = None
+        super().__init__(**kwargs)
+    
+    @property
+    def unenrollment_date_display(self):
+        """Safe property to get unenrollment_date for display"""
+        try:
+            if self.unenrollment_date:
+                if hasattr(self.unenrollment_date, 'strftime'):
+                    return self.unenrollment_date.strftime('%Y-%m-%d')
+                elif isinstance(self.unenrollment_date, str):
+                    # Try to parse and format
+                    parsed_date = datetime.strptime(self.unenrollment_date, '%Y-%m-%d')
+                    return parsed_date.strftime('%Y-%m-%d')
+                else:
+                    return None
+            return None
+        except (ValueError, TypeError, AttributeError):
+            return None
 
 class UniversityContact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(50), nullable=False)
-    last_name = db.Column(db.String(50), nullable=False)
-    title = db.Column(db.String(100))
-    high_school_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120))
+    university_name = db.Column(db.String(100), nullable=False)
+    contact_name = db.Column(db.String(100), nullable=False)
+    contact_title = db.Column(db.String(100))
+    email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(20))
-    relationship = db.Column(db.String(100))
-    is_active = db.Column(db.Boolean, default=True)
+    address = db.Column(db.Text)
     notes = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -105,30 +471,27 @@ class RecruitmentEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    event_date = db.Column(db.DateTime, nullable=False)
+    event_date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.Time)
+    end_time = db.Column(db.Time)
     location = db.Column(db.String(200))
-    associated_high_school = db.Column(db.String(100))
-    status = db.Column(db.String(20), default='scheduled')  # scheduled, completed, cancelled
+    university_id = db.Column(db.Integer, db.ForeignKey('university_contact.id'))
+    event_type = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.String(20), default='scheduled')
+    attendees_count = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class ActivityLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    action = db.Column(db.String(100), nullable=False)
-    table_name = db.Column(db.String(50))
-    record_id = db.Column(db.Integer)
-    details = db.Column(db.Text)
-    ip_address = db.Column(db.String(45))
-    user_agent = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to university contact
+    university_contact = db.relationship('UniversityContact', backref='events')
 
 class ExternalLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     url = db.Column(db.String(500), nullable=False)
     description = db.Column(db.Text)
-    category = db.Column(db.String(50), default='general')
+    category = db.Column(db.String(50), default='general')  # general, official, resources, etc.
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -140,31 +503,114 @@ class RecruitmentDocument(db.Model):
     description = db.Column(db.Text)
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=False)
-    file_size = db.Column(db.Integer)
-    file_type = db.Column(db.String(50))
-    category = db.Column(db.String(50), default='general')
+    file_size = db.Column(db.Integer)  # Size in bytes
+    file_type = db.Column(db.String(50))  # pdf, pptx, docx, etc.
+    category = db.Column(db.String(50), default='general')  # presentations, forms, guides, etc.
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-# Helper Functions
-def log_activity(user_id, action, table_name=None, record_id=None, details=None):
-    """Log user activity"""
+def utc_to_local(utc_dt):
+    """Convert UTC datetime to local timezone"""
+    if utc_dt is None:
+        return None
+    # Convert UTC to local time (this will use the server's timezone)
+    local_dt = utc_dt.replace(tzinfo=timezone.utc).astimezone()
+    return local_dt
+
+# Helper function to log activities
+def log_activity(action, table_name=None, record_id=None, record_description=None, details=None):
+    """Log user activity to the database"""
+    if 'user_id' not in session:
+        return
+    
     try:
-        log = ActivityLog(
+        # Get user info
+        user_id = session['user_id']
+        username = session.get('username', 'Unknown')
+        
+        # Get request info
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent', 'Unknown')
+        
+        # Create activity log entry
+        activity = ActivityLog(
             user_id=user_id,
+            username=username,
             action=action,
             table_name=table_name,
             record_id=record_id,
+            record_description=record_description,
             details=details,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent', '')
+            ip_address=ip_address,
+            user_agent=user_agent
         )
-        db.session.add(log)
+        
+        db.session.add(activity)
         db.session.commit()
     except Exception as e:
         print(f"Error logging activity: {e}")
+        # Don't fail the main operation if logging fails
+        db.session.rollback()
+
+# Password validation helper functions
+def validate_password(password, user_id=None):
+    """Validate password strength and check against history"""
+    errors = []
+    
+    # Check minimum length
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+    
+    # Check for complexity requirements
+    if not any(c.isupper() for c in password):
+        errors.append("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password):
+        errors.append("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password):
+        errors.append("Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
+        errors.append("Password must contain at least one special character")
+    
+    # Check against password history (last 5 passwords)
+    if user_id:
+        recent_passwords = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).limit(5).all()
+        for hist in recent_passwords:
+            if check_password_hash(hist.password_hash, password):
+                errors.append("Password cannot be the same as any of your last 5 passwords")
+                break
+    
+    return errors
+
+def update_password_history(user_id, password_hash):
+    """Add password to history and clean up old entries"""
+    # Add new password to history
+    history_entry = PasswordHistory(user_id=user_id, password_hash=password_hash)
+    db.session.add(history_entry)
+    
+    # Keep only last 10 password entries
+    old_entries = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).offset(10).all()
+    for entry in old_entries:
+        db.session.delete(entry)
+    
+    db.session.commit()
+
+def check_user_access(user, required_role='recruiter'):
+    """Check if user has required role access"""
+    if not user.is_active:
+        return False, "Account is inactive"
+    
+    if user.is_locked:
+        return False, "Account is locked"
+    
+    if user.is_password_expired:
+        return False, "Password has expired"
+    
+    if required_role == 'admin' and user.role != 'admin':
+        return False, "Admin access required"
+    
+    return True, None
 
 def validate_secret_answer(user, secret_answer):
     """Validate user's secret answer"""
@@ -174,14 +620,22 @@ def get_cadet_retention_data():
     """Calculate cadet retention data by graduation year"""
     current_year = datetime.now().year
     retention_data = []
+    
+    # Get the 4 graduation years (current year + 3 years)
     graduation_years = [current_year + i for i in range(4)]
-
+    
     for year in graduation_years:
+        # Get total cadets for this graduation year
         total_cadets = Cadet.query.filter_by(graduation_year=year).count()
+        
         if total_cadets > 0:
+            # Get active cadets for this graduation year
             active_cadets = Cadet.query.filter_by(graduation_year=year, status='active').count()
+            
+            # Calculate percentages
             active_percentage = (active_cadets / total_cadets) * 100
             inactive_percentage = 100 - active_percentage
+            
             retention_data.append({
                 'year': year,
                 'total_cadets': total_cadets,
@@ -191,84 +645,35 @@ def get_cadet_retention_data():
                 'inactive_percentage': round(inactive_percentage, 1)
             })
         else:
+            # No cadets for this year, but still include it for the chart
             retention_data.append({
-                'year': year, 'total_cadets': 0, 'active_cadets': 0,
-                'inactive_cadets': 0, 'active_percentage': 0, 'inactive_percentage': 0
+                'year': year,
+                'total_cadets': 0,
+                'active_cadets': 0,
+                'inactive_cadets': 0,
+                'active_percentage': 0,
+                'inactive_percentage': 0
             })
+    
+    # Sort by year in ascending order
     retention_data.sort(key=lambda x: x['year'])
     return retention_data
 
+def parse_int(val):
+    """Safely convert value to integer, returning None if conversion fails"""
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+def parse_float(val):
+    """Safely convert value to float, returning None if conversion fails"""
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
 # Routes
-@app.route('/')
-def index():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return redirect(url_for('dashboard'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        user = User.query.filter_by(username=username).first()
-        
-        if user and check_password_hash(user.password_hash, password):
-            if not user.is_active:
-                flash('Account is locked. Please contact administrator.', 'error')
-                return render_template('login.html')
-            
-            # Check password expiration (180 days for non-admin users)
-            if user.role != 'admin':
-                days_since_change = (datetime.utcnow() - user.password_changed_at).days
-                if days_since_change > 180:
-                    flash('Password expired. Please change your password.', 'warning')
-                    session['user_id'] = user.id
-                    return redirect(url_for('change_password'))
-            
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            
-            log_activity(user.id, 'login')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
-    
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    if 'user_id' in session:
-        log_activity(session['user_id'], 'logout')
-    session.clear()
-    return redirect(url_for('login'))
-
-@app.route('/dashboard')
-def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Get counts for dashboard
-    recruit_count = PotentialRecruit.query.count()
-    cadet_count = Cadet.query.filter_by(status='active').count()
-    contact_count = UniversityContact.query.filter_by(is_active=True).count()
-    event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
-    
-    # Get cadet retention data
-    retention_data = get_cadet_retention_data()
-    
-    # Get recent activities (last 10)
-    recent_activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
-    
-    return render_template('dashboard.html', 
-                         recruit_count=recruit_count,
-                         cadet_count=cadet_count,
-                         contact_count=contact_count,
-                         event_count=event_count,
-                         retention_data=retention_data,
-                         recent_activities=recent_activities)
-
 @app.route('/')
 def index():
     if 'user_id' not in session:
@@ -428,7 +833,10 @@ def dashboard():
     recruit_count = PotentialRecruit.query.count()
     cadet_count = Cadet.query.filter_by(status='active').count()
     contact_count = UniversityContact.query.filter_by(is_active=True).count()
-    event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
+    
+    # Get upcoming events count (events with dates in the future)
+    today = date.today()
+    event_count = RecruitmentEvent.query.filter(RecruitmentEvent.event_date >= today).count()
     
     # Get cadet retention data
     retention_data = get_cadet_retention_data()
@@ -494,11 +902,11 @@ def add_recruit():
             major=request.form['major'],
             current_school=request.form['current_school'],
             school_type=request.form['school_type'],
-            high_school_graduation_year=request.form.get('high_school_graduation_year'),
-            expected_college_graduation_year=request.form.get('expected_college_graduation_year'),
-            gpa=request.form.get('gpa'),
-            sat_score=request.form.get('sat_score'),
-            act_score=request.form.get('act_score'),
+            high_school_graduation_year=parse_int(request.form.get('high_school_graduation_year')),
+            expected_college_graduation_year=parse_int(request.form.get('expected_college_graduation_year')),
+            gpa=parse_float(request.form.get('gpa')),
+            sat_score=parse_int(request.form.get('sat_score')),
+            act_score=parse_int(request.form.get('act_score')),
             interests=request.form['interests'],
             notes=request.form['notes'],
             status=request.form['status']
@@ -580,14 +988,14 @@ def add_cadet():
             email=request.form['email'],
             phone=request.form['phone'],
             major=request.form['major'],
-            graduation_year=request.form['graduation_year'],
+            graduation_year=parse_int(request.form['graduation_year']),
             cadet_rank=request.form['cadet_rank'],
             hometown=request.form['hometown'],
             officer_interest=request.form['officer_interest'],
             status=request.form['status'],
             unenrollment_reason=request.form['unenrollment_reason'],
             unenrollment_date=unenrollment_date,
-            gpa=request.form.get('gpa')
+            gpa=parse_float(request.form.get('gpa'))
         )
         
         db.session.add(cadet)
@@ -624,13 +1032,13 @@ def edit_cadet(cadet_id):
         cadet.email = request.form['email']
         cadet.phone = request.form['phone']
         cadet.major = request.form['major']
-        cadet.graduation_year = request.form['graduation_year']
+        cadet.graduation_year = parse_int(request.form['graduation_year'])
         cadet.cadet_rank = request.form['cadet_rank']
         cadet.hometown = request.form['hometown']
         cadet.officer_interest = request.form['officer_interest']
         cadet.status = request.form['status']
         cadet.unenrollment_reason = request.form['unenrollment_reason']
-        cadet.gpa = request.form.get('gpa')
+        cadet.gpa = parse_float(request.form.get('gpa'))
         
         # Handle unenrollment_date parsing
         if request.form.get('unenrollment_date'):
@@ -774,14 +1182,59 @@ def edit_contact(contact_id):
     return render_template('edit_contact.html', contact=contact)
 
 @app.route('/calendar')
-def calendar():
+def calendar_view():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
     try:
-        events = RecruitmentEvent.query.order_by(RecruitmentEvent.event_date).all()
+        # Get year and month from query parameters, default to current month
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        
+        if year is None or month is None:
+            today = date.today()
+            year = today.year
+            month = today.month
+        
+        # Get the first and last day of the month
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        
+        # Get events for the current month
+        events = RecruitmentEvent.query.filter(
+            RecruitmentEvent.event_date >= first_day,
+            RecruitmentEvent.event_date <= last_day
+        ).order_by(RecruitmentEvent.event_date).all()
+        
+        # Get all contacts for the form
         contacts = UniversityContact.query.filter_by(is_active=True).all()
-        return render_template('calendar.html', events=events, contacts=contacts)
+        
+        # Calculate calendar data
+        cal = calendar.monthcalendar(year, month)
+        month_name = first_day.strftime('%B %Y')
+        
+        # Get previous and next month/year
+        if month == 1:
+            prev_month, prev_year = 12, year - 1
+        else:
+            prev_month, prev_year = month - 1, year
+            
+        if month == 12:
+            next_month, next_year = 1, year + 1
+        else:
+            next_month, next_year = month + 1, year
+        
+        return render_template('calendar.html', 
+                             events=events, 
+                             contacts=contacts,
+                             calendar_data=cal,
+                             current_year=year,
+                             current_month=month,
+                             month_name=month_name,
+                             prev_month=prev_month,
+                             prev_year=prev_year,
+                             next_month=next_month,
+                             next_year=next_year)
     except Exception as e:
         print(f"Error loading calendar: {e}")
         flash('Error loading calendar data. Please try again.', 'error')
@@ -797,6 +1250,13 @@ def add_event():
             # Create backup before adding new event
             backup_database("Pre-add event backup")
             
+            # Handle university_id - convert to int if not empty and not "other", otherwise None
+            university_id = request.form.get('university_id')
+            if university_id and university_id.strip() and university_id != "other":
+                university_id = int(university_id)
+            else:
+                university_id = None
+                
             event = RecruitmentEvent(
                 title=request.form['title'],
                 description=request.form['description'],
@@ -804,7 +1264,7 @@ def add_event():
                 start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
                 end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
                 location=request.form['location'],
-                university_id=request.form.get('university_id'),
+                university_id=university_id,
                 event_type=request.form['event_type'],
                 notes=request.form['notes']
             )
@@ -822,7 +1282,7 @@ def add_event():
             )
             
             flash('Event added successfully!', 'success')
-            return redirect(url_for('calendar'))
+            return redirect(url_for('calendar_view'))
         except Exception as e:
             print(f"Error adding event: {e}")
             flash('Error adding event. Please check your input and try again.', 'error')
@@ -898,15 +1358,21 @@ def backup():
     
     if request.method == 'POST':
         try:
+            # Check if MySQL tools are available first
+            tools_available, error_msg = check_mysql_tools()
+            if not tools_available:
+                flash(f'MySQL backup tools not available: {error_msg}. Please ensure mysqldump and mysql are installed and in your PATH.', 'error')
+                return redirect(url_for('database_management'))
+            
             backup_filename, backup_path = backup_database()
             if backup_filename:
                 flash(f'Database backed up successfully to {backup_filename}', 'success')
                 log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_path}')
             else:
-                flash('Failed to create database backup.', 'error')
+                flash('Failed to create database backup. Please check the logs for details.', 'error')
         except Exception as e:
             print(f"Error during backup: {e}")
-            flash('Error creating database backup. Please check logs.', 'error')
+            flash(f'Error creating database backup: {str(e)}', 'error')
         
         return redirect(url_for('database_management'))
     
@@ -939,7 +1405,7 @@ def delete_backup(filename):
     
     try:
         backup_path = os.path.join(BACKUP_DIR, filename)
-        metadata_path = backup_path.replace('.db', '_metadata.json')
+        metadata_path = backup_path.replace('.sql', '_metadata.json')
         
         if os.path.exists(backup_path):
             # Delete the backup file
@@ -976,12 +1442,27 @@ def restore():
             flash('No selected file', 'error')
             return redirect(request.url)
         
-        if backup_file and backup_file.filename.endswith('.db'):
+        if backup_file and backup_file.filename.endswith('.sql'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
                 temp_backup_path = os.path.join(temp_dir, backup_file.filename)
                 backup_file.save(temp_backup_path)
+                
+                # Validate the SQL file before attempting restore
+                try:
+                    with open(temp_backup_path, 'r') as f:
+                        content = f.read(1000)  # Read first 1000 chars to check format
+                        if not content.startswith('-- MySQL dump') and 'mysqldump' not in content:
+                            flash('Invalid backup file format. Please ensure this is a valid MySQL dump file.', 'error')
+                            os.remove(temp_backup_path)
+                            shutil.rmtree(temp_dir)
+                            return redirect(request.url)
+                except Exception as e:
+                    flash('Error reading backup file. Please ensure the file is not corrupted.', 'error')
+                    os.remove(temp_backup_path)
+                    shutil.rmtree(temp_dir)
+                    return redirect(request.url)
                 
                 if restore_database(temp_backup_path):
                     flash('Database restored successfully!', 'success')
@@ -999,7 +1480,7 @@ def restore():
                 flash('Error restoring database. Please check logs.', 'error')
                 log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
         else:
-            flash('Invalid file type. Please select a .db file.', 'error')
+            flash('Invalid file type. Please select a .sql file.', 'error')
     
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
@@ -1595,6 +2076,8 @@ def delete_external_link(link_id):
     
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': False, 'message': 'Access denied. Admin privileges required.'})
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
     
@@ -1606,12 +2089,24 @@ def delete_external_link(link_id):
         db.session.commit()
         
         log_activity('DELETE', 'external_link', link_id, f"External link: {title}")
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': True, 'message': 'External link deleted successfully.'})
+        
         flash('External link deleted successfully.', 'success')
+        return redirect(url_for('materials'))
+        
     except Exception as e:
         db.session.rollback()
-        flash(f'Error deleting external link: {str(e)}', 'error')
-    
-    return redirect(url_for('materials'))
+        error_msg = f'Error deleting external link: {str(e)}'
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': False, 'message': error_msg})
+        
+        flash(error_msg, 'error')
+        return redirect(url_for('materials'))
 
 @app.route('/materials/add-document', methods=['GET', 'POST'])
 def add_document():
@@ -1742,6 +2237,8 @@ def delete_document(document_id):
     
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': False, 'message': 'Access denied. Admin privileges required.'})
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
     
@@ -1753,20 +2250,43 @@ def delete_document(document_id):
         # Delete file from filesystem
         documents_dir = os.path.join(app.root_path, 'documents')
         file_path = os.path.join(documents_dir, filename)
+        
+        # Check if file exists and delete it
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+                print(f"File deleted: {file_path}")
+            except OSError as file_error:
+                print(f"Error deleting file {file_path}: {file_error}")
+                # Continue with database deletion even if file deletion fails
+        else:
+            print(f"File not found: {file_path}")
         
         # Delete from database
         db.session.delete(document)
         db.session.commit()
         
         log_activity('DELETE', 'recruitment_document', document_id, f"Document: {title}")
+        print(f"Document '{title}' deleted successfully from database")
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': True, 'message': 'Document deleted successfully.'})
+        
         flash('Document deleted successfully.', 'success')
+        return redirect(url_for('materials'))
+        
     except Exception as e:
         db.session.rollback()
-        flash(f'Error deleting document: {str(e)}', 'error')
-    
-    return redirect(url_for('materials'))
+        error_msg = f'Error deleting document: {str(e)}'
+        print(f"Delete document error: {error_msg}")
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({'success': False, 'message': error_msg})
+        
+        flash(error_msg, 'error')
+        return redirect(url_for('materials'))
 
 @app.route('/materials/download/<int:document_id>')
 def download_document(document_id):
@@ -1822,6 +2342,57 @@ def api_cadet():
         'graduation_year': c.graduation_year,
         'status': c.status
     } for c in cadet])
+
+@app.route('/recruits/edit/<int:recruit_id>', methods=['GET', 'POST'])
+def edit_recruit(recruit_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    recruit = PotentialRecruit.query.get_or_404(recruit_id)
+
+    if request.method == 'POST':
+        # Store old values for logging
+        old_status = recruit.status
+        old_school = recruit.current_school
+        old_major = recruit.major
+
+        recruit.first_name = request.form['first_name']
+        recruit.last_name = request.form['last_name']
+        recruit.email = request.form['email']
+        recruit.phone = request.form['phone']
+        recruit.major = request.form['major']
+        recruit.current_school = request.form['current_school']
+        recruit.school_type = request.form['school_type']
+        recruit.high_school_graduation_year = parse_int(request.form.get('high_school_graduation_year'))
+        recruit.expected_college_graduation_year = parse_int(request.form.get('expected_college_graduation_year'))
+        recruit.gpa = parse_float(request.form.get('gpa'))
+        recruit.sat_score = parse_int(request.form.get('sat_score'))
+        recruit.act_score = parse_int(request.form.get('act_score'))
+        recruit.interests = request.form['interests']
+        recruit.notes = request.form['notes']
+        recruit.status = request.form['status']
+
+        db.session.commit()
+
+        # Log the activity
+        changes = []
+        if old_status != recruit.status:
+            changes.append(f"Status: {old_status} → {recruit.status}")
+        if old_school != recruit.current_school:
+            changes.append(f"School: {old_school} → {recruit.current_school}")
+        if old_major != recruit.major:
+            changes.append(f"Major: {old_major} → {recruit.major}")
+        log_activity(
+            'UPDATE',
+            'potential_recruit',
+            recruit.id,
+            f"Recruit: {recruit.first_name} {recruit.last_name}",
+            f"Updated recruit. Changes: {', '.join(changes) if changes else 'General update'}"
+        )
+        flash('Recruit updated successfully!', 'success')
+        return redirect(url_for('recruits'))
+
+    return render_template('edit_recruit.html', recruit=recruit)
 
 if __name__ == '__main__':
     with app.app_context():

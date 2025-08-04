@@ -15,20 +15,28 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-calendar-alt"></i> Monthly Calendar
-                </h5>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt"></i> Monthly Calendar
+                    </h5>
+                    <div class="calendar-navigation">
+                                                    <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month) }}" 
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </a>
+                        <span class="mx-3 fw-bold">{{ month_name }}</span>
+                                                    <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" 
+                           class="btn btn-outline-secondary btn-sm">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
-                {% if events %}
+                {% if calendar_data %}
                     <div class="calendar-container">
-                        <div class="calendar-header">
+                        <div class="calendar-days-header">
                             <div class="row">
-                                <div class="col-12">
-                                    <h4 class="text-center mb-3">August 2025</h4>
-                                </div>
-                            </div>
-                            <div class="row calendar-days-header">
                                 <div class="col">Sun</div>
                                 <div class="col">Mon</div>
                                 <div class="col">Tue</div>
@@ -40,16 +48,16 @@
                         </div>
                         
                         <div class="calendar-grid">
-                            {% set current_date = namespace(day=1) %}
-                            {% for week in range(6) %}
+                            {% for week in calendar_data %}
                                 <div class="row calendar-week">
-                                    {% for day in range(7) %}
-                                        {% set day_number = week * 7 + day + 1 %}
-                                        {% if day_number <= 31 %}
+                                    {% for day in week %}
+                                        {% if day == 0 %}
+                                            <div class="col calendar-day empty"></div>
+                                        {% else %}
                                             <div class="col calendar-day">
-                                                <div class="day-number">{{ day_number }}</div>
+                                                <div class="day-number">{{ day }}</div>
                                                 {% for event in events %}
-                                                    {% if event.event_date.day == day_number %}
+                                                    {% if event.event_date.day == day %}
                                                         <div class="event-indicator" 
                                                              data-bs-toggle="tooltip" 
                                                              data-bs-placement="top" 
@@ -59,8 +67,6 @@
                                                     {% endif %}
                                                 {% endfor %}
                                             </div>
-                                        {% else %}
-                                            <div class="col calendar-day empty"></div>
                                         {% endif %}
                                     {% endfor %}
                                 </div>
@@ -86,7 +92,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="fas fa-list"></i> Upcoming Events
+                    <i class="fas fa-list"></i> Events for {{ month_name }}
                 </h5>
             </div>
             <div class="card-body">
@@ -115,6 +121,15 @@
                                                 <i class="fas fa-map-marker-alt"></i> {{ event.location }}
                                             </p>
                                         {% endif %}
+                                        {% if event.university_contact %}
+                                            <p class="text-muted mb-1">
+                                                <i class="fas fa-school"></i> {{ event.university_contact.university_name }}
+                                            </p>
+                                        {% else %}
+                                            <p class="text-muted mb-1">
+                                                <i class="fas fa-school"></i> Other
+                                            </p>
+                                        {% endif %}
                                         <span class="badge bg-primary">{{ event.event_type }}</span>
                                     </div>
                                     <div class="dropdown">
@@ -136,7 +151,7 @@
                 {% else %}
                     <div class="text-center py-3">
                         <i class="fas fa-calendar-times fa-2x text-muted mb-2"></i>
-                        <p class="text-muted mb-0">No upcoming events</p>
+                        <p class="text-muted mb-0">No events scheduled for {{ month_name }}</p>
                     </div>
                 {% endif %}
             </div>
@@ -147,6 +162,11 @@
 <style>
 .calendar-container {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.calendar-navigation {
+    display: flex;
+    align-items: center;
 }
 
 .calendar-days-header {
@@ -201,6 +221,31 @@
 
 .calendar-day:hover {
     background-color: #f8f9fa;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .calendar-navigation {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .calendar-navigation span {
+        order: -1;
+    }
+    
+    .calendar-day {
+        min-height: 60px;
+        font-size: 0.9em;
+    }
+    
+    .day-number {
+        font-size: 0.8em;
+    }
+    
+    .event-indicator {
+        font-size: 10px;
+    }
 }
 </style>
 

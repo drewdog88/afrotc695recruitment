@@ -606,7 +606,7 @@
                              <span class="d-none d-lg-inline">Outreach Contacts</span>
                              <span class="d-lg-none">Outreach</span>
                          </a>
-                        <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="{{ url_for('calendar') }}">
+                        <a class="nav-link {% if request.endpoint == 'calendar_view' %}active{% endif %}" href="{{ url_for('calendar_view') }}">
                             <i class="fas fa-calendar-alt"></i> 
                             <span>Calendar</span>
                         </a>
@@ -649,14 +649,26 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050;">
+            <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1050; min-width: 300px;">
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" id="flash-{{ loop.index }}">
                         {{ message }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 {% endfor %}
             </div>
+            <script>
+                // Auto-dismiss flash messages after 3 seconds
+                document.addEventListener('DOMContentLoaded', function() {
+                    const alerts = document.querySelectorAll('.alert');
+                    alerts.forEach(function(alert) {
+                        setTimeout(function() {
+                            const bsAlert = new bootstrap.Alert(alert);
+                            bsAlert.close();
+                        }, 3000);
+                    });
+                });
+            </script>
         {% endif %}
     {% endwith %}
 

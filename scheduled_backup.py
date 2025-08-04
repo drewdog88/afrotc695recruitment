@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scheduled Backup Script for AFROTC 695 Recruitment System
+Scheduled Backup Script for AFROTC 695 Recruitment System (MySQL Version)
 This script runs nightly backups when the server is running.
 """
 
@@ -10,7 +10,7 @@ import time
 import schedule
 import threading
 from datetime import datetime
-import sqlite3
+import subprocess
 import shutil
 import json
 
@@ -22,18 +22,118 @@ BACKUP_DIR = 'backups'
 if not os.path.exists(BACKUP_DIR):
     os.makedirs(BACKUP_DIR)
 
+def get_database_config():
+    """Get database configuration from environment or .env file"""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        database_url = os.getenv('DATABASE_URL', '')
+        if not database_url:
+            # Fallback to default values
+            return {
+                'username': 'cascznjx_afrotcdbadmin',
+                'password': 'E3@8SXMxNPHG',
+                'host': 'localhost',
+                'port': '3306',
+                'database': 'cascznjx_afrotc_recruit'
+            }
+        
+        # Parse MySQL connection string
+        # Format: mysql+pymysql://username:password@host:port/database
+        if database_url.startswith('mysql+pymysql://'):
+            database_url = database_url.replace('mysql+pymysql://', '')
+        
+        if '@' in database_url:
+            auth_part, rest = database_url.split('@', 1)
+            if ':' in auth_part:
+                username, password = auth_part.split(':', 1)
+                password = password.replace('%40', '@')  # URL decode @ symbol
+            else:
+                username = auth_part
+                password = ''
+            
+            if '/' in rest:
+                host_port, database = rest.split('/', 1)
+                if ':' in host_port:
+                    host, port = host_port.split(':', 1)
+                else:
+                    host = host_port
+                    port = '3306'
+            else:
+                host = rest
+                port = '3306'
+                database = ''
+        else:
+            # Fallback parsing
+            username = 'cascznjx_afrotcdbadmin'
+            password = 'E3@8SXMxNPHG'
+            host = 'localhost'
+            port = '3306'
+            database = 'cascznjx_afrotc_recruit'
+        
+        return {
+            'username': username,
+            'password': password,
+            'host': host,
+            'port': port,
+            'database': database
+        }
+    except Exception as e:
+        print(f"Error getting database config: {e}")
+        # Return default values
+        return {
+            'username': 'cascznjx_afrotcdbadmin',
+            'password': 'E3@8SXMxNPHG',
+            'host': 'localhost',
+            'port': '3306',
+            'database': 'cascznjx_afrotc_recruit'
+        }
+
 def backup_database_standalone(description="Nightly automatic backup"):
-    """Create a database backup with timestamp and description (standalone version)"""
+    """Create a MySQL database backup with timestamp and description (standalone version)"""
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_filename = f"afrotc695_backup_{timestamp}.db"
+        backup_filename = f"afrotc695_backup_{timestamp}.sql"
         backup_path = os.path.join(BACKUP_DIR, backup_filename)
         
-        # Get the current database path
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'afrotc695.db')
+        # Get database configuration
+        db_config = get_database_config()
         
-        # Create backup
-        shutil.copy2(db_path, backup_path)
+        # Build mysqldump command
+        # Define full path to mysqldump
+        mysql_bin_path = r"C:\Program Files\MySQL\MySQL Server 8.0\bin"
+        mysqldump_path = os.path.join(mysql_bin_path, "mysqldump.exe")
+        
+        cmd = [
+            mysqldump_path,
+            f'--host={db_config["host"]}',
+            f'--port={db_config["port"]}',
+            f'--user={db_config["username"]}',
+            '--single-transaction',
+            '--routines',
+            '--triggers',
+            '--add-drop-database',
+            '--create-options',
+            db_config['database']
+        ]
+        
+        # Set password via environment variable for security
+        env = os.environ.copy()
+        env['MYSQL_PWD'] = db_config['password']
+        
+        # Execute mysqldump
+        with open(backup_path, 'w') as backup_file:
+            result = subprocess.run(
+                cmd,
+                stdout=backup_file,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True
+            )
+        
+        if result.returncode != 0:
+            raise Exception(f"mysqldump failed: {result.stderr}")
         
         # Create backup metadata
         metadata = {
@@ -41,11 +141,13 @@ def backup_database_standalone(description="Nightly automatic backup"):
             'description': description,
             'filename': backup_filename,
             'size': os.path.getsize(backup_path),
-            'user': 'Scheduled Backup System'
+            'user': 'Scheduled Backup System',
+            'database': db_config['database'],
+            'host': db_config['host']
         }
         
         # Save metadata to a JSON file
-        metadata_file = backup_path.replace('.db', '_metadata.json')
+        metadata_file = backup_path.replace('.sql', '_metadata.json')
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
@@ -57,12 +159,31 @@ def backup_database_standalone(description="Nightly automatic backup"):
         return None, None
 
 def check_server_running():
-    """Check if the Flask server is running by trying to connect to the database"""
+    """Check if the MySQL server is running by trying to connect to the database"""
     try:
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'afrotc695.db')
-        conn = sqlite3.connect(db_path)
-        conn.close()
-        return True
+        db_config = get_database_config()
+        
+        # Try to connect using mysql command
+        cmd = [
+            'mysql',
+            f'--host={db_config["host"]}',
+            f'--port={db_config["port"]}',
+            f'--user={db_config["username"]}',
+            '--execute=SELECT 1;',
+            db_config['database']
+        ]
+        
+        env = os.environ.copy()
+        env['MYSQL_PWD'] = db_config['password']
+        
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env
+        )
+        
+        return result.returncode == 0
     except Exception as e:
         print(f"Server not running or database not accessible: {e}")
         return False
@@ -98,14 +219,14 @@ def cleanup_old_backups():
         cutoff_date = datetime.now() - timedelta(days=7)
         
         for filename in os.listdir(BACKUP_DIR):
-            if filename.endswith('.db'):
+            if filename.endswith('.sql'):
                 backup_path = os.path.join(BACKUP_DIR, filename)
                 file_modified = datetime.fromtimestamp(os.path.getmtime(backup_path))
                 
                 if file_modified < cutoff_date:
                     # Remove the backup file and its metadata
                     os.remove(backup_path)
-                    metadata_file = backup_path.replace('.db', '_metadata.json')
+                    metadata_file = backup_path.replace('.sql', '_metadata.json')
                     if os.path.exists(metadata_file):
                         os.remove(metadata_file)
                     print(f"Cleaned up old backup: {filename}")

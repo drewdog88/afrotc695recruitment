@@ -1,6 +1,6 @@
 # Development Environment Configuration (MySQL Fixed)
 # MySQL Database Configuration with PyMySQL driver
-DATABASE_URL=mysql+pymysql://cascznjx_afrotcdbadmin:E3%408SXMxNPHG@localhost/cascznjx_afrotc_recruit
+DATABASE_URL=mysql+pymysql://cascznjx_afrotcdbadmin:E3@8SXMxNPHG@localhost/cascznjx_afrotc_recruit
 
 # Security
 SECRET_KEY=dev-secret-key-change-in-production

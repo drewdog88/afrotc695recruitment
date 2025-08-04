@@ -107,11 +107,11 @@
                 <div class="row">
                     <div class="col-6">
                         <strong>Database Type:</strong><br>
-                        <span class="text-muted">SQLite</span>
+                        <span class="text-muted">MySQL</span>
                     </div>
                     <div class="col-6">
-                        <strong>Location:</strong><br>
-                        <span class="text-muted">instance/afrotc695.db</span>
+                        <strong>Backup Format:</strong><br>
+                        <span class="text-muted">SQL Dump (.sql)</span>
                     </div>
                 </div>
                 <hr>
@@ -137,9 +137,13 @@
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Automatic Backups:</strong> The system automatically creates backups before destructive operations.
+                    <strong>MySQL Backups:</strong> Backups are created using mysqldump and stored as SQL files.
                 </div>
                 <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Requirements:</strong> MySQL tools (mysqldump, mysql) must be installed and accessible in PATH.
+                </div>
+                <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Restore Warning:</strong> Restoring a database will overwrite all current data. Make sure to backup first.
                 </div>
