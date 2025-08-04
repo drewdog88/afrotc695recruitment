@@ -513,11 +513,11 @@ def add_cadre():
             'CREATE',
             'cadre',
             cadre.id,
-            f"Cadre: {cadre.first_name} {cadre.last_name} ({cadre.cadet_rank})",
-            f"Added new cadre member with status: {cadre.status}"
+            f"Cadet: {cadre.first_name} {cadre.last_name} ({cadre.cadet_rank})",
+            f"Added new cadet with status: {cadre.status}"
         )
         
-        flash('Cadre member added successfully!', 'success')
+        flash('Cadet added successfully!', 'success')
         return redirect(url_for('cadre'))
     
     return render_template('add_cadre.html')
@@ -570,11 +570,11 @@ def edit_cadre(cadre_id):
             'UPDATE',
             'cadre',
             cadre.id,
-            f"Cadre: {cadre.first_name} {cadre.last_name}",
-            f"Updated cadre member. Changes: {', '.join(changes) if changes else 'General update'}"
+            f"Cadet: {cadre.first_name} {cadre.last_name}",
+            f"Updated cadet. Changes: {', '.join(changes) if changes else 'General update'}"
         )
         
-        flash('Cadre member updated successfully!', 'success')
+        flash('Cadet updated successfully!', 'success')
         return redirect(url_for('cadre'))
     
     return render_template('edit_cadre.html', cadre=cadre)

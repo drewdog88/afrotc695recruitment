@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Cadre - AFROTC 695{% endblock %}
+{% block title %}Cadets - AFROTC 695{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Cadre Management</h1>
+    <h1>Cadets Management</h1>
     <div class="d-flex gap-2">
         <div class="dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -23,7 +23,7 @@
             </ul>
         </div>
         <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Add Cadre Member
+            <i class="fas fa-plus"></i> Add Cadet
         </a>
     </div>
 </div>
@@ -148,10 +148,10 @@
         {% else %}
         <div class="text-center py-5">
             <i class="fas fa-user-check fa-3x text-muted mb-3"></i>
-            <h5>No Cadre Members Yet</h5>
-            <p class="text-muted">Start managing your cadre by adding the first member.</p>
-            <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add First Cadre Member
+                    <h5>No Cadets Yet</h5>
+        <p class="text-muted">Start managing your cadets by adding the first member.</p>
+        <a href="{{ url_for('add_cadre') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add First Cadet
             </a>
         </div>
         {% endif %}

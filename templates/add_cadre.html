@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Add Cadre - AFROTC 695{% endblock %}
+{% block title %}Add Cadet - AFROTC 695{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Add New Cadre Member</h1>
+    <h1>Add New Cadet</h1>
     <a href="{{ url_for('cadre') }}" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left"></i> Back to Cadre
+        <i class="fas fa-arrow-left"></i> Back to Cadets
     </a>
 </div>
 
@@ -107,10 +107,10 @@
                </div>
 
             <div class="d-flex justify-content-end gap-2">
-                <a href="{{ url_for('cadre') }}" class="btn btn-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Save Cadre Member
-                </button>
+                        <a href="{{ url_for('cadre') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> Save Cadet
+        </button>
             </div>
         </form>
     </div>
