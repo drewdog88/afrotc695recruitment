@@ -1,0 +1,43 @@
+# Air Force Background Image Placeholders
+
+To complete the Air Force background system, download the following high-resolution images from DVIDS:
+
+## Download Instructions:
+
+1. Visit each URL below
+2. Click "Register/Login to Download" 
+3. Download the highest resolution version
+4. Optimize for web (resize to max 1920px width, compress to 300-800KB)
+5. Rename and place in this directory
+
+## Required Images:
+
+### f22_raptor.jpg
+- URL: https://www.dvidshub.net/image/8582415/us-f-22s-land-basa-air-base-philippines-during-dfe-operations
+- Used for: Recruits page
+
+### f22_formation.jpg  
+- URL: https://www.dvidshub.net/image/8585844/us-f-22s-land-mactan-benito-ebuen-air-base-philippines-during-dfe-operations
+- Used for: Cadets page, Login page
+
+### b52_aerial_refuel.jpg
+- URL: https://www.dvidshub.net/image/8219744/aerial-refueling-b-52
+- Used for: Contacts page
+
+### b52_formation.jpg
+- URL: https://www.dvidshub.net/image/8904378/b-52h-stratofortress-joins-formation-during-btf-25-2
+- Used for: Calendar page
+
+### kc135_international.jpg
+- URL: https://www.dvidshub.net/image/3816877/international-aerial-refuel
+- Used for: Materials page
+
+### b1_lancer.jpg
+- URL: https://www.dvidshub.net/image/8646233/37th-bomb-squadron-exercise-takeoff
+- Used for: Admin page
+
+### b52_kc10_refuel.jpg
+- URL: https://www.dvidshub.net/image/2948867/kc-10-extender-maintains-decisive-air-power
+- Used for: System Statistics page
+
+All images are PUBLIC DOMAIN from the US Air Force via DVIDS.

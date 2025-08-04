@@ -44,6 +44,186 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text-color);
             transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        /* Air Force Background System */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            opacity: 0.08;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            filter: grayscale(20%) brightness(1.1);
+            transition: opacity 0.5s ease;
+        }
+        
+        /* Page-specific backgrounds */
+        .page-recruits body::before {
+            background-image: url('/static/backgrounds/f22_raptor.jpg');
+        }
+        
+        .page-cadet body::before {
+            background-image: url('/static/backgrounds/f22_formation.jpg');
+        }
+        
+        .page-contacts body::before {
+            background-image: url('/static/backgrounds/b52_aerial_refuel.jpg');
+        }
+        
+        .page-calendar body::before {
+            background-image: url('/static/backgrounds/b52_formation.jpg');
+        }
+        
+        .page-materials body::before {
+            background-image: url('/static/backgrounds/kc135_international.jpg');
+        }
+        
+        .page-admin body::before {
+            background-image: url('/static/backgrounds/b1_lancer.jpg');
+        }
+        
+        .page-system-statistics body::before {
+            background-image: url('/static/backgrounds/b52_kc10_refuel.jpg');
+        }
+        
+        .page-login body::before {
+            background-image: url('/static/backgrounds/f22_formation.jpg');
+        }
+        
+        .page-profile body::before {
+            background-image: url('/static/backgrounds/f22_raptor.jpg');
+        }
+        
+        /* Dashboard keeps current background */
+        .page-dashboard body::before {
+            display: none;
+        }
+        
+        /* Enhanced overlay for better readability */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.85) 0%,
+                rgba(255, 255, 255, 0.75) 50%,
+                rgba(255, 255, 255, 0.85) 100%
+            );
+        }
+        
+        /* Air Force theme adjustments */
+        [data-theme="airforce"] body::after {
+            background: linear-gradient(
+                135deg,
+                rgba(233, 232, 232, 0.85) 0%,
+                rgba(233, 232, 232, 0.75) 50%,
+                rgba(233, 232, 232, 0.85) 100%
+            );
+        }
+        
+        /* Increase background opacity on Air Force theme */
+        [data-theme="airforce"] body::before {
+            opacity: 0.12;
+        }
+        
+        /* Mobile optimizations for backgrounds */
+        @media (max-width: 768px) {
+            body::before {
+                opacity: 0.05;
+                background-attachment: scroll;
+            }
+            
+            [data-theme="airforce"] body::before {
+                opacity: 0.08;
+            }
+            
+            body::after {
+                background: linear-gradient(
+                    135deg,
+                    rgba(255, 255, 255, 0.92) 0%,
+                    rgba(255, 255, 255, 0.88) 50%,
+                    rgba(255, 255, 255, 0.92) 100%
+                );
+            }
+            
+            [data-theme="airforce"] body::after {
+                background: linear-gradient(
+                    135deg,
+                    rgba(233, 232, 232, 0.92) 0%,
+                    rgba(233, 232, 232, 0.88) 50%,
+                    rgba(233, 232, 232, 0.92) 100%
+                );
+            }
+        }
+        
+        /* Print styles - hide backgrounds */
+        @media print {
+            body::before,
+            body::after {
+                display: none !important;
+            }
+        }
+        
+        /* Fallback for missing images - subtle Air Force themed gradients */
+        body::before {
+            background: linear-gradient(
+                135deg,
+                rgba(28, 35, 71, 0.03) 0%,
+                rgba(0, 123, 254, 0.02) 50%,
+                rgba(37, 186, 249, 0.03) 100%
+            );
+        }
+        
+        /* Page-specific fallback gradients when images aren't available */
+        .page-recruits body::before {
+            background: linear-gradient(135deg, rgba(28, 35, 71, 0.04), rgba(0, 123, 254, 0.02)), url('/static/backgrounds/f22_raptor.jpg');
+        }
+        
+        .page-cadet body::before {
+            background: linear-gradient(135deg, rgba(0, 123, 254, 0.04), rgba(37, 186, 249, 0.02)), url('/static/backgrounds/f22_formation.jpg');
+        }
+        
+        .page-contacts body::before {
+            background: linear-gradient(135deg, rgba(37, 186, 249, 0.04), rgba(28, 35, 71, 0.02)), url('/static/backgrounds/b52_aerial_refuel.jpg');
+        }
+        
+        .page-calendar body::before {
+            background: linear-gradient(135deg, rgba(28, 35, 71, 0.03), rgba(37, 186, 249, 0.03)), url('/static/backgrounds/b52_formation.jpg');
+        }
+        
+        .page-materials body::before {
+            background: linear-gradient(135deg, rgba(0, 123, 254, 0.03), rgba(28, 35, 71, 0.03)), url('/static/backgrounds/kc135_international.jpg');
+        }
+        
+        .page-admin body::before {
+            background: linear-gradient(135deg, rgba(37, 186, 249, 0.04), rgba(0, 123, 254, 0.02)), url('/static/backgrounds/b1_lancer.jpg');
+        }
+        
+        .page-system-statistics body::before {
+            background: linear-gradient(135deg, rgba(28, 35, 71, 0.04), rgba(37, 186, 249, 0.03)), url('/static/backgrounds/b52_kc10_refuel.jpg');
+        }
+        
+        /* Enhanced card readability over backgrounds */
+        .card {
+            backdrop-filter: blur(1px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        .stats-card {
+            backdrop-filter: blur(2px);
         }
         
         .navbar-brand img {
@@ -526,7 +706,7 @@
         }
     </style>
 </head>
-<body data-theme="original">
+<body data-theme="original" class="{% if request.endpoint %}page-{{ request.endpoint.replace('_', '-') }}{% endif %}">
     {% if session.user_id %}
     <!-- Theme Toggle Buttons -->
     <div class="theme-toggle">
