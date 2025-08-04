@@ -172,6 +172,8 @@ class User(db.Model):
     password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_expires_at = db.Column(db.DateTime)
     force_password_change = db.Column(db.Boolean, default=False)
+    secret_question = db.Column(db.String(200), nullable=False)
+    secret_answer_hash = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -402,6 +404,10 @@ def check_user_access(user, required_role='recruiter'):
     
     return True, None
 
+def validate_secret_answer(user, secret_answer):
+    """Validate user's secret answer"""
+    return check_password_hash(user.secret_answer_hash, secret_answer.lower().strip())
+
 # Routes
 @app.route('/')
 def index():
@@ -454,6 +460,104 @@ def logout():
     session.clear()
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        user = User.query.filter_by(username=username).first()
+        
+        if not user:
+            flash('Username not found.', 'error')
+            return render_template('forgot_password.html')
+        
+        if not user.is_active:
+            flash('Account is inactive. Please contact an administrator.', 'error')
+            return render_template('forgot_password.html')
+        
+        # Store username in session for the next step
+        session['reset_username'] = username
+        return redirect(url_for('reset_password_question'))
+    
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password-question', methods=['GET', 'POST'])
+def reset_password_question():
+    username = session.get('reset_username')
+    if not username:
+        flash('Please start the password reset process from the login page.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        secret_answer = request.form.get('secret_answer')
+        
+        if validate_secret_answer(user, secret_answer):
+            # Store user ID in session for password reset
+            session['reset_user_id'] = user.id
+            return redirect(url_for('reset_password'))
+        else:
+            flash('Incorrect answer to security question.', 'error')
+    
+    return render_template('reset_password_question.html', user=user)
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    user_id = session.get('reset_user_id')
+    if not user_id:
+        flash('Please start the password reset process from the login page.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_password.html')
+        
+        # Validate new password
+        validation_errors = validate_password(new_password, user.id)
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return render_template('reset_password.html')
+        
+        # Update password
+        user.password_hash = generate_password_hash(new_password)
+        user.password_changed_at = datetime.utcnow()
+        user.force_password_change = False
+        
+        # Set new password expiry for non-admin users
+        if user.role != 'admin':
+            user.password_expires_at = datetime.utcnow() + timedelta(days=180)
+        
+        # Add to password history
+        update_password_history(user.id, user.password_hash)
+        
+        db.session.commit()
+        
+        # Log the password reset
+        log_activity('PASSWORD_RESET', table_name='user', record_id=user.id, 
+                    record_description=f'Password reset for user {user.username}')
+        
+        # Clear session
+        session.pop('reset_username', None)
+        session.pop('reset_user_id', None)
+        
+        flash('Password has been reset successfully. You can now log in with your new password.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('reset_password.html')
 
 @app.route('/dashboard')
 def dashboard():
@@ -1056,6 +1160,8 @@ def add_user():
         phone = request.form['phone']
         role = request.form['role']
         password = request.form['password']
+        secret_question = request.form['secret_question']
+        secret_answer = request.form['secret_answer']
         
         # Validation
         if User.query.filter_by(username=username).first():
@@ -1064,6 +1170,14 @@ def add_user():
         
         if User.query.filter_by(email=email).first():
             flash('Email already exists.', 'error')
+            return render_template('add_user.html')
+        
+        if not secret_question.strip():
+            flash('Secret question is required.', 'error')
+            return render_template('add_user.html')
+        
+        if not secret_answer.strip():
+            flash('Secret answer is required.', 'error')
             return render_template('add_user.html')
         
         # Validate password
@@ -1075,6 +1189,7 @@ def add_user():
         
         # Create user
         password_hash = generate_password_hash(password)
+        secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
         user = User(
             username=username,
             email=email,
@@ -1082,7 +1197,9 @@ def add_user():
             last_name=last_name,
             phone=phone,
             role=role,
-            password_hash=password_hash
+            password_hash=password_hash,
+            secret_question=secret_question,
+            secret_answer_hash=secret_answer_hash
         )
         
         try:
@@ -1119,11 +1236,21 @@ def edit_user(user_id):
         is_active = 'is_active' in request.form
         is_locked = 'is_locked' in request.form
         force_password_change = 'force_password_change' in request.form
+        secret_question = request.form['secret_question']
+        secret_answer = request.form['secret_answer']
         
         # Check if email is already taken by another user
         existing_user = User.query.filter_by(email=email).first()
         if existing_user and existing_user.id != user_id:
             flash('Email already exists.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        if not secret_question.strip():
+            flash('Secret question is required.', 'error')
+            return render_template('edit_user.html', user=user)
+        
+        if not secret_answer.strip():
+            flash('Secret answer is required.', 'error')
             return render_template('edit_user.html', user=user)
         
         # Update user
@@ -1135,6 +1262,8 @@ def edit_user(user_id):
         user.is_active = is_active
         user.is_locked = is_locked
         user.force_password_change = force_password_change
+        user.secret_question = secret_question
+        user.secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
         
         # Update password expiry for non-admin users
         if role != 'admin':

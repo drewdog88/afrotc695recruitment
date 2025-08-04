@@ -63,6 +63,22 @@
                         </div>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="secret_question" class="form-label">Security Question *</label>
+                        <input type="text" class="form-control" id="secret_question" name="secret_question" required>
+                        <div class="form-text">
+                            This question will be used for password recovery (e.g., "What was your first pet's name?")
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="secret_answer" class="form-label">Security Answer *</label>
+                        <input type="text" class="form-control" id="secret_answer" name="secret_answer" required>
+                        <div class="form-text">
+                            Your answer is case-insensitive and will be used to verify your identity for password reset.
+                        </div>
+                    </div>
+                    
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('user_management') }}" class="btn btn-secondary me-md-2">Cancel</a>
                         <button type="submit" class="btn btn-primary">Create User</button>

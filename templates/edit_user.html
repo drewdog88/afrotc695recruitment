@@ -57,6 +57,29 @@
                     
                     <div class="card mt-4">
                         <div class="card-header">
+                            <h6 class="mb-0">Security Question</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="secret_question" class="form-label">Security Question *</label>
+                                <input type="text" class="form-control" id="secret_question" name="secret_question" value="{{ user.secret_question }}" required>
+                                <div class="form-text">
+                                    This question will be used for password recovery (e.g., "What was your first pet's name?")
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="secret_answer" class="form-label">Security Answer *</label>
+                                <input type="text" class="form-control" id="secret_answer" name="secret_answer" required>
+                                <div class="form-text">
+                                    Enter the answer to the security question. Your answer is case-insensitive.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
                             <h6 class="mb-0">Account Status</h6>
                         </div>
                         <div class="card-body">
