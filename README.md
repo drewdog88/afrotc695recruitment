@@ -22,6 +22,10 @@ This web application streamlines and secures the recruitment process for Air For
 
 ### 🔐 **Security & Administration**
 - **Session-based Authentication**: Secure login system with role-based access
+- **Comprehensive User Management**: Admin and Recruiter roles with full user lifecycle management
+- **Password Security**: Password history, expiry policies, and complexity requirements
+- **Forgot Password System**: Secure password recovery via secret questions
+- **Account Locking**: Automatic account locking for expired passwords
 - **Admin Panel**: Comprehensive administrative tools and system monitoring
 - **Activity Monitoring**: Detailed logs of user actions, logins, and data changes
 - **IP Address Tracking**: Security monitoring with client information logging
@@ -32,6 +36,12 @@ This web application streamlines and secures the recruitment process for Air For
 - **Intuitive Navigation**: Clean, professional interface with easy data access
 - **Real-time Updates**: Live data updates and immediate feedback
 
+### 💾 **Data Protection & Backup**
+- **Automated Backups**: Scheduled nightly database backups
+- **Manual Backup/Restore**: On-demand backup creation and restoration
+- **Pre-operation Backups**: Automatic backups before destructive operations
+- **Data Integrity**: Comprehensive backup verification and validation
+
 ## Technology Stack
 
 - **Backend**: Python Flask 2.3.3
@@ -41,6 +51,7 @@ This web application streamlines and secures the recruitment process for Air For
 - **Templates**: Jinja2 templating engine
 - **Data Export**: Pandas, OpenPyXL, ReportLab
 - **Environment**: Python-dotenv for configuration management
+- **Scheduling**: Schedule library for automated tasks
 
 ## Quick Start
 
@@ -98,6 +109,32 @@ python run.py
 - Username: `admin`
 - Password: `admin123`
 
+## User Management System
+
+### 👥 **Role-Based Access Control**
+- **Admin Role**: Full system access including user management
+- **Recruiter Role**: Access to all recruitment features except admin panel
+- **Password Policies**: Enforced password complexity and history requirements
+
+### 🔑 **Password Security Features**
+- **Password History**: Prevents reuse of last 5 passwords
+- **Password Expiry**: Non-admin users must change passwords every 180 days
+- **Admin Password**: Never expires for continuous access
+- **Account Locking**: Automatic locking for expired passwords
+- **Password Complexity**: Enforced strong password requirements
+
+### 🔒 **Forgot Password System**
+- **Secret Questions**: Custom security questions for each user
+- **Secure Recovery**: Multi-step password reset process
+- **Answer Validation**: Hashed secret answer verification
+- **Temporary Access**: Secure password reset links
+
+### 👤 **User Profile Management**
+- **Personal Information**: Name, email, and phone number tracking
+- **Profile Updates**: Self-service profile modification
+- **Password Changes**: Secure password update functionality
+- **Account Status**: Active/inactive account management
+
 ## Database Features
 
 ### 📈 **Activity Logging System**
@@ -140,6 +177,12 @@ afrotc695recruitment/
 │   ├── calendar.html       # Event calendar view
 │   ├── admin.html          # Administrative panel
 │   ├── activity_log.html   # Activity logging interface
+│   ├── login.html          # Login and forgot password interface
+│   ├── forgot_password.html # Password recovery form
+│   ├── reset_password_question.html # Secret question verification
+│   ├── reset_password.html # Password reset form
+│   ├── add_user.html       # User creation interface
+│   ├── edit_user.html      # User profile management
 │   └── [other templates]   # Additional form and view templates
 ├── static/                  # Static assets
 │   ├── detachment695.jpg   # Background imagery
@@ -174,13 +217,22 @@ afrotc695recruitment/
 - **Usage Analytics**: System usage and user activity metrics
 - **Compliance**: Audit trail for regulatory compliance
 
+### 💾 **Backup & Recovery**
+- **Automated Backups**: Scheduled nightly database backups
+- **Manual Backups**: On-demand backup creation
+- **Restore Functionality**: Complete database restoration from backups
+- **Backup Verification**: Integrity checks and validation
+
 ## Security Features
 
 - **Password Hashing**: Secure password storage with Werkzeug
 - **Session Management**: Secure session handling and timeout
-- **Role-based Access**: Admin and user role permissions
+- **Role-based Access**: Admin and Recruiter role permissions
 - **Input Validation**: Comprehensive input sanitization
 - **Activity Logging**: Complete audit trail for security monitoring
+- **Password Policies**: Enforced complexity and history requirements
+- **Account Security**: Automatic locking and expiry management
+- **Secret Questions**: Secure password recovery system
 
 ## Contributing
 
