@@ -15,6 +15,11 @@ This web application streamlines and secures the recruitment process for Air For
 - **Event Calendar**: Full calendar integration with recruitment event scheduling
 
 ### 📊 **Advanced Analytics & Reporting**
+- **System Statistics Dashboard**: Comprehensive system metrics and performance monitoring
+- **Database Analytics**: Real-time database size, table counts, and record distribution
+- **User Activity Tracking**: User growth trends, activity patterns, and most active users
+- **Recruitment Intelligence**: Event status tracking, recruit progression, cadet analytics
+- **Performance Monitoring**: CPU, memory, disk usage with color-coded indicators
 - **Activity Logging**: Complete audit trail of all user actions and system changes
 - **Last Modified Tracking**: Automatic timestamp tracking for all records
 - **Export Functionality**: Download data in Excel, PDF, and CSV formats
@@ -31,10 +36,14 @@ This web application streamlines and secures the recruitment process for Air For
 - **IP Address Tracking**: Security monitoring with client information logging
 
 ### 🎨 **User Experience**
-- **Responsive Design**: Bootstrap 5 interface optimized for all devices
+- **Responsive Design**: Bootstrap 5 interface optimized for all devices and mobile-friendly
+- **Dual Theme System**: Toggle between "Original" and "Air Force Standard" themes
+- **Official Air Force Branding**: Integrated Air Force logo and color schemes
 - **Background Integration**: Custom detachment imagery and branding
 - **Intuitive Navigation**: Clean, professional interface with easy data access
 - **Real-time Updates**: Live data updates and immediate feedback
+- **Interactive Charts**: Chart.js integration for data visualization
+- **Document Management**: Recruitment materials library with file upload/download
 
 ### 💾 **Data Protection & Backup**
 - **Automated Backups**: Scheduled nightly database backups
@@ -45,13 +54,16 @@ This web application streamlines and secures the recruitment process for Air For
 ## Technology Stack
 
 - **Backend**: Python Flask 2.3.3
-- **Database**: SQLite with SQLAlchemy ORM
+- **Database**: SQLite (development) / MySQL (production) with SQLAlchemy ORM
 - **Frontend**: HTML5, CSS3, JavaScript with Bootstrap 5
 - **Authentication**: Werkzeug password hashing with session management
 - **Templates**: Jinja2 templating engine
 - **Data Export**: Pandas, OpenPyXL, ReportLab
 - **Environment**: Python-dotenv for configuration management
 - **Scheduling**: Schedule library for automated tasks
+- **System Monitoring**: psutil for performance metrics
+- **Charts & Visualization**: Chart.js with datalabels plugin
+- **Production Database**: PyMySQL driver for MySQL connectivity
 
 ## Quick Start
 
@@ -183,6 +195,8 @@ afrotc695recruitment/
 │   ├── reset_password.html # Password reset form
 │   ├── add_user.html       # User creation interface
 │   ├── edit_user.html      # User profile management
+│   ├── system_statistics.html # System statistics dashboard
+│   ├── materials.html      # Recruitment materials library
 │   └── [other templates]   # Additional form and view templates
 ├── static/                  # Static assets
 │   ├── detachment695.jpg   # Background imagery
@@ -212,6 +226,12 @@ afrotc695recruitment/
 - **Security Logs**: IP address and user agent tracking
 
 ### 📈 **Reporting & Analytics**
+- **System Statistics Dashboard**: Real-time system performance and database metrics
+- **Database Size Monitoring**: Track database growth, table counts, and record distribution
+- **User Growth Analytics**: Monthly user registration trends and activity patterns
+- **Performance Metrics**: CPU, memory, disk usage with visual indicators
+- **Recruitment Analytics**: Event status tracking, recruit progression, cadet statistics
+- **Interactive Visualizations**: Chart.js integration for trend analysis
 - **Data Export**: Excel, PDF, and CSV export capabilities
 - **Activity Reports**: Comprehensive activity logging reports
 - **Usage Analytics**: System usage and user activity metrics
@@ -222,6 +242,53 @@ afrotc695recruitment/
 - **Manual Backups**: On-demand backup creation
 - **Restore Functionality**: Complete database restoration from backups
 - **Backup Verification**: Integrity checks and validation
+
+## System Statistics Dashboard
+
+### 📊 **Comprehensive System Monitoring**
+The System Statistics Dashboard provides administrators with real-time insights into system health, usage patterns, and performance metrics:
+
+#### **Database Analytics**
+- **Size Monitoring**: Real-time database size tracking (data vs index)
+- **Record Distribution**: Complete breakdown of records across all tables
+- **Growth Tracking**: Monitor database growth patterns over time
+- **Table Analytics**: Detailed statistics for each database table
+
+#### **System Performance**
+- **Resource Monitoring**: Real-time CPU, memory, and disk usage
+- **Performance Indicators**: Color-coded alerts for resource thresholds
+- **Process Tracking**: Flask application memory usage and performance
+- **System Information**: Python version, uptime, and configuration details
+
+#### **User Activity Intelligence**
+- **Growth Analytics**: User registration trends over 12 months
+- **Activity Patterns**: Monthly activity breakdown by action type
+- **Most Active Users**: Top users by activity (last 30 days)
+- **Usage Trends**: Comprehensive user engagement metrics
+
+#### **Recruitment Intelligence**
+- **Event Analytics**: Recruitment events by status and timeline
+- **Recruit Tracking**: Potential recruits by status and progression
+- **Cadet Statistics**: Current cadets by graduation year
+- **Recent Activity**: 30-day recruitment activity summaries
+
+#### **Interactive Features**
+- **Real-time Refresh**: Live data updates with refresh functionality
+- **Export Capabilities**: Download comprehensive system reports
+- **Visual Charts**: Interactive Chart.js visualizations for trends
+- **Mobile Responsive**: Full mobile compatibility for on-the-go monitoring
+
+### 🎯 **Key Metrics Displayed**
+- Database size and table distribution
+- Total system records across all tables
+- Current system users and roles
+- Real-time CPU usage with core information
+- Memory usage (used/total with percentages)
+- Disk usage with capacity monitoring
+- Backup information and latest backup details
+- User growth trends with monthly breakdowns
+- Most active system users
+- Recruitment event and recruit statistics
 
 ## Security Features
 
