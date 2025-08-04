@@ -4,14 +4,14 @@ A comprehensive Flask-based recruitment management system for AFROTC Detachment 
 
 ## Project Overview
 
-This web application streamlines and secures the recruitment process for Air Force ROTC Detachment 695. Built with Flask and Python, it provides robust tools for tracking potential recruits, managing existing cadre, coordinating with university contacts, scheduling recruitment events, and maintaining detailed activity logs.
+This web application streamlines and secures the recruitment process for Air Force ROTC Detachment 695. Built with Flask and Python, it provides robust tools for tracking potential recruits, managing existing cadre, coordinating with high school contacts, scheduling recruitment events, and maintaining detailed activity logs.
 
 ## Key Features
 
 ### 🔍 **Comprehensive Data Management**
 - **Potential Recruit Tracking**: Complete profiles with academic and personal information
 - **Cadre Management**: Status tracking (active/inactive/graduated) with unenrollment dates
-- **University Contact Management**: Extensive contact database with edit capabilities
+- **High School Contact Management**: Extensive contact database with edit capabilities
 - **Event Calendar**: Full calendar integration with recruitment event scheduling
 
 ### 📊 **Advanced Analytics & Reporting**
@@ -116,7 +116,7 @@ python run.py
 - **User Management**: Role-based access with activity tracking
 - **Potential Recruits**: Complete academic and personal profiles
 - **Cadre Members**: Status management with graduation tracking
-- **University Contacts**: Comprehensive contact information
+- **High School Contacts**: Comprehensive contact information
 - **Recruitment Events**: Full calendar integration
 - **Activity Logs**: Complete system audit trail
 
@@ -136,7 +136,7 @@ afrotc695recruitment/
 │   ├── dashboard.html      # Main dashboard view
 │   ├── recruits.html       # Potential recruits management
 │   ├── cadre.html          # Cadre management interface
-│   ├── contacts.html       # University contacts management
+│   ├── contacts.html       # High school contacts management
 │   ├── calendar.html       # Event calendar view
 │   ├── admin.html          # Administrative panel
 │   ├── activity_log.html   # Activity logging interface

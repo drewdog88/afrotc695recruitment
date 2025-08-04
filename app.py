@@ -985,7 +985,7 @@ def download_contacts(format):
     # Log the export activity
     log_activity('EXPORT', 'university_contact', None, 'Contacts Export', f'Exported {len(contacts)} contacts to {format.upper()}')
     
-    return export_data(data, f'university_contacts_{datetime.now().strftime("%Y%m%d")}', format, 'University Contacts')
+    return export_data(data, f'high_school_contacts_{datetime.now().strftime("%Y%m%d")}', format, 'High School Contacts')
 
 @app.route('/download/activity-log/<format>')
 def download_activity_log(format):

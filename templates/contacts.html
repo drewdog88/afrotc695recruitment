@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>University Contacts</h1>
+    <h1>High School Contacts</h1>
     <div class="d-flex gap-2">
         <div class="dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="downloadDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -31,7 +31,7 @@
 {% if contacts %}
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">University Contacts ({{ contacts|length }} total)</h5>
+        <h5 class="mb-0">High School Contacts ({{ contacts|length }} total)</h5>
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -40,7 +40,7 @@
                     <tr>
                         <th>
                             <a href="{{ url_for('contacts', sort='university_name', order='asc' if sort_by == 'university_name' and order == 'desc' else 'desc') }}" class="text-decoration-none text-white">
-                                University
+                                High School
                                 {% if sort_by == 'university_name' %}
                                     <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }}"></i>
                                 {% else %}
@@ -190,8 +190,8 @@
     <div class="card-body">
         <div class="text-center py-5">
             <i class="fas fa-address-book fa-3x text-muted mb-3"></i>
-            <h5>No University Contacts Found</h5>
-            <p class="text-muted">Get started by adding your first university contact for recruitment coordination.</p>
+            <h5>No High School Contacts Found</h5>
+            <p class="text-muted">Get started by adding your first high school contact for recruitment coordination.</p>
             <a href="{{ url_for('add_contact') }}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add First Contact
             </a>
