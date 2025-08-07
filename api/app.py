@@ -15,10 +15,18 @@ from reportlab.lib import colors
 import tempfile
 import zipfile
 from sqlalchemy.pool import NullPool
+import vercel_blob
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
 load_dotenv()
+
+# Configure Vercel Blob storage
+blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
+if blob_token:
+    vercel_blob.token = blob_token
+else:
+    print("Warning: BLOB_READ_WRITE_TOKEN not found in environment variables")
 
 # Configure Flask with correct paths for Vercel serverless environment
 # Templates and static files are in the parent directory
@@ -1804,24 +1812,30 @@ def add_document():
         try:
             sort_order = int(sort_order) if sort_order else 0
             
-            # TODO: Implement Vercel Blob storage for file uploads
-            # For now, disable file uploads in serverless environment
-            flash('File uploads are currently disabled. Will be implemented with Vercel Blob storage.', 'error')
-            return render_template('add_document.html')
-            
-            # Generate unique filename
+            # Upload file to Vercel Blob storage
             import uuid
             unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
-            file_path = os.path.join(documents_dir, unique_filename)
             
-            # Save file
-            file.save(file_path)
-            file_size = os.path.getsize(file_path)
+            # Upload to Vercel Blob
+            blob_response = vercel_blob.put(
+                unique_filename,
+                file.read(),
+                {"addRandomSuffix": False}  # We're already adding our own unique prefix
+            )
+            
+            if not blob_response or 'url' not in blob_response:
+                flash('Error uploading file to storage.', 'error')
+                return render_template('add_document.html')
+            
+            # Get file size from the original file object
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
             
             document = RecruitmentDocument(
                 title=title,
                 description=description,
-                filename=unique_filename,
+                filename=blob_response['url'],  # Store the Blob URL instead of filename
                 original_filename=file.filename,
                 file_size=file_size,
                 file_type=file_extension,
@@ -1833,14 +1847,11 @@ def add_document():
             db.session.commit()
             
             log_activity('CREATE', 'recruitment_document', document.id, f"Document: {title}")
-            flash('Document uploaded successfully.', 'success')
+            flash('Document uploaded successfully to Vercel Blob storage.', 'success')
             return redirect(url_for('materials'))
             
         except Exception as e:
             db.session.rollback()
-            # Clean up uploaded file if database operation fails
-            if 'file_path' in locals() and os.path.exists(file_path):
-                os.remove(file_path)
             flash(f'Error uploading document: {str(e)}', 'error')
     
     return render_template('add_document.html')
@@ -1901,9 +1912,9 @@ def delete_document(document_id):
     filename = document.filename
     
     try:
-        # TODO: Implement Vercel Blob storage for file deletion
-        # For now, skip file system operations in serverless environment
-        pass
+        # Delete file from Vercel Blob storage
+        blob_url = document.filename
+        vercel_blob.delete(blob_url)
         
         # Delete from database
         db.session.delete(document)
@@ -1929,10 +1940,20 @@ def download_document(document_id):
         return redirect(url_for('materials'))
     
     try:
-        # TODO: Implement Vercel Blob storage for file downloads
-        # For now, disable file downloads in serverless environment
-        flash('File downloads are currently disabled. Will be implemented with Vercel Blob storage.', 'error')
-        return redirect(url_for('materials'))
+        # The filename field now contains the Blob URL
+        blob_url = document.filename
+        
+        # Get blob metadata to ensure file exists
+        blob_meta = vercel_blob.head(blob_url)
+        
+        if not blob_meta:
+            flash('File not found in storage.', 'error')
+            return redirect(url_for('materials'))
+        
+        log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+        
+        # Redirect to the blob download URL
+        return redirect(blob_meta.get('downloadUrl', blob_url))
     except Exception as e:
         flash(f'Error downloading document: {str(e)}', 'error')
         return redirect(url_for('materials'))
