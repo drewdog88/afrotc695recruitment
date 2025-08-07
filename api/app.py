@@ -57,6 +57,44 @@ if database_url and 'postgresql' in database_url:
 
 db = SQLAlchemy(app)
 
+# Initialize database tables and default user for serverless environment
+def init_database():
+    """Initialize database tables and create default admin user if needed"""
+    try:
+        with app.app_context():
+            # Check if database exists and has tables
+            inspector = db.inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            if not existing_tables:
+                # Only create tables if database is completely empty
+                print("Creating new database tables...")
+                db.create_all()
+            else:
+                print(f"Database exists with {len(existing_tables)} tables")
+            
+            # Create default admin user if it doesn't exist
+            if not User.query.filter_by(username='admin').first():
+                admin_user = User(
+                    username='admin',
+                    email='admin@afrotc695.com',
+                    password_hash=generate_password_hash('admin123'),
+                    first_name='Admin',
+                    last_name='User',
+                    secret_question='What is your favorite color?',
+                    secret_answer_hash=generate_password_hash('blue'),
+                    role='admin'
+                )
+                db.session.add(admin_user)
+                db.session.commit()
+                print("Default admin user created: username=admin, password=admin123")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # Don't fail the app startup if database init fails
+
+# Initialize database on app startup
+init_database()
+
 # Database backup configuration for Vercel (using Blob storage)
 # Note: Backup functionality will be implemented using Vercel Blob storage
 # instead of local file system for serverless compatibility
@@ -1982,33 +2020,8 @@ def api_cadet():
         'status': c.status
     } for c in cadet])
 
+# For Vercel serverless deployment, we don't need the __main__ block
+# Database initialization now happens during app startup via init_database()
 if __name__ == '__main__':
-    with app.app_context():
-        # Check if database exists and has tables
-        inspector = db.inspect(db.engine)
-        existing_tables = inspector.get_table_names()
-        
-        if not existing_tables:
-            # Only create tables if database is completely empty
-            print("Creating new database tables...")
-            db.create_all()
-        else:
-            print(f"Database exists with {len(existing_tables)} tables")
-        
-        # Create default admin user if it doesn't exist
-        if not User.query.filter_by(username='admin').first():
-            admin_user = User(
-                username='admin',
-                email='admin@afrotc695.com',
-                password_hash=generate_password_hash('admin123'),
-                first_name='Admin',
-                last_name='User',
-                secret_question='What is your favorite color?',
-                secret_answer_hash=generate_password_hash('blue'),
-                role='admin'
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("Default admin user created: username=admin, password=admin123")
-    
+    # This only runs for local development
     app.run(debug=True, host='0.0.0.0', port=5000) 
