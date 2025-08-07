@@ -79,11 +79,8 @@ def init_database():
                     username='admin',
                     email='admin@afrotc695.com',
                     password_hash=generate_password_hash('admin123'),
-                    first_name='Admin',
-                    last_name='User',
-                    secret_question='What is your favorite color?',
-                    secret_answer_hash=generate_password_hash('blue'),
-                    role='admin'
+                    role='admin',
+                    is_active=True
                 )
                 db.session.add(admin_user)
                 db.session.commit()
@@ -152,46 +149,39 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
-    first_name = db.Column(db.String(50), nullable=False)
-    last_name = db.Column(db.String(50), nullable=False)
-    phone = db.Column(db.String(20))
     role = db.Column(db.String(20), default='recruiter')  # admin or recruiter
-    is_active = db.Column(db.Boolean, default=True)
-    is_locked = db.Column(db.Boolean, default=False)
-    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    password_expires_at = db.Column(db.DateTime)
-    force_password_change = db.Column(db.Boolean, default=False)
-    secret_question = db.Column(db.String(200), nullable=False)
-    secret_answer_hash = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+    password_history = db.Column(db.Text)  # JSON string of previous password hashes
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime)
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Set password expiry for non-admin users (180 days)
-        if self.role != 'admin':
-            self.password_expires_at = datetime.utcnow() + timedelta(days=180)
-        else:
-            self.password_expires_at = None  # Admin passwords never expire
+        # Initialize password history if not provided
+        if not self.password_history:
+            self.password_history = "[]"  # Empty JSON array
     
     @property
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.username}"  # Use username since we don't have first/last name
+    
+    @property
+    def is_locked(self):
+        if self.locked_until:
+            return datetime.utcnow() < self.locked_until
+        return False
     
     @property
     def is_password_expired(self):
-        if self.role == 'admin':
-            return False
-        if self.password_expires_at:
-            return datetime.utcnow() > self.password_expires_at
+        # Simplified - no password expiry in the current schema
         return False
     
     @property
     def days_until_password_expiry(self):
-        if self.role == 'admin' or not self.password_expires_at:
-            return None
-        days_left = (self.password_expires_at - datetime.utcnow()).days
-        return max(0, days_left)
+        # Simplified - no password expiry in the current schema
+        return None
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -410,17 +400,12 @@ def check_user_access(user, required_role='recruiter'):
     if user.is_locked:
         return False, "Account is locked"
     
-    if user.is_password_expired:
-        return False, "Password has expired"
-    
     if required_role == 'admin' and user.role != 'admin':
         return False, "Admin access required"
     
     return True, None
 
-def validate_secret_answer(user, secret_answer):
-    """Validate user's secret answer"""
-    return check_password_hash(user.secret_answer_hash, secret_answer.lower().strip())
+# Secret answer validation removed - not supported in current schema
 
 def get_cadet_retention_data():
     """Calculate cadet retention data by graduation year"""
@@ -494,10 +479,10 @@ def login():
             # Log successful login
             log_activity('LOGIN', details=f'User {username} logged in successfully')
             
-            # Check if password change is required
-            if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                flash('Your password will expire soon. Please change it.', 'warning')
-                return redirect(url_for('change_password'))
+            # Update last login time
+            user.last_login = datetime.utcnow()
+            user.failed_login_attempts = 0  # Reset failed attempts on successful login
+            db.session.commit()
             
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard'))
