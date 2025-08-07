@@ -16,7 +16,7 @@ import time
 from sqlalchemy.pool import NullPool
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 from dotenv import load_dotenv
-from vercel_blob import put, del_, list, head
+# from vercel_blob import put, del_, list, head  # Temporarily commented out for database initialization
 
 # Load environment variables from env.local for local development
 load_dotenv('env.local')
@@ -188,39 +188,13 @@ def update_password_history(user, new_password):
 
 # File Storage Functions (using Vercel Blob for consistency)
 def upload_file_to_blob(file, folder="uploads"):
-    """Upload file to Vercel Blob storage"""
-    try:
-        if not file:
-            return None
-        
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        blob_path = f"{folder}/{timestamp}_{filename}"
-        
-        # Read file content
-        file_content = file.read()
-        
-        # Upload to Vercel Blob
-        blob = put(blob_path, file_content, {
-            'access': 'public',
-            'addRandomSuffix': False
-        })
-        
-        return blob.url
-    except Exception as e:
-        print(f"Error uploading to blob: {e}")
-        return None
+    """Upload file to Vercel Blob storage - TEMPORARILY DISABLED"""
+    print("File upload temporarily disabled during database initialization")
+    return None
 
 def delete_file_from_blob(blob_url):
-    """Delete file from Vercel Blob storage"""
-    try:
-        if blob_url and 'blob.vercel-storage.com' in blob_url:
-            # Extract blob path from URL
-            blob_path = blob_url.split('/')[-1]
-            del_(blob_path)
-            return True
-    except Exception as e:
-        print(f"Error deleting from blob: {e}")
+    """Delete file from Vercel Blob storage - TEMPORARILY DISABLED"""
+    print("File deletion temporarily disabled during database initialization")
     return False
 
 # Database backup functions (using Vercel Blob for consistency)
@@ -284,36 +258,18 @@ def backup_database(description="Manual backup"):
         # Convert to JSON string
         backup_json = json.dumps(backup_data, indent=2, default=str)
         
-        # Upload to Vercel Blob
-        blob = put(f"backups/{backup_filename}", backup_json.encode('utf-8'), {
-            'access': 'public',
-            'addRandomSuffix': False
-        })
+        # Upload to Vercel Blob - TEMPORARILY DISABLED
+        print("Backup to blob temporarily disabled during database initialization")
         
-        return blob.url, backup_filename
+        return None, backup_filename
     except Exception as e:
         print(f"Error creating backup: {e}")
         return None, None
 
 def get_backup_files():
-    """Get list of available backup files with metadata"""
-    try:
-        blobs = list()
-        backup_files = []
-        
-        for blob in blobs.blobs:
-            if blob.pathname.startswith('backups/'):
-                backup_files.append({
-                    'filename': blob.pathname.split('/')[-1],
-                    'url': blob.url,
-                    'size': blob.size,
-                    'uploaded_at': blob.uploaded_at
-                })
-        
-        return sorted(backup_files, key=lambda x: x['uploaded_at'], reverse=True)
-    except Exception as e:
-        print(f"Error getting backup files: {e}")
-        return []
+    """Get list of available backup files with metadata - TEMPORARILY DISABLED"""
+    print("Backup file listing temporarily disabled during database initialization")
+    return []
 
 # Routes (same as api/app.py)
 @app.route('/')
