@@ -2606,6 +2606,43 @@ def backup_cleanup_cron():
         print(f"Error in backup cleanup cron: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/test-backup')
+def test_backup():
+    """Test endpoint to check backup functionality"""
+    try:
+        # Check current backups
+        backup_files = get_backup_files()
+        
+        if not backup_files:
+            # Create a test backup
+            backup_filename, backup_url = backup_database("Test backup from API")
+            if backup_filename:
+                # Check again after creation
+                backup_files = get_backup_files()
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Created backup: {backup_filename}',
+                    'backup_files': len(backup_files),
+                    'files': [{'filename': b['filename'], 'size': b['size']} for b in backup_files]
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to create backup'
+                })
+        else:
+            return jsonify({
+                'status': 'success',
+                'message': f'Found {len(backup_files)} existing backups',
+                'backup_files': len(backup_files),
+                'files': [{'filename': b['filename'], 'size': b['size']} for b in backup_files]
+            })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Error: {str(e)}'
+        })
+
 # For Vercel serverless deployment, we don't need the __main__ block
 # Database initialization now happens during app startup via init_database()
 
