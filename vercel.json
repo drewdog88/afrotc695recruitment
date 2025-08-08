@@ -45,5 +45,20 @@
   ],
   "env": {
     "FLASK_ENV": "production"
-  }
+  },
+  "functions": {
+    "api/app.py": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/backup/nightly",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/backup/cleanup", 
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

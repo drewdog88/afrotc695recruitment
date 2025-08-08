@@ -2990,6 +2990,77 @@ def delete_cadet(cadet_id):
     
     return redirect(url_for('cadet'))
 
+@app.route('/api/backup/nightly')
+def nightly_backup_cron():
+    """Cron job endpoint for nightly backup - called by Vercel cron"""
+    try:
+        # Verify this is a legitimate cron call (optional security check)
+        user_agent = request.headers.get('User-Agent', '')
+        if not user_agent.startswith('Vercel'):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        # Create backup
+        backup_filename, backup_url = backup_database("Nightly automatic backup")
+        
+        if backup_filename:
+            print(f"Nightly backup completed: {backup_filename}")
+            return jsonify({
+                'success': True,
+                'backup_filename': backup_filename,
+                'backup_url': backup_url,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            print("Nightly backup failed")
+            return jsonify({'error': 'Backup failed'}), 500
+            
+    except Exception as e:
+        print(f"Error in nightly backup cron: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/backup/cleanup')
+def backup_cleanup_cron():
+    """Cron job endpoint for backup cleanup - called by Vercel cron"""
+    try:
+        # Verify this is a legitimate cron call
+        user_agent = request.headers.get('User-Agent', '')
+        if not user_agent.startswith('Vercel'):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        # Get backup files and clean up old ones
+        backup_files = get_backup_files()
+        cutoff_date = datetime.now() - timedelta(days=30)
+        deleted_count = 0
+        
+        for backup in backup_files:
+            try:
+                # Extract timestamp from filename
+                filename = backup.get('filename', '')
+                if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
+                    timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
+                    backup_date = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    
+                    if backup_date < cutoff_date:
+                        # Delete old backup
+                        delete(filename)
+                        deleted_count += 1
+                        print(f"Deleted old backup: {filename}")
+                        
+            except Exception as e:
+                print(f"Error processing backup {filename}: {e}")
+                continue
+        
+        print(f"Cleanup completed: {deleted_count} old backups deleted")
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in backup cleanup cron: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
