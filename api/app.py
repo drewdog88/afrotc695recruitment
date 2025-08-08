@@ -92,8 +92,7 @@ def init_database():
         print(f"Database initialization error: {e}")
         # Don't fail the app startup if database init fails
 
-# Initialize database on app startup
-init_database()
+# Initialize database on app startup - moved to end of file after all models are defined
 
 # Database backup configuration for Vercel (using Blob storage)
 # Note: Backup functionality will be implemented using Vercel Blob storage
@@ -2019,6 +2018,10 @@ def api_cadet():
 
 # For Vercel serverless deployment, we don't need the __main__ block
 # Database initialization now happens during app startup via init_database()
+
+# Initialize database after all models are defined
+init_database()
+
 if __name__ == '__main__':
     # This only runs for local development
     app.run(debug=True, host='0.0.0.0', port=5000) 
