@@ -14,6 +14,7 @@ import schedule
 import threading
 import time
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 import pandas as pd
 from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -171,8 +172,6 @@ if database_url and 'postgresql' in database_url:
 # Neon serverless connection removed - using SQLAlchemy with psycopg2 instead
 
 db = SQLAlchemy(app)
-
-
 
 # Activity Log Model for tracking all user actions
 class ActivityLog(db.Model):
@@ -516,6 +515,273 @@ def get_cadet_retention_data():
     # Sort by year in ascending order
     retention_data.sort(key=lambda x: x['year'])
     return retention_data
+
+def get_database_size():
+    """Get database size information for PostgreSQL"""
+    try:
+        # Query database size using PostgreSQL-specific queries
+        query = """
+        SELECT 
+            schemaname,
+            ROUND(SUM(pg_total_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as size_mb,
+            ROUND(SUM(pg_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as data_mb,
+            ROUND(SUM(pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as index_mb,
+            COUNT(*) as table_count
+        FROM pg_tables 
+        WHERE schemaname = 'public'
+        GROUP BY schemaname
+        """
+        
+        result = db.session.execute(text(query))
+        row = result.fetchone()
+        
+        if row:
+            return {
+                'database': row[0],
+                'total_size_mb': float(row[1]) if row[1] else 0,
+                'data_size_mb': float(row[2]) if row[2] else 0,
+                'index_size_mb': float(row[3]) if row[3] else 0,
+                'table_count': int(row[4]) if row[4] else 0
+            }
+        else:
+            return {
+                'database': 'public',
+                'total_size_mb': 0,
+                'data_size_mb': 0,
+                'index_size_mb': 0,
+                'table_count': 0
+            }
+    except Exception as e:
+        print(f"Error getting database size: {e}")
+        return {
+            'database': 'Unknown',
+            'total_size_mb': 0,
+            'data_size_mb': 0,
+            'index_size_mb': 0,
+            'table_count': 0
+        }
+
+def get_record_counts():
+    """Get record counts for all major tables"""
+    try:
+        counts = {}
+        
+        # Define tables to count (using current model names)
+        tables = [
+            ('user', User),
+            ('potential_recruit', PotentialRecruit),
+            ('cadet', Cadet),
+            ('university_contact', UniversityContact),
+            ('recruitment_event', RecruitmentEvent),
+            ('external_link', ExternalLink),
+            ('recruitment_document', RecruitmentDocument),
+            ('activity_log', ActivityLog),
+            ('password_history', PasswordHistory)
+        ]
+        
+        for table_name, model in tables:
+            try:
+                count = db.session.query(model).count()
+                counts[table_name] = count
+            except Exception as e:
+                print(f"Error counting {table_name}: {e}")
+                counts[table_name] = 0
+        
+        return counts
+    except Exception as e:
+        print(f"Error getting record counts: {e}")
+        return {}
+
+def get_system_performance():
+    """Get current system performance metrics"""
+    try:
+        import psutil
+        
+        # CPU usage
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory usage
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+        memory_used_mb = memory.used / (1024 * 1024)
+        memory_total_mb = memory.total / (1024 * 1024)
+        
+        # Disk usage (if available)
+        try:
+            disk = psutil.disk_usage('/')
+            disk_percent = disk.percent
+            disk_used_mb = disk.used / (1024 * 1024)
+            disk_total_mb = disk.total / (1024 * 1024)
+        except:
+            disk_percent = 0
+            disk_used_mb = 0
+            disk_total_mb = 0
+        
+        return {
+            'cpu_percent': round(cpu_percent, 1),
+            'memory_percent': round(memory_percent, 1),
+            'memory_used_mb': round(memory_used_mb, 1),
+            'memory_total_mb': round(memory_total_mb, 1),
+            'disk_percent': round(disk_percent, 1),
+            'disk_used_mb': round(disk_used_mb, 1),
+            'disk_total_mb': round(disk_total_mb, 1)
+        }
+    except Exception as e:
+        print(f"Error getting system performance: {e}")
+        return {
+            'cpu_percent': 0,
+            'memory_percent': 0,
+            'memory_used_mb': 0,
+            'memory_total_mb': 0,
+            'disk_percent': 0,
+            'disk_used_mb': 0,
+            'disk_total_mb': 0
+        }
+
+def get_user_activity_stats():
+    """Get user activity statistics"""
+    try:
+        # Recent logins (last 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_logins = db.session.query(ActivityLog).filter(
+            ActivityLog.action == 'LOGIN',
+            ActivityLog.created_at >= thirty_days_ago
+        ).count()
+        
+        # Active users (users who logged in within last 7 days)
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        active_users = db.session.query(ActivityLog).filter(
+            ActivityLog.action == 'LOGIN',
+            ActivityLog.created_at >= seven_days_ago
+        ).distinct(ActivityLog.user_id).count()
+        
+        # Total users
+        total_users = db.session.query(User).count()
+        
+        # Recent activity (last 24 hours)
+        one_day_ago = datetime.utcnow() - timedelta(days=1)
+        recent_activity = db.session.query(ActivityLog).filter(
+            ActivityLog.created_at >= one_day_ago
+        ).count()
+        
+        # Most active users (top 5)
+        most_active_users = db.session.query(
+            ActivityLog.user_id,
+            ActivityLog.username,
+            db.func.count(ActivityLog.id).label('activity_count')
+        ).filter(
+            ActivityLog.created_at >= thirty_days_ago
+        ).group_by(
+            ActivityLog.user_id,
+            ActivityLog.username
+        ).order_by(
+            db.func.count(ActivityLog.id).desc()
+        ).limit(5).all()
+        
+        return {
+            'recent_logins': recent_logins,
+            'active_users': active_users,
+            'total_users': total_users,
+            'recent_activity': recent_activity,
+            'most_active_users': [
+                {
+                    'user_id': user.user_id,
+                    'username': user.username,
+                    'activity_count': user.activity_count
+                }
+                for user in most_active_users
+            ]
+        }
+    except Exception as e:
+        print(f"Error getting user activity stats: {e}")
+        return {
+            'recent_logins': 0,
+            'active_users': 0,
+            'total_users': 0,
+            'recent_activity': 0,
+            'most_active_users': []
+        }
+
+def get_recruitment_stats():
+    """Get recruitment statistics"""
+    try:
+        # Total recruits by status
+        recruit_status_counts = db.session.query(
+            PotentialRecruit.status,
+            db.func.count(PotentialRecruit.id).label('count')
+        ).group_by(PotentialRecruit.status).all()
+        
+        # Total cadets by status
+        cadet_status_counts = db.session.query(
+            Cadet.status,
+            db.func.count(Cadet.id).label('count')
+        ).group_by(Cadet.status).all()
+        
+        # Recent recruits (last 30 days)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_recruits = db.session.query(PotentialRecruit).filter(
+            PotentialRecruit.created_at >= thirty_days_ago
+        ).count()
+        
+        # Recent cadets (last 30 days)
+        recent_cadets = db.session.query(Cadet).filter(
+            Cadet.created_at >= thirty_days_ago
+        ).count()
+        
+        # Upcoming events (next 30 days)
+        thirty_days_from_now = datetime.utcnow() + timedelta(days=30)
+        upcoming_events = db.session.query(RecruitmentEvent).filter(
+            RecruitmentEvent.event_date >= date.today(),
+            RecruitmentEvent.event_date <= thirty_days_from_now.date()
+        ).count()
+        
+        return {
+            'recruit_status_counts': [
+                {
+                    'status': status.status,
+                    'count': status.count
+                }
+                for status in recruit_status_counts
+            ],
+            'cadet_status_counts': [
+                {
+                    'status': status.status,
+                    'count': status.count
+                }
+                for status in cadet_status_counts
+            ],
+            'recent_recruits': recent_recruits,
+            'recent_cadets': recent_cadets,
+            'upcoming_events': upcoming_events
+        }
+    except Exception as e:
+        print(f"Error getting recruitment stats: {e}")
+        return {
+            'recruit_status_counts': [],
+            'cadet_status_counts': [],
+            'recent_recruits': 0,
+            'recent_cadets': 0,
+            'upcoming_events': 0
+        }
+
+def get_backup_files():
+    """Get list of backup files from blob storage"""
+    try:
+        blobs = blob.list()
+        backup_files = []
+        for b in blobs:
+            if b.get('pathname', '').startswith('afrotc695_backup_') and b.get('pathname', '').endswith('.json'):
+                backup_files.append({
+                    'filename': b['pathname'],
+                    'url': b['url'],
+                    'size': b.get('size', 0),
+                    'uploadedAt': b.get('uploadedAt', '')
+                })
+        backup_files.sort(key=lambda x: x['uploadedAt'], reverse=True)
+        return backup_files
+    except Exception as e:
+        print(f"Error getting backup files: {e}")
+        return []
 
 def export_data(data, filename, format, title):
     """Helper function to export data in different formats"""
@@ -1007,23 +1273,16 @@ def add_event():
             # Create backup before adding new event
             # backup_database("Pre-add event backup")  # Disabled for Vercel deployment
             
-            # Coerce optional fields safely
-            university_id_raw = request.form.get('university_id')
-            try:
-                university_id_value = int(university_id_raw) if university_id_raw and university_id_raw.isdigit() else None
-            except Exception:
-                university_id_value = None
-
             event = RecruitmentEvent(
                 title=request.form['title'],
-                description=request.form.get('description', ''),
+                description=request.form['description'],
                 event_date=datetime.strptime(request.form['event_date'], '%Y-%m-%d').date(),
-                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form.get('start_time') else None,
-                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form.get('end_time') else None,
-                location=request.form.get('location', ''),
-                university_id=university_id_value,
+                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
+                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
+                location=request.form['location'],
+                university_id=request.form.get('university_id'),
                 event_type=request.form['event_type'],
-                notes=request.form.get('notes', '')
+                notes=request.form['notes']
             )
             
             db.session.add(event)
@@ -1071,15 +1330,11 @@ def edit_event(event_id):
             event.event_date = datetime.strptime(request.form['event_date'], '%Y-%m-%d').date()
             event.start_time = datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None
             event.end_time = datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None
-            event.location = request.form.get('location', '')
-            university_id_raw = request.form.get('university_id')
-            try:
-                event.university_id = int(university_id_raw) if university_id_raw and university_id_raw.isdigit() else None
-            except Exception:
-                event.university_id = None
+            event.location = request.form['location']
+            event.university_id = request.form.get('university_id')
             event.event_type = request.form['event_type']
             event.status = request.form['status']
-            event.notes = request.form.get('notes', '')
+            event.notes = request.form['notes']
             
             db.session.commit()
             
@@ -1489,6 +1744,44 @@ def activity_log():
     
     return render_template('activity_log.html', activities=activities, sort_by=sort_by, order=order)
 
+@app.route('/admin/system-statistics')
+def system_statistics():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Gather all statistics
+        db_size = get_database_size()
+        record_counts = get_record_counts()
+        system_performance = get_system_performance()
+        user_activity = get_user_activity_stats()
+        recruitment_stats = get_recruitment_stats()
+        
+        # Calculate total records
+        total_records = sum(record_counts.values())
+        
+        # Get backup info
+        backup_files = get_backup_files()
+        backup_count = len(backup_files) if backup_files else 0
+        
+        # Get cadet retention data
+        retention_data = get_cadet_retention_data()
+        
+        return render_template('system_statistics.html',
+                             db_size=db_size,
+                             record_counts=record_counts,
+                             total_records=total_records,
+                             system_performance=system_performance,
+                             user_activity=user_activity,
+                             recruitment_stats=recruitment_stats,
+                             backup_count=backup_count,
+                             retention_data=retention_data)
+    except Exception as e:
+        print(f"Error in system statistics: {e}")
+        flash('Error loading system statistics. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
+
 @app.route('/admin/activity-log/export/<format>')
 def export_activity_log(format):
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -1709,11 +2002,10 @@ def init_database():
                 
                 # Reset sequences for PostgreSQL
                 if 'postgresql' in str(db.engine.url):
-                    from sqlalchemy import text
                     for table in db.metadata.tables.values():
                         for column in table.columns:
                             if column.primary_key and column.autoincrement:
-                                db.session.execute(text(f"SELECT setval(pg_get_serial_sequence('{table.name}', '{column.name}'), 1, false)"))
+                                db.session.execute(f"SELECT setval(pg_get_serial_sequence('{table.name}', '{column.name}'), 1, false)")
                     db.session.commit()
             else:
                 print(f"Database exists with {len(existing_tables)} tables")
@@ -1736,6 +2028,9 @@ def init_database():
     except Exception as e:
         print(f"Database initialization error: {e}")
         # Don't fail the app startup if database init fails
+
+# Initialize database on app startup
+init_database()
 
 # User Management Routes
 @app.route('/admin/users')
@@ -2579,6 +2874,5 @@ def delete_cadet(cadet_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        init_database()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
