@@ -115,11 +115,14 @@ class User(db.Model):
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(120), nullable=False)
-    # 2FA fields (commented out - separate feature)
-    # totp_secret = db.Column(db.String(255))  # Encrypted TOTP secret
-    # totp_enabled = db.Column(db.Boolean, default=False)
-    # backup_codes_hash = db.Column(db.Text)  # JSON array of bcrypt hashed backup codes
-    # totp_setup_completed = db.Column(db.Boolean, default=False)
+    
+    # 2FA Authentication Fields
+    totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
+    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Whether 2FA is enabled
+    backup_codes_hash = db.Column(db.Text, nullable=True)  # Encrypted backup codes
+    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)  # Setup completion status
+    can_enable_2fa = db.Column(db.Boolean, default=True, nullable=False)  # Admin control flag
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -149,6 +152,25 @@ class User(db.Model):
             return None
         days_left = (self.password_expires_at - datetime.utcnow()).days
         return max(0, days_left)
+    
+    # 2FA Authentication Methods
+    @property
+    def is_2fa_enabled(self):
+        """Check if 2FA is fully enabled for this user"""
+        return self.totp_enabled and self.totp_setup_completed
+    
+    @property
+    def can_use_2fa(self):
+        """Check if user can enable/use 2FA"""
+        return self.can_enable_2fa and self.is_active
+    
+    def has_2fa_setup(self):
+        """Check if user has started 2FA setup process"""
+        return self.totp_secret is not None
+    
+    def needs_2fa_setup(self):
+        """Check if user needs to complete 2FA setup"""
+        return self.totp_enabled and not self.totp_setup_completed
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)

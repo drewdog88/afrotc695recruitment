@@ -321,7 +321,7 @@
         "description": "Add pyotp, qrcode, Pillow, and cryptography libraries to requirements.txt to support two-factor authentication features.",
         "details": "Edit the project's requirements.txt file to include the following libraries: pyotp (for generating and verifying OTPs), qrcode (for QR code generation), Pillow (for image processing required by qrcode), and cryptography (for secure key management and encryption). Specify compatible versions if required by project standards. After updating requirements.txt, run 'pip install -r requirements.txt' in your virtual environment to ensure all dependencies are installed. Verify that no existing dependencies conflict with these additions and document any version constraints or compatibility notes in requirements.txt as comments.",
         "testStrategy": "1. Delete any existing virtual environment and create a new one to ensure a clean install.\n2. Run 'pip install -r requirements.txt' and confirm that pyotp, qrcode, Pillow, and cryptography are installed without errors.\n3. Use 'pip freeze' to verify the presence and correct versions of all four libraries.\n4. Attempt to import each library in a Python shell to confirm successful installation.\n5. Check for any dependency conflicts or warnings during installation and resolve as needed.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": []
@@ -330,7 +330,7 @@
         "id": 2,
         "title": "Create Database Migration Script for 2FA Columns in User Table",
         "description": "Develop a migration script to add totp_secret, totp_enabled, backup_codes_hash, and totp_setup_completed columns to the User table for two-factor authentication support. The migration must be written specifically for PostgreSQL, targeting the shared Neon PostgreSQL database used in both local and production environments. This migration is PostgreSQL-only; do not include any logic or compatibility checks for SQLite or other database engines.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1
         ],
@@ -345,7 +345,7 @@
         "description": "Modify the User model in app.py to add totp_secret, totp_enabled, backup_codes_hash, and totp_setup_completed fields for two-factor authentication support.",
         "details": "Edit the User model class in app.py to include the following new columns:\n- totp_secret: a string column (nullable) to store the user's TOTP secret key.\n- totp_enabled: a boolean column (default False) to indicate if 2FA is enabled for the user.\n- backup_codes_hash: a string column (nullable) to store a hash of the user's backup codes for account recovery.\n- totp_setup_completed: a boolean column (default False) to indicate if the user has completed the 2FA setup process.\n\nUse your ORM's column definitions (e.g., SQLAlchemy's db.Column) and ensure that the new fields match the types and defaults specified in the migration script. For example, with SQLAlchemy:\n\n```python\nclass User(db.Model):\n    # ... existing fields ...\n    totp_secret = db.Column(db.String(255), nullable=True)\n    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)\n    backup_codes_hash = db.Column(db.String(255), nullable=True)\n    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)\n```\n\nAfter updating the model, review any model-related forms, serializers, or business logic that may need to reference these new fields. Ensure that the model remains compatible with the rest of the application and that all new fields are properly documented.",
         "testStrategy": "1. Run the application and ensure that the User model reflects the new fields without errors.\n2. Use the ORM shell or admin interface to create and update User records, verifying that the new fields accept and store data as expected.\n3. Confirm that the model's schema matches the database schema after migration (column names, types, and defaults).\n4. Run the full test suite to ensure no regressions or model-related errors are introduced.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           2
         ],
@@ -358,7 +358,7 @@
         "description": "Develop utility functions for two-factor authentication: encrypt_totp_secret, decrypt_totp_secret, generate_backup_codes, hash_backup_code, and verify_backup_code.",
         "details": "Implement the following functions in a dedicated 2FA utilities module:\n\n- encrypt_totp_secret(secret: str) -> str: Use a secure symmetric encryption library (e.g., cryptography or Google Tink) to encrypt the TOTP secret before storing it in the database. Ensure key management practices prevent unauthorized access to encryption keys. Consider envelope encryption for added security[3][5].\n\n- decrypt_totp_secret(encrypted: str) -> str: Decrypt the encrypted TOTP secret using the same cryptographic library and key management approach. Validate that only authorized processes can perform decryption[3][5].\n\n- generate_backup_codes(count: int = 10) -> List[str]: Generate a list of random, single-use backup codes (e.g., 8-12 alphanumeric characters each) for account recovery. Ensure codes are cryptographically random and not easily guessable.\n\n- hash_backup_code(code: str) -> str: Hash each backup code using a strong, salted hash function (e.g., bcrypt, Argon2, or PBKDF2). Store only the hashes in the database for security.\n\n- verify_backup_code(input_code: str, stored_hashes: List[str]) -> bool: Check if the provided code matches any stored hash using a constant-time comparison to prevent timing attacks. Mark codes as used after successful verification.\n\nDocument all functions with clear docstrings, and ensure error handling for encryption/decryption failures and hash mismatches. Integrate with the User model fields for storing encrypted secrets and backup code hashes.",
         "testStrategy": "1. Write unit tests for each function:\n   - encrypt_totp_secret and decrypt_totp_secret: Confirm that a secret encrypted and then decrypted matches the original. Test with invalid keys and corrupted data.\n   - generate_backup_codes: Ensure codes are unique, random, and meet length/format requirements.\n   - hash_backup_code: Verify that the hash output is consistent and secure.\n   - verify_backup_code: Test with valid and invalid codes, ensuring only correct codes pass and used codes are invalidated.\n2. Perform integration tests to confirm encrypted secrets and backup code hashes are correctly stored and retrieved via the User model.\n3. Conduct security review of cryptographic choices and error handling.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           3
@@ -372,7 +372,7 @@
         "description": "Develop the /setup-2fa route to handle TOTP secret generation, QR code display, and verification of user-provided codes for two-factor authentication setup.",
         "details": "Implement a secure POST and GET endpoint at /setup-2fa. On GET, generate a new TOTP secret (using pyotp), associate it with the authenticated user (encrypt and store using utility functions), and generate a QR code (using qrcode and Pillow) encoding the TOTP URI for use with authenticator apps. Return the QR code image or SVG to the frontend. On POST, accept a TOTP code from the user, decrypt the stored secret, and verify the code using pyotp. If valid, mark totp_setup_completed and totp_enabled as true for the user, and generate backup codes (using utility functions). Ensure all sensitive operations require authentication and CSRF protection. Handle error cases (invalid code, repeated setup, etc.) with clear responses. Log security-relevant events. Follow best practices for secret handling and never expose the raw TOTP secret to the client.",
         "testStrategy": "1. Write integration tests to verify that GET /setup-2fa returns a valid QR code for a new TOTP secret and does not expose the secret directly. 2. Test POST /setup-2fa with valid and invalid TOTP codes, confirming that only valid codes enable 2FA and update user fields appropriately. 3. Attempt repeated setup and verify correct error handling. 4. Confirm that backup codes are generated and stored securely. 5. Ensure all endpoints require authentication and reject unauthenticated requests. 6. Manually scan the QR code with an authenticator app and verify that generated codes are accepted by the verification endpoint.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           3,
@@ -387,7 +387,7 @@
         "description": "Develop the /verify-2fa route to handle verification of user-provided 2FA codes during the login process.",
         "details": "Implement a secure POST endpoint at /verify-2fa. When a user attempts to log in and 2FA is enabled for their account, prompt them for a TOTP code. Upon receiving the code, retrieve the user's encrypted TOTP secret from the database, decrypt it using the utility functions, and verify the code using pyotp. If the code is valid, complete the login process; if invalid, return an appropriate error response and log the attempt. Ensure the route is protected against brute-force attacks by rate limiting and logging failed attempts. Handle edge cases such as missing codes, expired codes, and users without 2FA setup. Consider supporting backup code verification for account recovery. Return clear success or error messages to the frontend. Integrate with session management to ensure users are only granted access upon successful 2FA verification.",
         "testStrategy": "1. Write integration tests to simulate login attempts with valid and invalid TOTP codes, confirming that only valid codes allow login. 2. Test with users who have 2FA disabled, enabled, and incomplete setup to verify correct handling. 3. Attempt verification with expired codes and backup codes to ensure proper error responses. 4. Test rate limiting and logging of failed attempts. 5. Confirm that session or token issuance only occurs after successful 2FA verification.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           3,
@@ -417,7 +417,7 @@
         "description": "Design and implement HTML templates for the two-factor authentication setup (setup_2fa.html) and verification (verify_2fa.html) user flows.",
         "details": "Develop two responsive and accessible HTML templates:\n\n- **setup_2fa.html**: This page should guide users through the process of enabling two-factor authentication. It must include:\n  - Instructions for scanning a QR code with an authenticator app.\n  - A section to display the QR code image (to be rendered by the backend).\n  - An input field for the user to enter the TOTP code generated by their authenticator app.\n  - A submit button to verify the code and complete setup.\n  - Optional: Display backup codes or a link to generate them after successful setup.\n  - Use clear error and success messaging for user feedback.\n\n- **verify_2fa.html**: This page should prompt users to enter their TOTP code during login. It must include:\n  - A secure input field for the 6-digit TOTP code.\n  - A submit button to verify the code.\n  - Optional: A link or button to use a backup code if available.\n  - Clear error messaging for invalid or expired codes.\n\nBoth templates should:\n- Use semantic HTML5 and be styled for usability and clarity (consider using Bootstrap 5 or Tailwind CSS for layout and responsiveness[2][3]).\n- Include CSRF protection tokens if required by the backend framework.\n- Be structured for easy integration with the backend routes and logic.\n- Follow accessibility best practices (e.g., proper labels, focus management, ARIA attributes where appropriate).\n\nReference modern 2FA UI patterns for inspiration[2][3][5].",
         "testStrategy": "1. Render both templates in a development environment and verify that all required elements (QR code, input fields, buttons, messages) are present and correctly labeled.\n2. Test the setup_2fa.html page by simulating the display of a QR code and entering valid and invalid TOTP codes, confirming that error and success messages appear as expected.\n3. Test the verify_2fa.html page by submitting valid, invalid, and expired codes, ensuring correct error handling and user feedback.\n4. Check that both templates are responsive and accessible on desktop and mobile devices.\n5. Validate that CSRF tokens (if used) are present and correctly integrated.\n6. Confirm that the templates integrate seamlessly with the backend 2FA setup and verification routes.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           3,
@@ -529,7 +529,7 @@
     ],
     "metadata": {
       "created": "2025-08-08T17:20:25.643Z",
-      "updated": "2025-08-08T17:24:40.459Z",
+      "updated": "2025-08-08T18:35:50.906Z",
       "description": "Two-Factor Authentication feature implementation with optional TOTP support"
     }
   }
