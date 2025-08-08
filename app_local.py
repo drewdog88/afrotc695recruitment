@@ -172,6 +172,8 @@ if database_url and 'postgresql' in database_url:
 
 db = SQLAlchemy(app)
 
+
+
 # Activity Log Model for tracking all user actions
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1005,16 +1007,23 @@ def add_event():
             # Create backup before adding new event
             # backup_database("Pre-add event backup")  # Disabled for Vercel deployment
             
+            # Coerce optional fields safely
+            university_id_raw = request.form.get('university_id')
+            try:
+                university_id_value = int(university_id_raw) if university_id_raw and university_id_raw.isdigit() else None
+            except Exception:
+                university_id_value = None
+
             event = RecruitmentEvent(
                 title=request.form['title'],
-                description=request.form['description'],
+                description=request.form.get('description', ''),
                 event_date=datetime.strptime(request.form['event_date'], '%Y-%m-%d').date(),
-                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
-                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
-                location=request.form['location'],
-                university_id=request.form.get('university_id'),
+                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form.get('start_time') else None,
+                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form.get('end_time') else None,
+                location=request.form.get('location', ''),
+                university_id=university_id_value,
                 event_type=request.form['event_type'],
-                notes=request.form['notes']
+                notes=request.form.get('notes', '')
             )
             
             db.session.add(event)
@@ -1062,11 +1071,15 @@ def edit_event(event_id):
             event.event_date = datetime.strptime(request.form['event_date'], '%Y-%m-%d').date()
             event.start_time = datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None
             event.end_time = datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None
-            event.location = request.form['location']
-            event.university_id = request.form.get('university_id')
+            event.location = request.form.get('location', '')
+            university_id_raw = request.form.get('university_id')
+            try:
+                event.university_id = int(university_id_raw) if university_id_raw and university_id_raw.isdigit() else None
+            except Exception:
+                event.university_id = None
             event.event_type = request.form['event_type']
             event.status = request.form['status']
-            event.notes = request.form['notes']
+            event.notes = request.form.get('notes', '')
             
             db.session.commit()
             
@@ -1696,10 +1709,11 @@ def init_database():
                 
                 # Reset sequences for PostgreSQL
                 if 'postgresql' in str(db.engine.url):
+                    from sqlalchemy import text
                     for table in db.metadata.tables.values():
                         for column in table.columns:
                             if column.primary_key and column.autoincrement:
-                                db.session.execute(f"SELECT setval(pg_get_serial_sequence('{table.name}', '{column.name}'), 1, false)")
+                                db.session.execute(text(f"SELECT setval(pg_get_serial_sequence('{table.name}', '{column.name}'), 1, false)"))
                     db.session.commit()
             else:
                 print(f"Database exists with {len(existing_tables)} tables")
@@ -1722,9 +1736,6 @@ def init_database():
     except Exception as e:
         print(f"Database initialization error: {e}")
         # Don't fail the app startup if database init fails
-
-# Initialize database on app startup
-init_database()
 
 # User Management Routes
 @app.route('/admin/users')
@@ -2568,5 +2579,6 @@ def delete_cadet(cadet_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        init_database()
     
     app.run(debug=True, host='0.0.0.0', port=5000)

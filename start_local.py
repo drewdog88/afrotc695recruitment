@@ -38,10 +38,11 @@ def test_database_connection():
     """Test the Neon database connection"""
     try:
         from app_local import db, app
+        from sqlalchemy import text
         
         with app.app_context():
             # Test database connection
-            db.engine.execute("SELECT 1")
+            db.session.execute(text("SELECT 1"))
             print("✅ Database connection successful")
             return True
     except Exception as e:
@@ -51,10 +52,10 @@ def test_database_connection():
 def test_blob_connection():
     """Test the Vercel Blob connection"""
     try:
-        from vercel_blob import list
+        from vercel_storage import blob
         
         # Test blob connection by listing files
-        blobs = list()
+        blobs = blob.list()
         print("✅ Vercel Blob connection successful")
         return True
     except Exception as e:

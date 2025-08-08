@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, time, timezone, timedelta
+import calendar as calendar_lib
 import os
 import shutil
 import sqlite3
@@ -15,17 +16,14 @@ from reportlab.lib import colors
 import tempfile
 import zipfile
 from sqlalchemy.pool import NullPool
-import vercel_blob
+from vercel_storage import blob
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
 load_dotenv()
 
-# Configure Vercel Blob storage
-blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
-if blob_token:
-    vercel_blob.token = blob_token
-else:
+# Configure Vercel Blob storage (token handled by vercel_storage internally if needed)
+if not os.getenv('BLOB_READ_WRITE_TOKEN'):
     print("Warning: BLOB_READ_WRITE_TOKEN not found in environment variables")
 
 # Configure Flask with correct paths for Vercel serverless environment
@@ -290,6 +288,8 @@ class RecruitmentEvent(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Relationship to the associated university/high school contact
+    university_contact = db.relationship('UniversityContact', backref='events')
 
 class ExternalLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -972,13 +972,56 @@ def calendar():
         return redirect(url_for('login'))
     
     try:
-        events = RecruitmentEvent.query.order_by(RecruitmentEvent.event_date).all()
-        contacts = UniversityContact.query.filter_by(is_active=True).all()
-        return render_template('calendar.html', events=events, contacts=contacts)
+        # Determine year and month from query params, default to current
+        year_param = request.args.get('year', type=int)
+        month_param = request.args.get('month', type=int)
+        today = datetime.today()
+        year = year_param if year_param and 1 <= year_param <= 9999 else today.year
+        month = month_param if month_param and 1 <= month_param <= 12 else today.month
+
+        # Build month grid data
+        cal = calendar_lib.Calendar(firstweekday=6)  # Start weeks on Sunday
+        calendar_data = cal.monthdayscalendar(year, month)
+        month_name = datetime(year, month, 1).strftime('%B %Y')
+
+        # Prev/Next month navigation
+        if month == 1:
+            prev_year, prev_month = year - 1, 12
+        else:
+            prev_year, prev_month = year, month - 1
+        if month == 12:
+            next_year, next_month = year + 1, 1
+        else:
+            next_year, next_month = year, month + 1
+
+        # Filter events to the selected month
+        from_date = date(year, month, 1)
+        if month == 12:
+            to_date = date(year + 1, 1, 1)
+        else:
+            to_date = date(year, month + 1, 1)
+
+        events = (
+            RecruitmentEvent.query
+            .filter(RecruitmentEvent.event_date >= from_date, RecruitmentEvent.event_date < to_date)
+            .order_by(RecruitmentEvent.event_date, RecruitmentEvent.start_time)
+            .all()
+        )
+
+        return render_template(
+            'calendar.html',
+            events=events,
+            calendar_data=calendar_data,
+            month_name=month_name,
+            prev_year=prev_year,
+            prev_month=prev_month,
+            next_year=next_year,
+            next_month=next_month,
+        )
     except Exception as e:
         print(f"Error loading calendar: {e}")
         flash('Error loading calendar data. Please try again.', 'error')
-        return render_template('calendar.html', events=[], contacts=[])
+        return render_template('calendar.html', events=[], calendar_data=[], month_name='')
 
 @app.route('/calendar/add', methods=['GET', 'POST'])
 def add_event():
@@ -990,16 +1033,23 @@ def add_event():
             # Create backup before adding new event
             backup_database("Pre-add event backup")
             
+            # Coerce optional fields safely
+            university_id_raw = request.form.get('university_id')
+            try:
+                university_id_value = int(university_id_raw) if university_id_raw and university_id_raw.isdigit() else None
+            except Exception:
+                university_id_value = None
+
             event = RecruitmentEvent(
                 title=request.form['title'],
-                description=request.form['description'],
+                description=request.form.get('description', ''),
                 event_date=datetime.strptime(request.form['event_date'], '%Y-%m-%d').date(),
-                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
-                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
-                location=request.form['location'],
-                university_id=request.form.get('university_id'),
+                start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form.get('start_time') else None,
+                end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form.get('end_time') else None,
+                location=request.form.get('location', ''),
+                university_id=university_id_value,
                 event_type=request.form['event_type'],
-                notes=request.form['notes']
+                notes=request.form.get('notes', '')
             )
             
             db.session.add(event)
@@ -1851,7 +1901,7 @@ def add_document():
             unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
             
             # Upload to Vercel Blob
-            blob_response = vercel_blob.put(
+            blob_response = blob.put(
                 unique_filename,
                 file.read(),
                 {"addRandomSuffix": False}  # We're already adding our own unique prefix
@@ -1948,7 +1998,7 @@ def delete_document(document_id):
     try:
         # Delete file from Vercel Blob storage
         blob_url = document.filename
-        vercel_blob.delete(blob_url)
+        blob.delete(blob_url, {})
         
         # Delete from database
         db.session.delete(document)
@@ -1978,7 +2028,7 @@ def download_document(document_id):
         blob_url = document.filename
         
         # Get blob metadata to ensure file exists
-        blob_meta = vercel_blob.head(blob_url)
+        blob_meta = blob.head(blob_url)
         
         if not blob_meta:
             flash('File not found in storage.', 'error')
