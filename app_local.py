@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 from dotenv import load_dotenv
-from vercel_blob import put, list, delete, head
+from vercel_blob import put, list as blob_list, delete, head
 
 def test_blob_storage():
     """Test Vercel Blob storage connectivity"""
@@ -131,7 +131,7 @@ def test_file_delete(blob_url):
     """
     try:
         print(f"Deleting file from Blob storage: {blob_url}")
-        delete(blob_url)
+        delete(blob_url, {})
         print("File deleted successfully")
         return True, None
         
@@ -868,17 +868,50 @@ def restore_database(backup_url):
 def get_backup_files():
     """Get list of backup files from blob storage"""
     try:
-        # Temporary mock to show the backup we just created
-        # TODO: Fix blob listing when the API is working properly
-        mock_backup = {
-            'filename': 'afrotc695_backup_20250807_233148.json',
-            'url': 'https://pwmalcxzcqu5etro.public.blob.vercel-storage.com/afrotc695_backup_20250807_233148.json',
-            'size': 10240,  # Mock size
-            'created': datetime.strptime('20250807_233148', '%Y%m%d_%H%M%S'),
-            'description': 'Test backup for database management page',
-            'user': 'System'
-        }
-        return [mock_backup]
+        blob_files = blob_list()
+        
+        if not blob_files:
+            return []
+        
+        # Handle different response types from vercel_blob
+        if isinstance(blob_files, list):
+            files = blob_files
+        elif hasattr(blob_files, 'blobs'):
+            files = blob_files.blobs
+        else:
+            print(f"Unexpected response type from blob.list(): {type(blob_files)}")
+            return []
+        
+        # Convert blob files to our expected format
+        backup_files = []
+        for file_info in files:
+            if isinstance(file_info, dict):
+                filename = file_info.get('pathname', '')
+            else:
+                filename = str(file_info)
+            
+            # Only include backup files
+            if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
+                # Extract timestamp from filename
+                try:
+                    timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
+                    created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    
+                    backup_files.append({
+                        'filename': filename,
+                        'url': file_info.get('url', ''),
+                        'size': file_info.get('size', 0),
+                        'created': created,
+                        'description': 'Automatic backup',
+                        'user': 'System'
+                    })
+                except Exception as e:
+                    print(f"Error parsing backup filename {filename}: {e}")
+                    continue
+        
+        # Sort by creation date (newest first)
+        backup_files.sort(key=lambda x: x['created'], reverse=True)
+        return backup_files
         
     except Exception as e:
         print(f"Error getting backup files: {e}")
@@ -1557,7 +1590,7 @@ def add_document():
             unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
             
             # Upload to Vercel Blob
-            blob_response = blob.put(
+            blob_response = put(
                 unique_filename,
                 file.read(),
                 {"addRandomSuffix": False}  # We're already adding our own unique prefix
@@ -1654,7 +1687,7 @@ def delete_document(document_id):
     try:
         # Delete file from Vercel Blob storage
         blob_url = document.filename
-        blob.delete(blob_url, {})
+        delete(blob_url, {})
         
         # Delete from database
         db.session.delete(document)
@@ -1684,7 +1717,7 @@ def download_document(document_id):
         blob_url = document.filename
         
         # Get blob metadata to ensure file exists
-        blob_meta = blob.head(blob_url, {})
+        blob_meta = head(blob_url, {})
         
         if not blob_meta:
             flash('File not found in storage.', 'error')
@@ -1970,7 +2003,7 @@ def download_backup(filename):
         blob_url = filename
         
         # Get blob metadata to ensure file exists
-        blob_meta = blob.head(blob_url, {})
+        blob_meta = head(blob_url, {})
         
         if not blob_meta:
             flash('Backup file not found.', 'error')
@@ -1995,7 +2028,7 @@ def delete_backup(filename):
     try:
         # Delete file from Vercel Blob storage
         blob_url = filename
-        blob.delete(blob_url, {})
+        delete(blob_url, {})
         
         flash(f'Backup "{filename}" deleted successfully.', 'success')
         log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')

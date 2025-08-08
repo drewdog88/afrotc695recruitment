@@ -19,7 +19,7 @@ import json
 import requests
 from sqlalchemy.pool import NullPool
 from sqlalchemy import text
-from vercel_blob import put, list, delete, head
+from vercel_blob import put, list as blob_list, delete, head
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
@@ -202,9 +202,50 @@ def restore_database(backup_url):
 def get_backup_files():
     """Get list of available backup files with metadata"""
     try:
-        # For now, return empty list to avoid errors
-        # TODO: Implement proper blob storage listing
-        return []
+        blob_files = blob_list()
+        
+        if not blob_files:
+            return []
+        
+        # Handle different response types from vercel_blob
+        if isinstance(blob_files, list):
+            files = blob_files
+        elif hasattr(blob_files, 'blobs'):
+            files = blob_files.blobs
+        else:
+            print(f"Unexpected response type from blob.list(): {type(blob_files)}")
+            return []
+        
+        # Convert blob files to our expected format
+        backup_files = []
+        for file_info in files:
+            if isinstance(file_info, dict):
+                filename = file_info.get('pathname', '')
+            else:
+                filename = str(file_info)
+            
+            # Only include backup files
+            if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
+                # Extract timestamp from filename
+                try:
+                    timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
+                    created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    
+                    backup_files.append({
+                        'filename': filename,
+                        'url': file_info.get('url', ''),
+                        'size': file_info.get('size', 0),
+                        'created': created,
+                        'description': 'Automatic backup',
+                        'user': 'System'
+                    })
+                except Exception as e:
+                    print(f"Error parsing backup filename {filename}: {e}")
+                    continue
+        
+        # Sort by creation date (newest first)
+        backup_files.sort(key=lambda x: x['created'], reverse=True)
+        return backup_files
         
     except Exception as e:
         print(f"Error getting backup files: {e}")
@@ -1529,10 +1570,10 @@ def backup():
     
     if request.method == 'POST':
         try:
-            backup_filename, backup_path = backup_database()
+            backup_filename, backup_url = backup_database()
             if backup_filename:
                 flash(f'Database backed up successfully to {backup_filename}', 'success')
-                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_path}')
+                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_url}')
             else:
                 flash('Failed to create database backup.', 'error')
         except Exception as e:

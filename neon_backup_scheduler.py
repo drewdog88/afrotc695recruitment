@@ -15,7 +15,7 @@ import requests
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from vercel_blob import put, list, delete, head
+from vercel_blob import put, list as blob_list, delete, head
 
 # Add the project directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -104,9 +104,16 @@ def backup_database_neon(description="Nightly automatic backup"):
 def list_backup_files():
     """List all backup files in blob storage"""
     try:
-        blob_files = list()
-        if isinstance(blob_files, list):
-            return blob_files
+        # Use the imported list function directly from vercel_blob
+        blob_files = blob_list()
+        
+        # Handle different response types from vercel_blob
+        if hasattr(blob_files, '__iter__') and not isinstance(blob_files, str):
+            # It's some kind of iterable (list, tuple, etc.)
+            return list(blob_files)
+        elif hasattr(blob_files, 'blobs'):
+            # If it's an object with a blobs attribute
+            return blob_files.blobs
         else:
             print(f"Unexpected response type from blob.list(): {type(blob_files)}")
             return []
