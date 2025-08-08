@@ -706,7 +706,7 @@
         }
     </style>
 </head>
-<body data-theme="original" class="{% if request.endpoint %}page-{{ request.endpoint.replace('_', '-') }}{% endif %}">
+<body data-theme="original" class="{% if request and request.endpoint %}page-{{ request.endpoint.replace('_', '-') }}{% endif %}">
     {% if session.user_id %}
     <!-- Theme Toggle Buttons -->
     <div class="theme-toggle">
@@ -786,7 +786,7 @@
                              <span class="d-none d-lg-inline">Outreach Contacts</span>
                              <span class="d-lg-none">Outreach</span>
                          </a>
-                        <a class="nav-link {% if request.endpoint == 'calendar_view' %}active{% endif %}" href="{{ url_for('calendar_view') }}">
+                        <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="{{ url_for('calendar') }}">
                             <i class="fas fa-calendar-alt"></i> 
                             <span>Calendar</span>
                         </a>
@@ -796,7 +796,7 @@
                             <span class="d-lg-none">Materials</span>
                         </a>
                         {% if session.role == 'admin' %}
-                        <a class="nav-link {% if request.endpoint == 'admin' %}active{% endif %}" href="{{ url_for('admin') }}">
+                        <a class="nav-link {% if 'admin' in request.endpoint %}active{% endif %}" href="{{ url_for('user_management') }}">
                             <i class="fas fa-cog"></i> 
                             <span>Admin</span>
                         </a>
