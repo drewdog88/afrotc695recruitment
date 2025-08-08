@@ -2,6 +2,8 @@
 
 This directory contains markdown files that are automatically synced to the GitHub Wiki via GitHub Actions.
 
+**Last Test: 2024-12-19 15:30 UTC** - Testing GitHub Actions workflow
+
 ## How It Works
 
 1. **Automatic Sync**: When files in this `wiki/` directory are pushed to the main branch, a GitHub Actions workflow automatically copies them to the GitHub Wiki repository.
