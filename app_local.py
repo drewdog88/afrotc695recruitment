@@ -876,10 +876,18 @@ def get_backup_files():
         # Handle different response types from vercel_blob
         if isinstance(blob_files, list):
             files = blob_files
+        elif isinstance(blob_files, dict):
+            # If it's a dict, it might have a 'blobs' key or be the response structure
+            if 'blobs' in blob_files:
+                files = blob_files['blobs']
+            else:
+                # If it's a single file response, wrap it in a list
+                files = [blob_files]
         elif hasattr(blob_files, 'blobs'):
             files = blob_files.blobs
         else:
             print(f"Unexpected response type from blob.list(): {type(blob_files)}")
+            print(f"Response content: {blob_files}")
             return []
         
         # Convert blob files to our expected format
@@ -1981,9 +1989,12 @@ def backup():
     
     if request.method == 'POST':
         try:
-            # backup_filename, backup_path = backup_database()  # Disabled for Vercel deployment
-            # Local backups are disabled for Vercel deployment - use backup_to_blob.py instead
-            flash('Manual backup feature is disabled in this deployment. Use backup_to_blob.py for backups.', 'info')
+            backup_filename, backup_url = backup_database("Manual backup from web interface")
+            if backup_filename:
+                flash(f'Database backed up successfully to {backup_filename}', 'success')
+                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_url}')
+            else:
+                flash('Failed to create database backup.', 'error')
         except Exception as e:
             print(f"Error during backup: {e}")
             flash('Error creating database backup. Please check logs.', 'error')

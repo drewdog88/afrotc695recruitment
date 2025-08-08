@@ -197,11 +197,8 @@ def run_backup_scheduler():
     print("Storage: Vercel Blob")
     print("Press Ctrl+C to stop the scheduler")
     
-    # Schedule nightly backup at 2:00 AM
+    # Schedule nightly backup at 2:00 AM only
     schedule.every().day.at("02:00").do(perform_nightly_backup)
-    
-    # Also run a backup every 6 hours during the day for additional safety
-    schedule.every(6).hours.do(perform_nightly_backup)
     
     try:
         while True:

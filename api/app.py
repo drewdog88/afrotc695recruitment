@@ -1570,7 +1570,7 @@ def backup():
     
     if request.method == 'POST':
         try:
-            backup_filename, backup_url = backup_database()
+            backup_filename, backup_url = backup_database("Manual backup from web interface")
             if backup_filename:
                 flash(f'Database backed up successfully to {backup_filename}', 'success')
                 log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_url}')
