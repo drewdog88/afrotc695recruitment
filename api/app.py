@@ -15,8 +15,11 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import tempfile
 import zipfile
+import json
+import requests
 from sqlalchemy.pool import NullPool
-from vercel_blob import blob
+from sqlalchemy import text
+from vercel_blob import put, list, delete, head
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
@@ -98,20 +101,126 @@ def init_database():
 
 def backup_database(description="Manual backup"):
     """Create a database backup with timestamp and description"""
-    # TODO: Implement using Vercel Blob storage
-    # This will be implemented in a future task
-    print(f"Backup requested: {description}")
-    return None, None
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"afrotc695_backup_{timestamp}.json"
+        
+        # Export all data to JSON format
+        backup_data = {
+            'timestamp': timestamp,
+            'description': description,
+            'tables': {}
+        }
+        
+        # Export each table
+        tables = ['user', 'potential_recruit', 'cadet', 'university_contact', 
+                 'recruitment_event', 'external_link', 'recruitment_document', 
+                 'activity_log', 'password_history']
+        
+        for table_name in tables:
+            try:
+                # Use raw SQL to get all data
+                result = db.session.execute(text(f'SELECT * FROM "{table_name}"'))
+                rows = [dict(row._mapping) for row in result]
+                backup_data['tables'][table_name] = rows
+            except Exception as e:
+                print(f"Error backing up table {table_name}: {e}")
+                backup_data['tables'][table_name] = []
+        
+        # Convert to JSON string
+        backup_json = json.dumps(backup_data, indent=2, default=str)
+        
+        # Upload to Vercel Blob
+        blob_response = put(
+            backup_filename,
+            backup_json.encode('utf-8'),
+            {"addRandomSuffix": False}
+        )
+        
+        if blob_response and 'url' in blob_response:
+            return backup_filename, blob_response['url']
+        else:
+            print("Failed to upload backup to blob storage")
+            return None, None
+            
+    except Exception as e:
+        print(f"Error creating backup: {e}")
+        return None, None
 
-def restore_database(backup_file_path):
-    """Restore database from backup file"""
-    # TODO: Implement using Vercel Blob storage
-    # This will be implemented in a future task
-    print(f"Restore requested from: {backup_file_path}")
-    return False
+def restore_database(backup_url):
+    """Restore database from backup file stored in blob"""
+    try:
+        # Download backup from blob
+        backup_response = requests.get(backup_url)
+        if backup_response.status_code != 200:
+            print(f"Failed to download backup: {backup_response.status_code}")
+            return False
+        
+        backup_data = json.loads(backup_response.text)
+        
+        # Clear existing data
+        for table_name in reversed(backup_data['tables'].keys()):
+            try:
+                db.session.execute(text(f'DELETE FROM "{table_name}"'))
+            except Exception as e:
+                print(f"Error clearing table {table_name}: {e}")
+        
+        # Restore data
+        for table_name, rows in backup_data['tables'].items():
+            if rows:
+                try:
+                    # Insert data back
+                    for row in rows:
+                        # Convert string dates back to proper format
+                        for key, value in row.items():
+                            if isinstance(value, str) and 'T' in value:
+                                try:
+                                    row[key] = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                                except:
+                                    pass
+                        
+                        # Build INSERT statement
+                        columns = ', '.join([f'"{k}"' for k in row.keys()])
+                        placeholders = ', '.join(['%s'] * len(row))
+                        sql = f'INSERT INTO "{table_name}" ({columns}) VALUES ({placeholders})'
+                        
+                        db.session.execute(text(sql), list(row.values()))
+                        
+                except Exception as e:
+                    print(f"Error restoring table {table_name}: {e}")
+                    db.session.rollback()
+                    return False
+        
+        db.session.commit()
+        return True
+        
+    except Exception as e:
+        print(f"Error restoring database: {e}")
+        db.session.rollback()
+        return False
 
 def get_backup_files():
     """Get list of available backup files with metadata"""
+    try:
+        blobs = list()
+        backup_files = []
+        
+        for b in blobs:
+            if b.get('pathname', '').startswith('afrotc695_backup_') and b.get('pathname', '').endswith('.json'):
+                backup_files.append({
+                    'filename': b['pathname'],
+                    'url': b['url'],
+                    'size': b.get('size', 0),
+                    'uploadedAt': b.get('uploadedAt', '')
+                })
+        
+        # Sort by upload date (newest first)
+        backup_files.sort(key=lambda x: x['uploadedAt'], reverse=True)
+        return backup_files
+        
+    except Exception as e:
+        print(f"Error getting backup files: {e}")
+        return []
     # TODO: Implement using Vercel Blob storage
     # This will be implemented in a future task
     return []
@@ -1162,10 +1271,26 @@ def download_backup(filename):
         return redirect(url_for('dashboard'))
     
     try:
-        backup_path = os.path.join(BACKUP_DIR, filename)
-        if os.path.exists(backup_path):
-            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
-            return send_file(backup_path, as_attachment=True, download_name=filename)
+        # Get backup files from blob storage
+        backup_files = get_backup_files()
+        backup_file = None
+        
+        for bf in backup_files:
+            if bf['filename'] == filename:
+                backup_file = bf
+                break
+        
+        if backup_file:
+            # Download from blob and serve
+            response = requests.get(backup_file['url'])
+            if response.status_code == 200:
+                log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+                return response.content, 200, {
+                    'Content-Type': 'application/json',
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            else:
+                flash('Error downloading backup from storage.', 'error')
         else:
             flash('Backup file not found.', 'error')
     except Exception as e:
@@ -1181,17 +1306,18 @@ def delete_backup(filename):
         return redirect(url_for('dashboard'))
     
     try:
-        backup_path = os.path.join(BACKUP_DIR, filename)
-        metadata_path = backup_path.replace('.db', '_metadata.json')
+        # Get backup files from blob storage
+        backup_files = get_backup_files()
+        backup_file = None
         
-        if os.path.exists(backup_path):
-            # Delete the backup file
-            os.remove(backup_path)
-            
-            # Delete the metadata file if it exists
-            if os.path.exists(metadata_path):
-                os.remove(metadata_path)
-            
+        for bf in backup_files:
+            if bf['filename'] == filename:
+                backup_file = bf
+                break
+        
+        if backup_file:
+            # Delete from blob storage
+            delete(backup_file['url'], {})
             flash(f'Backup "{filename}" deleted successfully.', 'success')
             log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
         else:
@@ -1219,30 +1345,53 @@ def restore():
             flash('No selected file', 'error')
             return redirect(request.url)
         
-        if backup_file and backup_file.filename.endswith('.db'):
+        if backup_file and backup_file.filename.endswith('.json'):
             try:
-                # Create a temporary file to hold the uploaded backup
+                # Save uploaded file temporarily
                 temp_dir = tempfile.mkdtemp()
                 temp_backup_path = os.path.join(temp_dir, backup_file.filename)
                 backup_file.save(temp_backup_path)
                 
-                if restore_database(temp_backup_path):
-                    flash('Database restored successfully!', 'success')
-                    log_activity('RESTORE', 'database', None, 'Database restored', f'Restored from {backup_file.filename}')
-                else:
-                    flash('Failed to restore database. Ensure backup file is valid and not corrupted.', 'error')
-                    log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Attempted to restore from {backup_file.filename}')
+                # Read the backup file
+                with open(temp_backup_path, 'r') as f:
+                    backup_data = json.load(f)
                 
-                # Clean up the temporary file
-                os.remove(temp_backup_path)
-                shutil.rmtree(temp_dir)
+                # Create a temporary blob URL for restore
+                temp_blob_response = put(
+                    f"temp_restore_{backup_file.filename}",
+                    json.dumps(backup_data).encode('utf-8'),
+                    {"addRandomSuffix": False}
+                )
+                
+                if temp_blob_response and 'url' in temp_blob_response:
+                    if restore_database(temp_blob_response['url']):
+                        flash('Database restored successfully!', 'success')
+                        log_activity('RESTORE', 'database', None, 'Database restored', f'Restored from {backup_file.filename}')
+                    else:
+                        flash('Failed to restore database. Ensure backup file is valid and not corrupted.', 'error')
+                        log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Attempted to restore from {backup_file.filename}')
+                    
+                    # Clean up temporary blob
+                    try:
+                        delete(temp_blob_response['url'], {})
+                    except:
+                        pass
+                else:
+                    flash('Failed to process backup file for restore.', 'error')
+                
+                # Clean up temporary file
+                try:
+                    os.remove(temp_backup_path)
+                    os.rmdir(temp_dir)
+                except:
+                    pass
                 
             except Exception as e:
                 print(f"Error during restore: {e}")
                 flash('Error restoring database. Please check logs.', 'error')
                 log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
         else:
-            flash('Invalid file type. Please select a .db file.', 'error')
+            flash('Invalid file type. Please select a .json backup file.', 'error')
     
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
@@ -1901,7 +2050,7 @@ def add_document():
             unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
             
             # Upload to Vercel Blob
-            blob_response = blob.put(
+            blob_response = put(
                 unique_filename,
                 file.read(),
                 {"addRandomSuffix": False}  # We're already adding our own unique prefix
@@ -1998,7 +2147,7 @@ def delete_document(document_id):
     try:
         # Delete file from Vercel Blob storage
         blob_url = document.filename
-        blob.delete(blob_url, {})
+        delete(blob_url, {})
         
         # Delete from database
         db.session.delete(document)
@@ -2028,7 +2177,7 @@ def download_document(document_id):
         blob_url = document.filename
         
         # Get blob metadata to ensure file exists
-        blob_meta = blob.head(blob_url)
+        blob_meta = head(blob_url)
         
         if not blob_meta:
             flash('File not found in storage.', 'error')
