@@ -3,7 +3,7 @@ name: Sync Wiki Content
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'wiki/**'
   workflow_dispatch:  # Allow manual triggering
@@ -15,15 +15,30 @@ jobs:
     steps:
     - name: Checkout main repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch all history for the wiki repo
+      
+    - name: Setup Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-    - name: Checkout wiki repository
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ github.repository }}.wiki
-        path: wiki-repo
-        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Clone or create wiki repository
+      run: |
+        # Try to clone the wiki repository, create it if it doesn't exist
+        if git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo 2>/dev/null; then
+          echo "Wiki repository exists, cloned successfully"
+        else
+          echo "Wiki repository doesn't exist, creating it..."
+          mkdir wiki-repo
+          cd wiki-repo
+          git init
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+          echo "# Wiki" > README.md
+          git add README.md
+          git commit -m "Initial wiki commit"
+          git branch -M main
+          git push -u origin main
+          cd ..
+        fi
         
     - name: Sync wiki files
       run: |
@@ -55,10 +70,6 @@ jobs:
       if: steps.check-changes.outputs.changes == 'true'
       run: |
         cd wiki-repo
-        
-        # Configure git
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
         
         # Add all changes
         git add .
