@@ -107,18 +107,18 @@
                 <div class="row">
                     <div class="col-6">
                         <strong>Database Type:</strong><br>
-                        <span class="text-muted">MySQL</span>
+                        <span class="text-muted">PostgreSQL (Neon)</span>
                     </div>
                     <div class="col-6">
                         <strong>Backup Format:</strong><br>
-                        <span class="text-muted">SQL Dump (.sql)</span>
+                        <span class="text-muted">JSON Export (.json)</span>
                     </div>
                 </div>
                 <hr>
                 <div class="row">
                     <div class="col-6">
-                        <strong>Backup Directory:</strong><br>
-                        <span class="text-muted">backups/</span>
+                        <strong>Storage Location:</strong><br>
+                        <span class="text-muted">Vercel Blob Storage</span>
                     </div>
                     <div class="col-6">
                         <strong>Total Backups:</strong><br>
@@ -137,11 +137,11 @@
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    <strong>MySQL Backups:</strong> Backups are created using mysqldump and stored as SQL files.
+                    <strong>PostgreSQL Backups:</strong> Backups are created using JSON export and stored in Vercel Blob storage for secure cloud access.
                 </div>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Requirements:</strong> MySQL tools (mysqldump, mysql) must be installed and accessible in PATH.
+                    <strong>Cloud Storage:</strong> Backups are automatically uploaded to Vercel Blob storage and accessible from anywhere.
                 </div>
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
