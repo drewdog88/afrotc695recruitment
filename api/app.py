@@ -210,10 +210,18 @@ def get_backup_files():
         # Handle different response types from vercel_blob
         if isinstance(blob_files, list):
             files = blob_files
+        elif isinstance(blob_files, dict):
+            # If it's a dict, it might have a 'blobs' key or be the response structure
+            if 'blobs' in blob_files:
+                files = blob_files['blobs']
+            else:
+                # If it's a single file response, wrap it in a list
+                files = [blob_files]
         elif hasattr(blob_files, 'blobs'):
             files = blob_files.blobs
         else:
             print(f"Unexpected response type from blob.list(): {type(blob_files)}")
+            print(f"Response content: {blob_files}")
             return []
         
         # Convert blob files to our expected format
