@@ -1,3 +1,5 @@
+# Security Note: All packages must be kept up to date to prevent vulnerabilities
+# Run 'pip-audit' regularly to check for security issues
 Flask==3.1.1
 Flask-SQLAlchemy==3.1.1
 Werkzeug==3.1.3
