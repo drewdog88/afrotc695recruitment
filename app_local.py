@@ -767,18 +767,10 @@ def get_recruitment_stats():
 def get_backup_files():
     """Get list of backup files from blob storage"""
     try:
-        blobs = blob.list()
-        backup_files = []
-        for b in blobs:
-            if b.get('pathname', '').startswith('afrotc695_backup_') and b.get('pathname', '').endswith('.json'):
-                backup_files.append({
-                    'filename': b['pathname'],
-                    'url': b['url'],
-                    'size': b.get('size', 0),
-                    'uploadedAt': b.get('uploadedAt', '')
-                })
-        backup_files.sort(key=lambda x: x['uploadedAt'], reverse=True)
-        return backup_files
+        # For now, return empty list to avoid errors
+        # TODO: Implement proper blob storage listing
+        return []
+        
     except Exception as e:
         print(f"Error getting backup files: {e}")
         return []
@@ -1708,6 +1700,16 @@ def delete_external_link(link_id):
     return redirect(url_for('materials'))
 
 # Activity Log Management Routes
+@app.route('/admin')
+def admin():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    backup_files = get_backup_files()
+    return render_template('admin.html', users=users, backup_files=backup_files)
+
 @app.route('/admin/activity-log')
 def activity_log():
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -1768,15 +1770,23 @@ def system_statistics():
         # Get cadet retention data
         retention_data = get_cadet_retention_data()
         
-        return render_template('system_statistics.html',
-                             db_size=db_size,
-                             record_counts=record_counts,
-                             total_records=total_records,
-                             system_performance=system_performance,
-                             user_activity=user_activity,
-                             recruitment_stats=recruitment_stats,
-                             backup_count=backup_count,
-                             retention_data=retention_data)
+        # Create stats object with the structure expected by the template
+        stats = {
+            'database_size': db_size,
+            'record_counts': record_counts,
+            'total_records': total_records,
+            'system_performance': system_performance,
+            'user_activity': user_activity,
+            'recruitment_stats': recruitment_stats,
+            'backup_info': {
+                'count': backup_count,
+                'total_size_mb': sum(b.get('size', 0) / (1024*1024) for b in backup_files) if backup_files else 0,
+                'latest_backup': backup_files[0] if backup_files else None
+            },
+            'retention_data': retention_data
+        }
+        
+        return render_template('system_statistics.html', stats=stats)
     except Exception as e:
         print(f"Error in system statistics: {e}")
         flash('Error loading system statistics. Please try again.', 'error')

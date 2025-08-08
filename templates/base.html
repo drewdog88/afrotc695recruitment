@@ -796,7 +796,7 @@
                             <span class="d-lg-none">Materials</span>
                         </a>
                         {% if session.role == 'admin' %}
-                        <a class="nav-link {% if 'admin' in request.endpoint %}active{% endif %}" href="{{ url_for('user_management') }}">
+                        <a class="nav-link {% if 'admin' in request.endpoint %}active{% endif %}" href="{{ url_for('admin') }}">
                             <i class="fas fa-cog"></i> 
                             <span>Admin</span>
                         </a>

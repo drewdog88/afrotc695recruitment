@@ -165,7 +165,7 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <span><strong>Memory Usage</strong></span>
-                        <span>{{ "%.1f"|format(stats.system_performance.memory_percent) }}% ({{ "%.1f"|format(stats.system_performance.memory_used_gb) }}/{{ "%.1f"|format(stats.system_performance.memory_total_gb) }} GB)</span>
+                        <span>{{ "%.1f"|format(stats.system_performance.memory_percent) }}% ({{ "%.1f"|format(stats.system_performance.memory_used_mb / 1024) }}/{{ "%.1f"|format(stats.system_performance.memory_total_mb / 1024) }} GB)</span>
                     </div>
                     <div class="progress">
                         <div class="progress-bar {% if stats.system_performance.memory_percent > 80 %}bg-danger{% elif stats.system_performance.memory_percent > 60 %}bg-warning{% else %}bg-info{% endif %}" 
@@ -177,7 +177,7 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <span><strong>Disk Usage</strong></span>
-                        <span>{{ "%.1f"|format(stats.system_performance.disk_percent) }}% ({{ "%.1f"|format(stats.system_performance.disk_used_gb) }}/{{ "%.1f"|format(stats.system_performance.disk_total_gb) }} GB)</span>
+                        <span>{{ "%.1f"|format(stats.system_performance.disk_percent) }}% ({{ "%.1f"|format(stats.system_performance.disk_used_mb / 1024) }}/{{ "%.1f"|format(stats.system_performance.disk_total_mb / 1024) }} GB)</span>
                     </div>
                     <div class="progress">
                         <div class="progress-bar {% if stats.system_performance.disk_percent > 80 %}bg-danger{% elif stats.system_performance.disk_percent > 60 %}bg-warning{% else %}bg-primary{% endif %}" 
@@ -189,7 +189,7 @@
                 <hr>
                 <div class="row text-center">
                     <div class="col-6">
-                        <h6 class="text-primary">{{ "%.1f"|format(stats.system_performance.process_memory_mb) }} MB</h6>
+                        <h6 class="text-primary">{{ "%.1f"|format(stats.system_performance.memory_used_mb) }} MB</h6>
                         <small class="text-muted">App Memory</small>
                     </div>
                     <div class="col-6">

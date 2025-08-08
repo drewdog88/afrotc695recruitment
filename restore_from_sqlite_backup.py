@@ -70,9 +70,42 @@ def clear_table(engine, table: str):
 def insert_rows(engine, table: str, columns, rows) -> int:
     if not rows:
         return 0
-    col_list = ', '.join([f'"{c}"' for c in columns])
-    placeholders = ', '.join(['%s'] * len(columns))
-    sql = f'INSERT INTO "{table}" ({col_list}) VALUES ({placeholders})'
+
+    # Get current table schema to handle missing columns
+    with engine.begin() as conn:
+        result = conn.execute(text(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}' ORDER BY ordinal_position"))
+        current_columns = [row[0] for row in result]
+
+    # Map backup columns to current columns, providing defaults for missing ones
+    column_mapping = {}
+    for i, col in enumerate(columns):
+        if col in current_columns:
+            column_mapping[col] = i
+        else:
+            print(f"⚠️  Column '{col}' not found in current schema for table '{table}'")
+
+    # Add default values for missing columns
+    default_values = {
+        'user': {
+            'first_name': 'Admin',
+            'last_name': 'User',
+            'phone': None,
+            'is_locked': False,
+            'failed_login_attempts': 0,
+            'password_changed_at': '2025-08-04 04:45:29.296116',
+            'password_expires_at': None,
+            'force_password_change': False,
+            'secret_question': 'What is your favorite color?',
+            'secret_answer_hash': 'pbkdf2:sha256:600000$default$default_hash'
+        }
+    }
+
+    # Build SQL with current schema columns
+    sql_columns = []
+    for col in current_columns:
+        sql_columns.append(f'"{col}"')
+
+    sql = f'INSERT INTO "{table}" ({", ".join(sql_columns)}) VALUES ({", ".join(["%s"] * len(current_columns))})'
 
     # Known boolean columns per table
     BOOL_COLUMNS = {
@@ -89,16 +122,23 @@ def insert_rows(engine, table: str, columns, rows) -> int:
     try:
         for row in rows:
             normalized = []
-            for c, v in zip(columns, row):
-                # Normalize empty strings to NULLs for PG
-                if isinstance(v, str) and v == '':
-                    v = None
-                # Coerce 0/1 to booleans for known boolean columns
-                if c in bool_cols and v is not None:
-                    if isinstance(v, (int, float)):
-                        v = bool(int(v))
-                    elif isinstance(v, str) and v.strip() in {'0', '1'}:
-                        v = v.strip() == '1'
+            for col in current_columns:
+                if col in column_mapping:
+                    v = row[column_mapping[col]]
+                    # Normalize empty strings to NULLs for PG
+                    if isinstance(v, str) and v == '':
+                        v = None
+                    # Coerce 0/1 to booleans for known boolean columns
+                    if col in bool_cols and v is not None:
+                        if isinstance(v, (int, float)):
+                            v = bool(int(v))
+                        elif isinstance(v, str) and v.strip() in {'0', '1'}:
+                            v = v.strip() == '1'
+                else:
+                    # Use default value for missing column
+                    defaults = default_values.get(table, {})
+                    v = defaults.get(col, None)
+                
                 normalized.append(v)
             cur.execute(sql, normalized)
             inserted += 1
@@ -156,18 +196,18 @@ def main():
         try:
             cols, rows = read_sqlite_table(sqlite_conn, table)
             src_count = len(rows)
+            exists = neon_table_exists(engine, table)
+            stats.append((table, exists, src_count, cols, rows))
         except Exception as e:
-            cols, rows = [], []
-            src_count = 0
-        exists = neon_table_exists(engine, table)
-        stats.append((table, exists, src_count))
+            # Table doesn't exist in backup, skip it
+            continue
 
     print('Table compatibility and row counts:')
-    for table, exists, src_count in stats:
+    for table, exists, src_count, _, _ in stats:
         status = '✅ exists' if exists else '❌ missing in Neon'
         print(f'  - {table:<22} | {status:<18} | backup rows: {src_count}')
 
-    missing = [t for t, exists, _ in stats if not exists]
+    missing = [t for t, exists, _, _, _ in stats if not exists]
     if missing:
         print('\n⚠️  Some tables are missing in Neon and will be skipped:', ', '.join(missing))
 
@@ -179,22 +219,23 @@ def main():
     total_inserted = 0
 
     # First pass: clear all tables (children to parents)
-    for table, exists, src_count in stats:
+    for table, exists, src_count, _, _ in stats:
         if not exists:
             continue
         print(f'Clearing table: {table}')
         clear_table(engine, table)
 
     # Second pass: insert (parents to children)
-    insert_order = list(reversed([t for t, _, _ in stats]))
-    for table in insert_order:
-        # Find original record for table
-        exists = next((e for t, e, _ in stats if t == table), False)
-        if not exists:
-            continue
-        cols, rows = read_sqlite_table(sqlite_conn, table)
-        if not rows:
-            continue
+    # Sort by dependency order: user first, then others
+    restore_order = []
+    for table, exists, src_count, cols, rows in stats:
+        if exists and rows:
+            if table == 'user':
+                restore_order.insert(0, (table, exists, src_count, cols, rows))
+            else:
+                restore_order.append((table, exists, src_count, cols, rows))
+    
+    for table, exists, src_count, cols, rows in restore_order:
         print(f'\nRestoring table: {table} ({len(rows)} rows)')
         inserted = insert_rows(engine, table, cols, rows)
         print(f'  Inserted: {inserted}')

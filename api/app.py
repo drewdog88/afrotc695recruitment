@@ -202,28 +202,13 @@ def restore_database(backup_url):
 def get_backup_files():
     """Get list of available backup files with metadata"""
     try:
-        blobs = list()
-        backup_files = []
-        
-        for b in blobs:
-            if b.get('pathname', '').startswith('afrotc695_backup_') and b.get('pathname', '').endswith('.json'):
-                backup_files.append({
-                    'filename': b['pathname'],
-                    'url': b['url'],
-                    'size': b.get('size', 0),
-                    'uploadedAt': b.get('uploadedAt', '')
-                })
-        
-        # Sort by upload date (newest first)
-        backup_files.sort(key=lambda x: x['uploadedAt'], reverse=True)
-        return backup_files
+        # For now, return empty list to avoid errors
+        # TODO: Implement proper blob storage listing
+        return []
         
     except Exception as e:
         print(f"Error getting backup files: {e}")
         return []
-    # TODO: Implement using Vercel Blob storage
-    # This will be implemented in a future task
-    return []
 
 
 # Activity Log Model for tracking all user actions
@@ -1511,6 +1496,9 @@ def system_statistics():
         backup_files = get_backup_files()
         total_backup_size_mb = sum(backup.get('size', 0) for backup in backup_files) / (1024 * 1024)
         
+        # Get cadet retention data
+        retention_data = get_cadet_retention_data()
+        
         stats_data = {
             'database_size': db_size,
             'record_counts': record_counts,
@@ -1522,7 +1510,8 @@ def system_statistics():
                 'count': len(backup_files),
                 'total_size_mb': round(total_backup_size_mb, 2),
                 'latest_backup': backup_files[0] if backup_files else None
-            }
+            },
+            'retention_data': retention_data
         }
         
         return render_template('system_statistics.html', stats=stats_data)
