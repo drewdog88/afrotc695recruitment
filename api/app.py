@@ -16,7 +16,7 @@ from reportlab.lib import colors
 import tempfile
 import zipfile
 from sqlalchemy.pool import NullPool
-# Blob storage import removed - not using local files for this functionality
+from vercel_blob import blob
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
