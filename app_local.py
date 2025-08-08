@@ -1415,6 +1415,16 @@ def add_event():
             # Create backup before adding new event
             # backup_database("Pre-add event backup")  # Disabled for Vercel deployment
             
+            # Handle university_id - convert to int or set to None if "other"
+            university_id = request.form.get('university_id')
+            if university_id == 'other' or university_id == '':
+                university_id = None
+            else:
+                try:
+                    university_id = int(university_id) if university_id else None
+                except (ValueError, TypeError):
+                    university_id = None
+            
             event = RecruitmentEvent(
                 title=request.form['title'],
                 description=request.form['description'],
@@ -1422,7 +1432,7 @@ def add_event():
                 start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
                 end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
                 location=request.form['location'],
-                university_id=request.form.get('university_id'),
+                university_id=university_id,
                 event_type=request.form['event_type'],
                 notes=request.form['notes']
             )
@@ -1466,6 +1476,16 @@ def edit_event(event_id):
             old_date = event.event_date
             old_status = event.status
             
+            # Handle university_id - convert to int or set to None if "other"
+            university_id = request.form.get('university_id')
+            if university_id == 'other' or university_id == '':
+                university_id = None
+            else:
+                try:
+                    university_id = int(university_id) if university_id else None
+                except (ValueError, TypeError):
+                    university_id = None
+            
             # Update event
             event.title = request.form['title']
             event.description = request.form['description']
@@ -1473,7 +1493,7 @@ def edit_event(event_id):
             event.start_time = datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None
             event.end_time = datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None
             event.location = request.form['location']
-            event.university_id = request.form.get('university_id')
+            event.university_id = university_id
             event.event_type = request.form['event_type']
             event.status = request.form['status']
             event.notes = request.form['notes']

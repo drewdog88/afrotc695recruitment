@@ -3,8 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, time, timezone, timedelta
 import os
-import shutil
-import sqlite3
+# Removed sqlite3 import - using Neon PostgreSQL exclusively
 from dotenv import load_dotenv
 import pandas as pd
 from io import BytesIO
@@ -15,118 +14,60 @@ from reportlab.lib import colors
 import tempfile
 import zipfile
 
+# 2FA Authentication imports (commented out - separate feature)
+# import pyotp
+# import qrcode
+# import json
+# import secrets
+# from cryptography.fernet import Fernet
+# from PIL import Image
+# import base64
+
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-# Use absolute path for database
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'afrotc695.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{db_path}')
+# Database configuration - using Neon PostgreSQL exclusively
+database_url = os.getenv('DATABASE_URL')
+# Convert postgres:// to postgresql:// for SQLAlchemy compatibility
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Database backup configuration
-BACKUP_DIR = 'backups'
-if not os.path.exists(BACKUP_DIR):
-    os.makedirs(BACKUP_DIR)
+# Database backup configuration - using Vercel Blob storage via neon_backup_scheduler
 
 def backup_database(description="Manual backup"):
-    """Create a database backup with timestamp and description"""
+    """Create a database backup using Neon PostgreSQL and Vercel Blob storage"""
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_filename = f"afrotc695_backup_{timestamp}.db"
-        backup_path = os.path.join(BACKUP_DIR, backup_filename)
-        
-        # Get the current database path
-        db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
-        if not db_path.startswith('/'):
-            db_path = os.path.join(os.getcwd(), db_path)
-        
-        # Create backup
-        shutil.copy2(db_path, backup_path)
-        
-        # Create backup metadata
-        metadata = {
-            'timestamp': timestamp,
-            'description': description,
-            'filename': backup_filename,
-            'size': os.path.getsize(backup_path),
-            'user': session.get('username', 'Unknown')
-        }
-        
-        # Save metadata to a JSON file
-        import json
-        metadata_file = backup_path.replace('.db', '_metadata.json')
-        with open(metadata_file, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        print(f"Database backup created: {backup_filename}")
-        return backup_filename, backup_path
-        
+        # Import the Neon backup function from neon_backup_scheduler
+        from neon_backup_scheduler import backup_database_neon
+        return backup_database_neon(description)
     except Exception as e:
         print(f"Error creating backup: {e}")
         return None, None
 
 def restore_database(backup_file_path):
-    """Restore database from backup file"""
+    """Restore database from backup file using Neon PostgreSQL backup system"""
     try:
-        # Get the current database path
-        db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
-        if not db_path.startswith('/'):
-            db_path = os.path.join(os.getcwd(), db_path)
-        
-        # Create a backup of current database before restore
-        current_backup = backup_database("Pre-restore backup")
-        
-        # Close database connections
-        db.session.close()
-        
-        # Restore from backup
-        shutil.copy2(backup_file_path, db_path)
-        
-        print(f"Database restored from: {backup_file_path}")
-        return True
+        # For now, return False as restore functionality needs to be implemented
+        # for the Neon backup system
+        print("Restore functionality for Neon backups not yet implemented")
+        return False
         
     except Exception as e:
         print(f"Error restoring database: {e}")
         return False
 
 def get_backup_files():
-    """Get list of available backup files with metadata"""
-    backups = []
+    """Get list of available backup files from Vercel Blob storage"""
     try:
-        for filename in os.listdir(BACKUP_DIR):
-            if filename.endswith('.db'):
-                backup_path = os.path.join(BACKUP_DIR, filename)
-                metadata_file = backup_path.replace('.db', '_metadata.json')
-                
-                # Get basic file info
-                file_stat = os.stat(backup_path)
-                backup_info = {
-                    'filename': filename,
-                    'size': file_stat.st_size,
-                    'created': datetime.fromtimestamp(file_stat.st_ctime),
-                    'description': 'Manual backup'
-                }
-                
-                # Try to load metadata
-                if os.path.exists(metadata_file):
-                    try:
-                        import json
-                        with open(metadata_file, 'r') as f:
-                            metadata = json.load(f)
-                            backup_info.update(metadata)
-                    except:
-                        pass
-                
-                backups.append(backup_info)
-        
-        # Sort by creation time (newest first)
-        backups.sort(key=lambda x: x['created'], reverse=True)
-        return backups
-        
+        # Import the Neon backup function from neon_backup_scheduler
+        from neon_backup_scheduler import list_backup_files
+        return list_backup_files()
     except Exception as e:
         print(f"Error getting backup files: {e}")
         return []
@@ -174,6 +115,11 @@ class User(db.Model):
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(120), nullable=False)
+    # 2FA fields (commented out - separate feature)
+    # totp_secret = db.Column(db.String(255))  # Encrypted TOTP secret
+    # totp_enabled = db.Column(db.Boolean, default=False)
+    # backup_codes_hash = db.Column(db.Text)  # JSON array of bcrypt hashed backup codes
+    # totp_setup_completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -1005,6 +951,16 @@ def add_event():
             # Create backup before adding new event
             backup_database("Pre-add event backup")
             
+            # Handle university_id - convert to int or set to None if "other"
+            university_id = request.form.get('university_id')
+            if university_id == 'other' or university_id == '':
+                university_id = None
+            else:
+                try:
+                    university_id = int(university_id) if university_id else None
+                except (ValueError, TypeError):
+                    university_id = None
+            
             event = RecruitmentEvent(
                 title=request.form['title'],
                 description=request.form['description'],
@@ -1012,7 +968,7 @@ def add_event():
                 start_time=datetime.strptime(request.form['start_time'], '%H:%M').time() if request.form['start_time'] else None,
                 end_time=datetime.strptime(request.form['end_time'], '%H:%M').time() if request.form['end_time'] else None,
                 location=request.form['location'],
-                university_id=request.form.get('university_id'),
+                university_id=university_id,
                 event_type=request.form['event_type'],
                 notes=request.form['notes']
             )
@@ -1127,12 +1083,10 @@ def download_backup(filename):
         return redirect(url_for('dashboard'))
     
     try:
-        backup_path = os.path.join(BACKUP_DIR, filename)
-        if os.path.exists(backup_path):
-            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
-            return send_file(backup_path, as_attachment=True, download_name=filename)
-        else:
-            flash('Backup file not found.', 'error')
+        # For now, return error as download functionality needs to be implemented
+        # for the Neon backup system
+        flash('Download functionality for Neon backups not yet implemented.', 'error')
+        log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download attempted for: {filename}')
     except Exception as e:
         print(f"Error downloading backup: {e}")
         flash('Error downloading backup file.', 'error')
@@ -1146,21 +1100,10 @@ def delete_backup(filename):
         return redirect(url_for('dashboard'))
     
     try:
-        backup_path = os.path.join(BACKUP_DIR, filename)
-        metadata_path = backup_path.replace('.db', '_metadata.json')
-        
-        if os.path.exists(backup_path):
-            # Delete the backup file
-            os.remove(backup_path)
-            
-            # Delete the metadata file if it exists
-            if os.path.exists(metadata_path):
-                os.remove(metadata_path)
-            
-            flash(f'Backup "{filename}" deleted successfully.', 'success')
-            log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
-        else:
-            flash('Backup file not found.', 'error')
+        # For now, return error as delete functionality needs to be implemented
+        # for the Neon backup system
+        flash('Delete functionality for Neon backups not yet implemented.', 'error')
+        log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Delete attempted for: {filename}')
     except Exception as e:
         print(f"Error deleting backup: {e}")
         flash('Error deleting backup file.', 'error')
@@ -1184,7 +1127,7 @@ def restore():
             flash('No selected file', 'error')
             return redirect(request.url)
         
-        if backup_file and backup_file.filename.endswith('.db'):
+        if backup_file and backup_file.filename.endswith('.sql'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
@@ -1207,7 +1150,7 @@ def restore():
                 flash('Error restoring database. Please check logs.', 'error')
                 log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
         else:
-            flash('Invalid file type. Please select a .db file.', 'error')
+            flash('Invalid file type. Please select a .sql file.', 'error')
     
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
@@ -1221,6 +1164,45 @@ def user_management():
     
     users = User.query.all()
     return render_template('user_management.html', users=users)
+
+@app.route('/admin/system-statistics')
+def system_statistics():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get basic statistics
+    total_users = User.query.count()
+    active_users = User.query.filter_by(is_active=True).count()
+    admin_users = User.query.filter_by(role='admin').count()
+    total_recruits = PotentialRecruit.query.count()
+    total_cadets = Cadet.query.count()
+    total_contacts = UniversityContact.query.count()
+    total_events = RecruitmentEvent.query.count()
+    
+    # Get recent activity
+    recent_activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
+    
+    # Get user login statistics (last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    recent_logins = ActivityLog.query.filter(
+        ActivityLog.action == 'LOGIN',
+        ActivityLog.created_at >= thirty_days_ago
+    ).count()
+    
+    stats = {
+        'total_users': total_users,
+        'active_users': active_users,
+        'admin_users': admin_users,
+        'total_recruits': total_recruits,
+        'total_cadets': total_cadets,
+        'total_contacts': total_contacts,
+        'total_events': total_events,
+        'recent_logins': recent_logins,
+        'recent_activities': recent_activities
+    }
+    
+    return render_template('system_statistics.html', stats=stats)
 
 @app.route('/admin/users/add', methods=['GET', 'POST'])
 def add_user():

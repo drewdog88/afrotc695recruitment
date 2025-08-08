@@ -312,5 +312,225 @@
       "updated": "2025-08-07T21:35:54.241Z",
       "description": "Tasks for master context"
     }
+  },
+  "feature-2fa-authentication": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Add Python Dependencies for 2FA Implementation to requirements.txt",
+        "description": "Add pyotp, qrcode, Pillow, and cryptography libraries to requirements.txt to support two-factor authentication features.",
+        "details": "Edit the project's requirements.txt file to include the following libraries: pyotp (for generating and verifying OTPs), qrcode (for QR code generation), Pillow (for image processing required by qrcode), and cryptography (for secure key management and encryption). Specify compatible versions if required by project standards. After updating requirements.txt, run 'pip install -r requirements.txt' in your virtual environment to ensure all dependencies are installed. Verify that no existing dependencies conflict with these additions and document any version constraints or compatibility notes in requirements.txt as comments.",
+        "testStrategy": "1. Delete any existing virtual environment and create a new one to ensure a clean install.\n2. Run 'pip install -r requirements.txt' and confirm that pyotp, qrcode, Pillow, and cryptography are installed without errors.\n3. Use 'pip freeze' to verify the presence and correct versions of all four libraries.\n4. Attempt to import each library in a Python shell to confirm successful installation.\n5. Check for any dependency conflicts or warnings during installation and resolve as needed.",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Create Database Migration Script for 2FA Columns in User Table",
+        "description": "Develop a migration script to add totp_secret, totp_enabled, backup_codes_hash, and totp_setup_completed columns to the User table for two-factor authentication support. The migration must be written specifically for PostgreSQL, targeting the shared Neon PostgreSQL database used in both local and production environments. This migration is PostgreSQL-only; do not include any logic or compatibility checks for SQLite or other database engines.",
+        "status": "pending",
+        "dependencies": [
+          1
+        ],
+        "priority": "high",
+        "details": "Implement a database migration using your project's migration framework (e.g., Alembic for SQLAlchemy, Django migrations, or Rails ActiveRecord) to add the following columns to the User table:\n- totp_secret (string, nullable): Stores the user's TOTP secret key.\n- totp_enabled (boolean, default false): Indicates if 2FA is enabled for the user.\n- backup_codes_hash (string, nullable): Stores a hash of the user's backup codes for account recovery.\n- totp_setup_completed (boolean, default false): Tracks whether the user has completed 2FA setup.\n\nThe migration script should use PostgreSQL-specific data types and features as appropriate for the Neon environment. Ensure the migration is idempotent and compatible with existing data. Add appropriate comments and constraints (e.g., default values for booleans, length limits for secrets/hashes if required by your application). If your project uses database schema versioning, increment the schema version accordingly. Provide rollback logic to remove these columns if the migration is reversed. Document any assumptions or special considerations (e.g., encryption requirements for secrets or hashes) in the migration file. Do not include any SQLite-specific logic or compatibility checks.",
+        "testStrategy": "1. Apply the migration in a development environment using Neon PostgreSQL and verify that the User table contains the new columns with correct types and default values.\n2. Insert and update sample user records to ensure the new columns accept and store data as expected.\n3. Roll back the migration and confirm that the columns are removed without affecting other data.\n4. Review the migration logs and schema versioning to ensure consistency.\n5. If applicable, run automated tests to confirm that user creation and updates function correctly with the new columns.\n6. Confirm that the migration does not include any logic or compatibility checks for SQLite or other database engines.",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Update User Model in app.py to Support 2FA Fields",
+        "description": "Modify the User model in app.py to add totp_secret, totp_enabled, backup_codes_hash, and totp_setup_completed fields for two-factor authentication support.",
+        "details": "Edit the User model class in app.py to include the following new columns:\n- totp_secret: a string column (nullable) to store the user's TOTP secret key.\n- totp_enabled: a boolean column (default False) to indicate if 2FA is enabled for the user.\n- backup_codes_hash: a string column (nullable) to store a hash of the user's backup codes for account recovery.\n- totp_setup_completed: a boolean column (default False) to indicate if the user has completed the 2FA setup process.\n\nUse your ORM's column definitions (e.g., SQLAlchemy's db.Column) and ensure that the new fields match the types and defaults specified in the migration script. For example, with SQLAlchemy:\n\n```python\nclass User(db.Model):\n    # ... existing fields ...\n    totp_secret = db.Column(db.String(255), nullable=True)\n    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)\n    backup_codes_hash = db.Column(db.String(255), nullable=True)\n    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)\n```\n\nAfter updating the model, review any model-related forms, serializers, or business logic that may need to reference these new fields. Ensure that the model remains compatible with the rest of the application and that all new fields are properly documented.",
+        "testStrategy": "1. Run the application and ensure that the User model reflects the new fields without errors.\n2. Use the ORM shell or admin interface to create and update User records, verifying that the new fields accept and store data as expected.\n3. Confirm that the model's schema matches the database schema after migration (column names, types, and defaults).\n4. Run the full test suite to ensure no regressions or model-related errors are introduced.",
+        "status": "pending",
+        "dependencies": [
+          2
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Implement Core 2FA Utility Functions",
+        "description": "Develop utility functions for two-factor authentication: encrypt_totp_secret, decrypt_totp_secret, generate_backup_codes, hash_backup_code, and verify_backup_code.",
+        "details": "Implement the following functions in a dedicated 2FA utilities module:\n\n- encrypt_totp_secret(secret: str) -> str: Use a secure symmetric encryption library (e.g., cryptography or Google Tink) to encrypt the TOTP secret before storing it in the database. Ensure key management practices prevent unauthorized access to encryption keys. Consider envelope encryption for added security[3][5].\n\n- decrypt_totp_secret(encrypted: str) -> str: Decrypt the encrypted TOTP secret using the same cryptographic library and key management approach. Validate that only authorized processes can perform decryption[3][5].\n\n- generate_backup_codes(count: int = 10) -> List[str]: Generate a list of random, single-use backup codes (e.g., 8-12 alphanumeric characters each) for account recovery. Ensure codes are cryptographically random and not easily guessable.\n\n- hash_backup_code(code: str) -> str: Hash each backup code using a strong, salted hash function (e.g., bcrypt, Argon2, or PBKDF2). Store only the hashes in the database for security.\n\n- verify_backup_code(input_code: str, stored_hashes: List[str]) -> bool: Check if the provided code matches any stored hash using a constant-time comparison to prevent timing attacks. Mark codes as used after successful verification.\n\nDocument all functions with clear docstrings, and ensure error handling for encryption/decryption failures and hash mismatches. Integrate with the User model fields for storing encrypted secrets and backup code hashes.",
+        "testStrategy": "1. Write unit tests for each function:\n   - encrypt_totp_secret and decrypt_totp_secret: Confirm that a secret encrypted and then decrypted matches the original. Test with invalid keys and corrupted data.\n   - generate_backup_codes: Ensure codes are unique, random, and meet length/format requirements.\n   - hash_backup_code: Verify that the hash output is consistent and secure.\n   - verify_backup_code: Test with valid and invalid codes, ensuring only correct codes pass and used codes are invalidated.\n2. Perform integration tests to confirm encrypted secrets and backup code hashes are correctly stored and retrieved via the User model.\n3. Conduct security review of cryptographic choices and error handling.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement 2FA Setup Route with QR Code Generation and Verification",
+        "description": "Develop the /setup-2fa route to handle TOTP secret generation, QR code display, and verification of user-provided codes for two-factor authentication setup.",
+        "details": "Implement a secure POST and GET endpoint at /setup-2fa. On GET, generate a new TOTP secret (using pyotp), associate it with the authenticated user (encrypt and store using utility functions), and generate a QR code (using qrcode and Pillow) encoding the TOTP URI for use with authenticator apps. Return the QR code image or SVG to the frontend. On POST, accept a TOTP code from the user, decrypt the stored secret, and verify the code using pyotp. If valid, mark totp_setup_completed and totp_enabled as true for the user, and generate backup codes (using utility functions). Ensure all sensitive operations require authentication and CSRF protection. Handle error cases (invalid code, repeated setup, etc.) with clear responses. Log security-relevant events. Follow best practices for secret handling and never expose the raw TOTP secret to the client.",
+        "testStrategy": "1. Write integration tests to verify that GET /setup-2fa returns a valid QR code for a new TOTP secret and does not expose the secret directly. 2. Test POST /setup-2fa with valid and invalid TOTP codes, confirming that only valid codes enable 2FA and update user fields appropriately. 3. Attempt repeated setup and verify correct error handling. 4. Confirm that backup codes are generated and stored securely. 5. Ensure all endpoints require authentication and reject unauthenticated requests. 6. Manually scan the QR code with an authenticator app and verify that generated codes are accepted by the verification endpoint.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3,
+          4
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Create 2FA Verification Route (/verify-2fa) for Login",
+        "description": "Develop the /verify-2fa route to handle verification of user-provided 2FA codes during the login process.",
+        "details": "Implement a secure POST endpoint at /verify-2fa. When a user attempts to log in and 2FA is enabled for their account, prompt them for a TOTP code. Upon receiving the code, retrieve the user's encrypted TOTP secret from the database, decrypt it using the utility functions, and verify the code using pyotp. If the code is valid, complete the login process; if invalid, return an appropriate error response and log the attempt. Ensure the route is protected against brute-force attacks by rate limiting and logging failed attempts. Handle edge cases such as missing codes, expired codes, and users without 2FA setup. Consider supporting backup code verification for account recovery. Return clear success or error messages to the frontend. Integrate with session management to ensure users are only granted access upon successful 2FA verification.",
+        "testStrategy": "1. Write integration tests to simulate login attempts with valid and invalid TOTP codes, confirming that only valid codes allow login. 2. Test with users who have 2FA disabled, enabled, and incomplete setup to verify correct handling. 3. Attempt verification with expired codes and backup codes to ensure proper error responses. 4. Test rate limiting and logging of failed attempts. 5. Confirm that session or token issuance only occurs after successful 2FA verification.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3,
+          4
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Modify Login Route to Support 2FA Verification Flow",
+        "description": "Update the existing login route to integrate two-factor authentication (2FA) verification, ensuring users with 2FA enabled are prompted for a TOTP code while maintaining compatibility for users without 2FA.",
+        "details": "Refactor the login route to check if the user has 2FA enabled (using the totp_enabled and totp_setup_completed fields from the User model). Upon successful password authentication, if 2FA is enabled, redirect the user to the 2FA verification step (e.g., /verify-2fa) instead of completing the login. For users without 2FA, proceed with the standard login flow. Ensure session management is handled securely, and that the route logic does not break existing login functionality for users who have not set up 2FA. Use Flask-Login for session handling and integrate with the 2FA utility functions for code verification. Carefully handle edge cases, such as incomplete 2FA setup, and provide clear error messages and user guidance. Maintain backward compatibility by ensuring users without 2FA experience no change in login behavior.",
+        "testStrategy": "1. Write integration tests for login attempts with and without 2FA enabled, verifying correct redirection and authentication outcomes. 2. Test login for users with incomplete 2FA setup to ensure proper error handling. 3. Confirm that users without 2FA enabled can log in as before, with no disruption. 4. Simulate invalid and valid TOTP code submissions to verify correct flow and error messaging. 5. Perform regression testing to ensure no existing login functionality is broken.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3,
+          6
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Create HTML Templates for 2FA Setup and Verification Pages",
+        "description": "Design and implement HTML templates for the two-factor authentication setup (setup_2fa.html) and verification (verify_2fa.html) user flows.",
+        "details": "Develop two responsive and accessible HTML templates:\n\n- **setup_2fa.html**: This page should guide users through the process of enabling two-factor authentication. It must include:\n  - Instructions for scanning a QR code with an authenticator app.\n  - A section to display the QR code image (to be rendered by the backend).\n  - An input field for the user to enter the TOTP code generated by their authenticator app.\n  - A submit button to verify the code and complete setup.\n  - Optional: Display backup codes or a link to generate them after successful setup.\n  - Use clear error and success messaging for user feedback.\n\n- **verify_2fa.html**: This page should prompt users to enter their TOTP code during login. It must include:\n  - A secure input field for the 6-digit TOTP code.\n  - A submit button to verify the code.\n  - Optional: A link or button to use a backup code if available.\n  - Clear error messaging for invalid or expired codes.\n\nBoth templates should:\n- Use semantic HTML5 and be styled for usability and clarity (consider using Bootstrap 5 or Tailwind CSS for layout and responsiveness[2][3]).\n- Include CSRF protection tokens if required by the backend framework.\n- Be structured for easy integration with the backend routes and logic.\n- Follow accessibility best practices (e.g., proper labels, focus management, ARIA attributes where appropriate).\n\nReference modern 2FA UI patterns for inspiration[2][3][5].",
+        "testStrategy": "1. Render both templates in a development environment and verify that all required elements (QR code, input fields, buttons, messages) are present and correctly labeled.\n2. Test the setup_2fa.html page by simulating the display of a QR code and entering valid and invalid TOTP codes, confirming that error and success messages appear as expected.\n3. Test the verify_2fa.html page by submitting valid, invalid, and expired codes, ensuring correct error handling and user feedback.\n4. Check that both templates are responsive and accessible on desktop and mobile devices.\n5. Validate that CSRF tokens (if used) are present and correctly integrated.\n6. Confirm that the templates integrate seamlessly with the backend 2FA setup and verification routes.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3,
+          5,
+          6
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Create 2FA Management Interface and Routes",
+        "description": "Develop a user interface and backend routes for enabling/disabling two-factor authentication (2FA) and regenerating backup codes, allowing users to manage their 2FA settings securely.",
+        "details": "Implement a dedicated 2FA management section in the user account area. This should include:\n\n- **Frontend:**\n  - A page displaying the current 2FA status (enabled/disabled).\n  - Buttons or toggles to enable or disable 2FA.\n  - A section to view, regenerate, and download new backup codes (display codes only once, then store hashes).\n  - Clear warnings about the consequences of disabling 2FA and regenerating backup codes.\n\n- **Backend:**\n  - Secure routes:\n    - `POST /2fa/enable`: Initiates 2FA setup (redirects to setup flow if not completed).\n    - `POST /2fa/disable`: Disables 2FA after verifying the user's password and/or a valid 2FA code.\n    - `POST /2fa/regenerate-backup-codes`: Generates new backup codes, hashes and stores them, and invalidates old codes.\n  - Ensure all routes require strong authentication (session/cookie or re-authentication).\n  - Use utility functions for backup code generation, hashing, and verification.\n  - Log all 2FA management actions for audit purposes.\n\n- **Security Considerations:**\n  - Require password and/or 2FA code confirmation before disabling 2FA or regenerating backup codes.\n  - Rate-limit sensitive endpoints to prevent abuse.\n  - Never expose TOTP secrets or backup code hashes to the frontend.\n\n- **UX Considerations:**\n  - Provide clear feedback and confirmation dialogs for all actions.\n  - Ensure accessibility and responsive design.\n\nExample route signatures (Flask):\n```python\n@app.route('/2fa/enable', methods=['POST'])\ndef enable_2fa():\n    # Logic to start or complete 2FA setup\n\n@app.route('/2fa/disable', methods=['POST'])\ndef disable_2fa():\n    # Logic to securely disable 2FA\n\n@app.route('/2fa/regenerate-backup-codes', methods=['POST'])\ndef regenerate_backup_codes():\n    # Logic to generate, hash, and display new backup codes\n```\n",
+        "testStrategy": "1. Write integration tests for each route:\n   - Enabling 2FA: Ensure the route initiates setup and updates user status appropriately.\n   - Disabling 2FA: Confirm that correct password/2FA code is required and that 2FA is disabled only after successful verification.\n   - Regenerating backup codes: Verify that new codes are generated, old codes are invalidated, and only hashes are stored.\n2. Test UI flows for enabling, disabling, and regenerating backup codes, including error handling and confirmation dialogs.\n3. Attempt all actions with insufficient authentication to confirm proper access control.\n4. Check audit logs for all management actions.\n5. Perform security testing for rate limiting, CSRF, and data leakage.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          3,
+          4,
+          5,
+          8
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Update User Profile Template to Include 2FA Management Section and Status Display",
+        "description": "Revise the user profile HTML template to add a dedicated section for managing two-factor authentication (2FA), including status display and management controls.",
+        "details": "Modify the existing user profile template to include a visually distinct 2FA management section. This section should:\n\n- Display the current 2FA status (enabled/disabled) by referencing the user's totp_enabled and totp_setup_completed fields.\n- Provide clear controls for enabling/disabling 2FA, linking to the appropriate backend routes (e.g., /2fa/enable, /2fa/disable).\n- Show backup code status and offer a button to regenerate codes, with warnings about one-time visibility and security implications.\n- Include contextual help text explaining 2FA benefits and consequences of disabling or resetting codes.\n- Ensure accessibility and responsive design, matching the style of existing profile components.\n- Integrate error and success message handling for 2FA actions.\n\nCoordinate with backend routes and logic implemented in the 2FA management interface to ensure seamless user experience. Reference best practices for 2FA management UI from platforms such as Cloudflare and Harness for clarity and usability[2][4].",
+        "testStrategy": "1. Render the updated profile template for users with 2FA enabled, disabled, and incomplete setup; verify correct status display and available actions.\n2. Test all management controls (enable, disable, regenerate backup codes) to ensure they trigger the correct backend routes and display appropriate feedback.\n3. Confirm that backup codes are only shown once and that warnings are clear.\n4. Validate accessibility (ARIA labels, keyboard navigation) and responsive layout across devices.\n5. Perform usability review to ensure users can easily understand and manage their 2FA settings.",
+        "status": "pending",
+        "dependencies": [
+          3,
+          9
+        ],
+        "priority": "low",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Implement Comprehensive Testing for 2FA Functionality",
+        "description": "Develop and execute a full suite of unit, integration, and user acceptance tests for all two-factor authentication (2FA) features, ensuring robust security and user experience.",
+        "details": "Design and implement automated and manual tests covering all 2FA-related modules and user flows. This includes:\n\n- Unit tests for utility functions (encryption/decryption, backup code generation and verification) to validate correctness and error handling.\n- Integration tests for backend routes (/setup-2fa, /verify-2fa, /2fa/enable, /2fa/disable, backup code regeneration) to ensure end-to-end functionality, proper state transitions, and secure data handling.\n- User acceptance tests simulating real-world scenarios: enabling/disabling 2FA, setting up with QR code, verifying TOTP codes, using backup codes, and handling edge cases (expired codes, invalid codes, incomplete setup).\n- Test across different devices and network conditions to ensure reliability and performance[1][4].\n- Use anonymized test data and secure test environments to maintain privacy and compliance[1].\n- Where automation is challenging (e.g., TOTP code entry), implement test-specific authentication flows or bypass mechanisms for CI pipelines[5].\n- Regularly update test cases to reflect new features and security requirements[4].",
+        "testStrategy": "1. Run unit tests for all 2FA utility functions, verifying correct outputs and error handling for edge cases.\n2. Execute integration tests for each backend route, confirming correct API responses, state changes, and security (no secret leakage, proper rate limiting).\n3. Perform user acceptance tests using real devices and emulators, simulating the complete 2FA lifecycle (setup, verification, backup code usage, disabling).\n4. Test under varied network conditions and device types to ensure consistent behavior[1][4].\n5. Validate that all test data is anonymized and no sensitive information is exposed in logs or reports[1].\n6. Confirm that test environments allow for bypassing or simulating 2FA where necessary for automation[5].\n7. Review and update test cases regularly to cover new features and address discovered vulnerabilities[4].",
+        "status": "pending",
+        "dependencies": [
+          4,
+          5,
+          6,
+          9,
+          10
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Deploy and Validate 2FA Feature on Vercel Production Environment",
+        "description": "Deploy the completed two-factor authentication (2FA) feature to the Vercel production environment, ensuring seamless integration with the Neon database and the existing authentication system, and validate its end-to-end functionality. Note: Both local and production environments use the same Neon PostgreSQL database, so there is no migration step between environments.",
+        "status": "pending",
+        "dependencies": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "priority": "high",
+        "details": "1. Prepare the production deployment by merging all 2FA-related changes into the main branch, ensuring that all code and configuration updates are included.\n2. Update environment variables and secrets on Vercel as needed for 2FA (e.g., encryption keys, TOTP configuration, backup code settings), ensuring they match production requirements and do not expose sensitive data.\n3. Since both local and production use the same Neon PostgreSQL database, database migrations should already be applied and verified during local development. Confirm that the database schema is up to date before deploying.\n4. Deploy the application to the Vercel production environment, monitoring deployment logs for errors or warnings related to authentication or database connectivity.\n5. Validate that the 2FA setup, verification, backup code management, and enforcement flows work as expected in production, including integration with the Neon database and the existing authentication system.\n6. Test user onboarding, login, and 2FA management for both new and existing users, ensuring no regression in authentication flows.\n7. Coordinate with stakeholders to communicate the deployment and provide guidance for users on enabling and managing 2FA in production.\n8. Monitor application metrics and error tracking for issues related to 2FA post-deployment, and be prepared to roll back or hotfix if critical issues are detected.",
+        "testStrategy": "1. After deployment, perform smoke tests on all 2FA user flows (setup, verification, enable/disable, backup code usage) using real production accounts and the Neon database.\n2. Verify that users can enable 2FA, scan QR codes, enter TOTP codes, and complete setup without errors.\n3. Confirm that login with 2FA enabled prompts for TOTP and only allows access with a valid code; test fallback with backup codes.\n4. Ensure users without 2FA enabled can log in normally, and that the authentication system is not disrupted for non-2FA users.\n5. Check that all 2FA-related data is correctly stored and retrieved from the Neon database. Since the same database is used for both local and production, confirm that no environment-specific issues arise.\n6. Review Vercel deployment logs and error tracking for any authentication or database errors.\n7. Validate that environment variables and secrets are correctly configured and not exposed in logs or client-side code.\n8. Solicit feedback from a small group of users or QA to confirm usability and security in production.",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Configure Feature Flag System for 2FA Rollout Using Environment Variables",
+        "description": "Implement a feature flag system controlled by environment variables to enable or disable 2FA functionality in the production environment, supporting safe and flexible rollout.",
+        "details": "Introduce a new environment variable (e.g., ENABLE_2FA_FEATURE) to control the activation of 2FA-related code paths throughout the application. Refactor all 2FA logic—UI elements, backend routes, and template rendering—to check this variable before exposing or executing 2FA functionality. Ensure the flag is evaluated at runtime so toggling does not require redeployment. Establish a clear and consistent naming convention for the flag and document its usage in the project's configuration guidelines. Update deployment scripts and Vercel environment settings to include the new variable. Ensure that toggling the flag disables all 2FA entry points and management interfaces when set to 'off', and fully enables them when set to 'on'. Clean up any obsolete or redundant flag checks after rollout is stable. Follow best practices for feature flag management, including clear naming, runtime control, and documentation for future maintainability.[1][2][4]",
+        "testStrategy": "1. Set the environment variable to 'off' in a staging or production-like environment and verify that all 2FA-related UI elements, routes, and backend logic are hidden or disabled for all users. 2. Set the variable to 'on' and confirm that all 2FA features are accessible and function as expected. 3. Toggle the flag at runtime (without redeployment) and observe immediate effect on feature availability. 4. Review logs and application behavior to ensure no unauthorized access to 2FA features when the flag is disabled. 5. Validate that the flag is documented and that deployment scripts correctly propagate the variable to all environments.",
+        "status": "pending",
+        "dependencies": [
+          12
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Admin-Controlled User-Specific 2FA Enablement System",
+        "description": "Develop a system that allows administrators to enable or disable two-factor authentication (2FA) for individual users, providing granular control over 2FA enforcement while leaving it optional or disabled for others.",
+        "details": "Extend the user management backend and admin interface to support per-user 2FA enablement. Implement new admin-only endpoints or UI controls that allow administrators to toggle the 'totp_enabled' and 'totp_setup_completed' fields for any user. Ensure that when an admin enables 2FA for a user, the user is prompted to complete 2FA setup on next login (if not already completed), and that disabling 2FA immediately revokes the requirement for that user. Update backend logic to respect these fields, enforcing 2FA only for users with 'totp_enabled' set to true. Log all admin actions related to 2FA changes for auditability. Ensure that user self-service 2FA management (from Task 9) and admin overrides are reconciled correctly, with clear precedence rules and user notifications when their 2FA status is changed by an admin.",
+        "testStrategy": "1. As an administrator, enable 2FA for a user who does not have it set up and verify that the user is required to complete 2FA setup on next login. 2. Enable 2FA for a user who already has 2FA set up and confirm that 2FA is enforced at login. 3. Disable 2FA for a user and ensure they are no longer prompted for 2FA at login. 4. Attempt to enable/disable 2FA as a non-admin and verify access is denied. 5. Check audit logs for accurate recording of all admin 2FA actions. 6. Test interactions between admin-enforced and user-managed 2FA states to ensure correct precedence and user notification.",
+        "status": "pending",
+        "dependencies": [
+          2,
+          3,
+          4,
+          9
+        ],
+        "priority": "medium",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-08T17:20:25.643Z",
+      "updated": "2025-08-08T17:24:40.459Z",
+      "description": "Two-Factor Authentication feature implementation with optional TOTP support"
+    }
   }
 }

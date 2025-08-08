@@ -1,0 +1,160 @@
+# AFROTC 695 Recruitment Management System - 2FA Feature PRD
+
+## Product Overview
+Implement optional Two-Factor Authentication (2FA) for the AFROTC 695 Recruitment Management System to enhance security while maintaining usability for existing users.
+
+## Problem Statement
+The current system uses only username/password authentication. While functional, it lacks the security benefits of multi-factor authentication that could protect sensitive PII (Personally Identifiable Information) of cadets and recruits.
+
+## Goals
+- Add optional 2FA without breaking existing password-based authentication
+- Enhance security for users who choose to enable 2FA
+- Maintain backward compatibility for all existing users
+- Provide multiple recovery options (backup codes)
+- Ensure Vercel deployment compatibility
+
+## Success Metrics
+- Zero disruption to existing user login workflows
+- 100% backward compatibility maintained
+- Users can optionally enable/disable 2FA
+- Successful deployment to Vercel with all 2FA features working
+- Comprehensive backup and recovery mechanisms
+
+## Technical Requirements
+
+### Core Technology Stack
+- **Framework**: Flask (existing)
+- **Database**: Neon PostgreSQL (both local and production) - existing
+- **Deployment**: Vercel (existing)
+- **2FA Method**: TOTP (Time-based One-Time Passwords) using authenticator apps
+- **Encryption**: Fernet (cryptography library) for TOTP secret storage
+- **QR Code Generation**: qrcode library for easy 2FA setup
+
+### Database Schema Changes
+Add the following optional columns to the User table:
+- `totp_secret` (VARCHAR(255)) - Encrypted TOTP secret
+- `totp_enabled` (BOOLEAN) - Whether 2FA is enabled for user
+- `backup_codes_hash` (TEXT) - JSON array of bcrypt-hashed backup codes
+- `totp_setup_completed` (BOOLEAN) - Whether 2FA setup is complete
+
+### Security Requirements
+- TOTP secrets must be encrypted before database storage
+- Backup codes must be bcrypt-hashed
+- Rate limiting on 2FA verification attempts
+- Session management for 2FA verification flow
+- Secure QR code generation for authenticator app setup
+
+### User Experience Requirements
+- Existing users continue to login normally without any changes
+- 2FA setup is completely optional and user-initiated
+- QR code display for easy authenticator app setup
+- Backup codes provided during 2FA setup for account recovery
+- Clear error messages for invalid codes
+- Ability to disable 2FA if needed
+
+## Feature Components
+
+### 1. Database Migration
+- Create migration script to add new columns to Neon PostgreSQL
+- Ensure existing data integrity
+- Test migration on the shared Neon PostgreSQL database
+
+### 2. Core 2FA Utility Functions
+- `encrypt_totp_secret()` - Encrypt TOTP secrets
+- `decrypt_totp_secret()` - Decrypt TOTP secrets
+- `generate_backup_codes()` - Generate recovery codes
+- `hash_backup_code()` - Hash backup codes for storage
+- `verify_backup_code()` - Verify backup codes during recovery
+
+### 3. New Routes and Endpoints
+- `/setup-2fa` - 2FA setup and configuration
+- `/verify-2fa` - 2FA verification during login
+- `/manage-2fa` - Enable/disable 2FA in user profile
+- `/regenerate-backup-codes` - Generate new backup codes
+
+### 4. User Interface Components
+- 2FA setup page with QR code display
+- 2FA verification page during login
+- 2FA management in user profile
+- Backup code display and regeneration interface
+
+### 5. Authentication Flow Modifications
+- Modified login route to check for 2FA requirement
+- Session management for 2FA verification state
+- Integration with existing password authentication
+
+### 6. Template Files
+- `setup_2fa.html` - QR code and verification form
+- `verify_2fa.html` - 2FA code input during login
+- `manage_2fa.html` - 2FA management interface
+- Updated `profile.html` - Add 2FA management section
+
+## Implementation Phases
+
+### Phase 1: Foundation
+- Add required Python dependencies to requirements.txt
+- Create database migration script
+- Implement core utility functions
+- Add new columns to User model
+
+### Phase 2: Core Functionality
+- Implement 2FA setup route and template
+- Implement 2FA verification route and template
+- Modify login flow to support 2FA
+- Add session management for 2FA state
+
+### Phase 3: User Management
+- Create 2FA management interface
+- Implement backup code generation and verification
+- Add ability to disable 2FA
+- Update user profile to show 2FA status
+
+### Phase 4: Testing and Deployment
+- Comprehensive testing of all 2FA flows
+- Test with existing users (no 2FA)
+- Test with new 2FA-enabled users
+- Verify Vercel deployment compatibility
+- Test backup code recovery scenarios
+
+## Dependencies and Libraries
+- `pyotp==2.9.0` - TOTP implementation
+- `qrcode==7.4.2` - QR code generation
+- `Pillow==10.0.0` - Image processing for QR codes
+- `cryptography==41.0.7` - Encryption for TOTP secrets
+
+## Security Considerations
+- All TOTP secrets encrypted before database storage
+- Backup codes hashed using bcrypt
+- Rate limiting on verification attempts
+- Secure session handling
+- No sensitive data in logs or error messages
+
+## Testing Strategy
+- Unit tests for utility functions
+- Integration tests for 2FA flows using Neon PostgreSQL
+- User acceptance testing with existing users
+- Security testing for encryption and hashing
+- Deployment testing on Vercel with Neon database
+
+## Rollout Plan
+1. Test locally with Neon PostgreSQL database
+2. Test with existing user accounts
+3. Test 2FA setup and verification flows
+4. Deploy to Vercel production (same Neon database)
+5. Monitor for any issues
+6. Optional: Announce 2FA availability to users
+
+## Risk Mitigation
+- All changes are optional and don't affect existing users
+- Comprehensive backup and recovery mechanisms
+- Ability to disable 2FA if issues arise
+- Gradual rollout with monitoring
+- Clear documentation for users
+
+## Success Criteria
+- Zero impact on existing user authentication
+- Successful 2FA setup and verification for new users
+- Secure storage and handling of 2FA secrets
+- Reliable backup code recovery system
+- Seamless Vercel deployment
+- Positive user feedback on 2FA implementation

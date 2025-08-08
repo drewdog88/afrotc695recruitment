@@ -1,491 +1,151 @@
 {% extends "base.html" %}
 
-{% block title %}System Statistics - AFROTC 695{% endblock %}
+{% block title %}System Statistics{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="fas fa-chart-bar"></i> System Statistics</h1>
-    <div>
-        <button class="btn btn-secondary" onclick="refreshStats()">
-            <i class="fas fa-sync-alt"></i> Refresh
-        </button>
-        <button class="btn btn-primary" onclick="exportStats()">
-            <i class="fas fa-download"></i> Export Report
-        </button>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-chart-bar"></i> System Statistics</h1>
+        <a href="{{ url_for('admin') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Admin
+        </a>
     </div>
-</div>
 
-<!-- Key Metrics Overview -->
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card text-center h-100">
-            <div class="card-body">
-                <i class="fas fa-database fa-2x text-primary mb-2"></i>
-                <h4 class="text-primary">{{ "%.2f"|format(stats.database_size.total_size_mb) }} MB</h4>
-                <p class="card-text text-muted">Database Size</p>
-                <small class="text-muted">{{ stats.database_size.table_count }} tables</small>
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                    <h3 class="card-title">{{ stats.total_users }}</h3>
+                    <p class="card-text text-muted">Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                    <h3 class="card-title">{{ stats.active_users }}</h3>
+                    <p class="card-text text-muted">Active Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-user-shield fa-2x text-warning mb-2"></i>
+                    <h3 class="card-title">{{ stats.admin_users }}</h3>
+                    <p class="card-text text-muted">Admin Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-sign-in-alt fa-2x text-info mb-2"></i>
+                    <h3 class="card-title">{{ stats.recent_logins }}</h3>
+                    <p class="card-text text-muted">Logins (30 days)</p>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-center h-100">
-            <div class="card-body">
-                <i class="fas fa-list fa-2x text-success mb-2"></i>
-                <h4 class="text-success">{{ "{:,}".format(stats.total_records) }}</h4>
-                <p class="card-text text-muted">Total Records</p>
-                <small class="text-muted">Across all tables</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-center h-100">
-            <div class="card-body">
-                <i class="fas fa-users fa-2x text-info mb-2"></i>
-                <h4 class="text-info">{{ stats.record_counts.users }}</h4>
-                <p class="card-text text-muted">System Users</p>
-                <small class="text-muted">Active accounts</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-center h-100">
-            <div class="card-body">
-                <i class="fas fa-server fa-2x text-warning mb-2"></i>
-                <h4 class="text-warning">{{ "%.1f"|format(stats.system_performance.cpu_percent) }}%</h4>
-                <p class="card-text text-muted">CPU Usage</p>
-                <small class="text-muted">{{ stats.system_performance.cpu_count }} cores</small>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Database Information -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-database"></i> Database Details</h5>
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-user-graduate fa-2x text-primary mb-2"></i>
+                    <h3 class="card-title">{{ stats.total_recruits }}</h3>
+                    <p class="card-text text-muted">Potential Recruits</p>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-6">
-                        <strong>Database:</strong><br>
-                        <span class="text-muted">{{ stats.database_size.database }}</span>
-                    </div>
-                    <div class="col-6">
-                        <strong>Tables:</strong><br>
-                        <span class="text-muted">{{ stats.database_size.table_count }}</span>
-                    </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-star fa-2x text-success mb-2"></i>
+                    <h3 class="card-title">{{ stats.total_cadets }}</h3>
+                    <p class="card-text text-muted">Cadets</p>
                 </div>
-                <hr>
-                <div class="row">
-                    <div class="col-6">
-                        <strong>Data Size:</strong><br>
-                        <span class="text-primary">{{ "%.2f"|format(stats.database_size.data_size_mb) }} MB</span>
-                    </div>
-                    <div class="col-6">
-                        <strong>Index Size:</strong><br>
-                        <span class="text-info">{{ "%.2f"|format(stats.database_size.index_size_mb) }} MB</span>
-                    </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-university fa-2x text-warning mb-2"></i>
+                    <h3 class="card-title">{{ stats.total_contacts }}</h3>
+                    <p class="card-text text-muted">University Contacts</p>
                 </div>
-                <hr>
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar bg-primary" role="progressbar" 
-                         style="width: {{ (stats.database_size.data_size_mb / stats.database_size.total_size_mb * 100) if stats.database_size.total_size_mb > 0 else 0 }}%">
-                        Data
-                    </div>
-                    <div class="progress-bar bg-info" role="progressbar" 
-                         style="width: {{ (stats.database_size.index_size_mb / stats.database_size.total_size_mb * 100) if stats.database_size.total_size_mb > 0 else 0 }}%">
-                        Index
-                    </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-calendar-alt fa-2x text-info mb-2"></i>
+                    <h3 class="card-title">{{ stats.total_events }}</h3>
+                    <p class="card-text text-muted">Recruitment Events</p>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-table"></i> Record Counts by Table</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Table</th>
-                                <th class="text-end">Records</th>
-                                <th class="text-end">%</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for table, count in stats.record_counts.items() %}
-                            <tr>
-                                <td>
-                                    <i class="fas fa-table text-muted me-1"></i>
-                                    {{ table.replace('_', ' ').title() }}
-                                </td>
-                                <td class="text-end">{{ "{:,}".format(count) }}</td>
-                                <td class="text-end">
-                                    <span class="badge bg-secondary">
-                                        {{ "%.1f"|format((count / stats.total_records * 100) if stats.total_records > 0 else 0) }}%
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- System Performance -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-tachometer-alt"></i> System Performance</h5>
-            </div>
-            <div class="card-body">
-                <!-- CPU Usage -->
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><strong>CPU Usage</strong></span>
-                        <span>{{ "%.1f"|format(stats.system_performance.cpu_percent) }}%</span>
-                    </div>
-                    <div class="progress">
-                        <div class="progress-bar {% if stats.system_performance.cpu_percent > 80 %}bg-danger{% elif stats.system_performance.cpu_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
-                             role="progressbar" style="width: {{ stats.system_performance.cpu_percent }}%"></div>
-                    </div>
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> Recent Activity
+                    </h5>
                 </div>
-                
-                <!-- Memory Usage -->
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><strong>Memory Usage</strong></span>
-                        <span>{{ "%.1f"|format(stats.system_performance.memory_percent) }}% ({{ "%.1f"|format(stats.system_performance.memory_used_mb / 1024) }}/{{ "%.1f"|format(stats.system_performance.memory_total_mb / 1024) }} GB)</span>
-                    </div>
-                    <div class="progress">
-                        <div class="progress-bar {% if stats.system_performance.memory_percent > 80 %}bg-danger{% elif stats.system_performance.memory_percent > 60 %}bg-warning{% else %}bg-info{% endif %}" 
-                             role="progressbar" style="width: {{ stats.system_performance.memory_percent }}%"></div>
-                    </div>
-                </div>
-                
-                <!-- Disk Usage -->
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span><strong>Disk Usage</strong></span>
-                        <span>{{ "%.1f"|format(stats.system_performance.disk_percent) }}% ({{ "%.1f"|format(stats.system_performance.disk_used_mb / 1024) }}/{{ "%.1f"|format(stats.system_performance.disk_total_mb / 1024) }} GB)</span>
-                    </div>
-                    <div class="progress">
-                        <div class="progress-bar {% if stats.system_performance.disk_percent > 80 %}bg-danger{% elif stats.system_performance.disk_percent > 60 %}bg-warning{% else %}bg-primary{% endif %}" 
-                             role="progressbar" style="width: {{ stats.system_performance.disk_percent }}%"></div>
-                    </div>
-                </div>
-                
-                <!-- Process Info -->
-                <hr>
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h6 class="text-primary">{{ "%.1f"|format(stats.system_performance.memory_used_mb) }} MB</h6>
-                        <small class="text-muted">App Memory</small>
-                    </div>
-                    <div class="col-6">
-                        <h6 class="text-success">{{ stats.system_performance.python_version }}</h6>
-                        <small class="text-muted">Python Version</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-line"></i> User Activity</h5>
-            </div>
-            <div class="card-body">
-                {% if stats.user_activity.most_active_users %}
-                <h6>Most Active Users (Last 30 Days)</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>User</th>
-                                <th class="text-end">Actions</th>
-                                <th class="text-end">Last Activity</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in stats.user_activity.most_active_users[:5] %}
-                            <tr>
-                                <td>
-                                    <i class="fas fa-user text-muted me-1"></i>
-                                    {{ user.username }}
-                                </td>
-                                <td class="text-end">
-                                    <span class="badge bg-primary">{{ user.activity_count }}</span>
-                                </td>
-                                <td class="text-end">
-                                    <small class="text-muted">{{ user.last_activity.strftime('%m/%d %H:%M') if user.last_activity else 'N/A' }}</small>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">No user activity data available.</p>
-                {% endif %}
-                
-                <hr>
-                <div class="row text-center">
-                    <div class="col-4">
-                        <h6 class="text-info">{{ stats.user_activity.user_growth|length }}</h6>
-                        <small class="text-muted">Active Months</small>
-                    </div>
-                    <div class="col-4">
-                        <h6 class="text-success">{{ stats.user_activity.activity_by_month|length }}</h6>
-                        <small class="text-muted">Activity Months</small>
-                    </div>
-                    <div class="col-4">
-                        <h6 class="text-warning">{{ stats.user_activity.most_active_users|length }}</h6>
-                        <small class="text-muted">Active Users</small>
-                    </div>
+                <div class="card-body">
+                    {% if stats.recent_activities %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>User</th>
+                                        <th>Action</th>
+                                        <th>Details</th>
+                                        <th>IP Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for activity in stats.recent_activities %}
+                                    <tr>
+                                        <td>{{ activity.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        <td>{{ activity.username }}</td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if activity.action == 'LOGIN' else 'info' if activity.action == 'CREATE' else 'warning' if activity.action == 'UPDATE' else 'danger' if activity.action == 'DELETE' else 'secondary' }}">
+                                                {{ activity.action }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if activity.table_name %}
+                                                {{ activity.table_name.title() }}
+                                                {% if activity.record_description %}
+                                                    - {{ activity.record_description }}
+                                                {% endif %}
+                                            {% else %}
+                                                {{ activity.record_description or 'N/A' }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ activity.ip_address or 'N/A' }}</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">No recent activity found.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Recruitment Statistics -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-graduation-cap"></i> Recruitment Overview</h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center mb-3">
-                    <div class="col-6">
-                        <h4 class="text-primary">{{ stats.recruitment_stats.recent_events }}</h4>
-                        <small class="text-muted">Recent Events (30 days)</small>
-                    </div>
-                    <div class="col-6">
-                        <h4 class="text-success">{{ stats.recruitment_stats.recent_recruits }}</h4>
-                        <small class="text-muted">New Recruits (30 days)</small>
-                    </div>
-                </div>
-                
-                {% if stats.recruitment_stats.recruits_by_status %}
-                <h6>Potential Recruits by Status</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <tbody>
-                            {% for item in stats.recruitment_stats.recruits_by_status %}
-                            <tr>
-                                <td>
-                                    <i class="fas fa-user-plus text-muted me-1"></i>
-                                    {{ item.status.title() if item.status else 'Unknown' }}
-                                </td>
-                                <td class="text-end">
-                                    <span class="badge bg-info">{{ item.count }}</span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Events & Cadets</h5>
-            </div>
-            <div class="card-body">
-                {% if stats.recruitment_stats.events_by_status %}
-                <h6>Events by Status</h6>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm">
-                        <tbody>
-                            {% for item in stats.recruitment_stats.events_by_status %}
-                            <tr>
-                                <td>
-                                    <i class="fas fa-calendar text-muted me-1"></i>
-                                    {{ item.status.title() if item.status else 'Unknown' }}
-                                </td>
-                                <td class="text-end">
-                                    <span class="badge bg-warning">{{ item.count }}</span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
-                
-                {% if stats.recruitment_stats.cadets_by_year %}
-                <h6>Cadets by Class Year</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <tbody>
-                            {% for item in stats.recruitment_stats.cadets_by_year %}
-                            <tr>
-                                <td>
-                                    <i class="fas fa-graduation-cap text-muted me-1"></i>
-                                    Class of {{ item.year if item.year else 'Unknown' }}
-                                </td>
-                                <td class="text-end">
-                                    <span class="badge bg-success">{{ item.count }}</span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Backup Information -->
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-save"></i> Backup Information</h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3">
-                        <h4 class="text-primary">{{ stats.backup_info.count }}</h4>
-                        <p class="text-muted">Available Backups</p>
-                    </div>
-                    <div class="col-md-3">
-                        <h4 class="text-info">{{ "%.2f"|format(stats.backup_info.total_size_mb) }} MB</h4>
-                        <p class="text-muted">Total Backup Size</p>
-                    </div>
-                    <div class="col-md-3">
-                        <h4 class="text-success">
-                            {% if stats.backup_info.latest_backup %}
-                                {{ stats.backup_info.latest_backup.created.strftime('%m/%d/%Y') }}
-                            {% else %}
-                                Never
-                            {% endif %}
-                        </h4>
-                        <p class="text-muted">Latest Backup</p>
-                    </div>
-                    <div class="col-md-3">
-                        <h4 class="text-warning">
-                            {% if stats.backup_info.latest_backup %}
-                                {{ "%.2f"|format(stats.backup_info.latest_backup.size / (1024*1024)) }} MB
-                            {% else %}
-                                0 MB
-                            {% endif %}
-                        </h4>
-                        <p class="text-muted">Latest Backup Size</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- User Growth Chart -->
-{% if stats.user_activity.user_growth %}
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-area"></i> User Growth (Last 12 Months)</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="userGrowthChart" height="100"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-// User Growth Chart
-{% if stats.user_activity.user_growth %}
-const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
-const userGrowthChart = new Chart(userGrowthCtx, {
-    type: 'line',
-    data: {
-        labels: [{% for item in stats.user_activity.user_growth %}'{{ item.month }}'{% if not loop.last %},{% endif %}{% endfor %}],
-        datasets: [{
-            label: 'New Users',
-            data: [{% for item in stats.user_activity.user_growth %}{{ item.new_users }}{% if not loop.last %},{% endif %}{% endfor %}],
-            borderColor: 'rgb(54, 162, 235)',
-            backgroundColor: 'rgba(54, 162, 235, 0.1)',
-            tension: 0.1,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: {
-                display: false
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    stepSize: 1
-                }
-            }
-        }
-    }
-});
-{% endif %}
-
-function refreshStats() {
-    location.reload();
-}
-
-function exportStats() {
-    // Create a simple text report
-    let report = "AFROTC 695 System Statistics Report\n";
-    report += "Generated: " + new Date().toLocaleString() + "\n\n";
-    
-    report += "DATABASE INFORMATION:\n";
-    report += "- Database: {{ stats.database_size.database }}\n";
-    report += "- Total Size: {{ '%.2f'|format(stats.database_size.total_size_mb) }} MB\n";
-    report += "- Tables: {{ stats.database_size.table_count }}\n";
-    report += "- Total Records: {{ '{:,}'.format(stats.total_records) }}\n\n";
-    
-    report += "SYSTEM PERFORMANCE:\n";
-    report += "- CPU Usage: {{ '%.1f'|format(stats.system_performance.cpu_percent) }}%\n";
-    report += "- Memory Usage: {{ '%.1f'|format(stats.system_performance.memory_percent) }}%\n";
-    report += "- Disk Usage: {{ '%.1f'|format(stats.system_performance.disk_percent) }}%\n\n";
-    
-    report += "RECRUITMENT STATS:\n";
-    report += "- Recent Events (30 days): {{ stats.recruitment_stats.recent_events }}\n";
-    report += "- Recent Recruits (30 days): {{ stats.recruitment_stats.recent_recruits }}\n\n";
-    
-    // Download the report
-    const blob = new Blob([report], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'afrotc695_system_stats_' + new Date().toISOString().split('T')[0] + '.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-}
-</script>
-
 {% endblock %}
