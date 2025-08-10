@@ -2787,6 +2787,112 @@ def test_backup():
             'message': f'Error: {str(e)}'
         })
 
+@app.route('/api/diagnostic')
+def production_diagnostic():
+    """Diagnostic endpoint to test production environment issues"""
+    try:
+        results = {
+            'environment_variables': {},
+            'database_connection': {},
+            'flask_imports': {},
+            'template_paths': {},
+            'file_permissions': {},
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Test environment variables
+        required_vars = ['DATABASE_URL', 'SECRET_KEY', 'BLOB_READ_WRITE_TOKEN']
+        for var in required_vars:
+            value = os.getenv(var)
+            if value:
+                if 'password' in var.lower() or 'secret' in var.lower() or 'token' in var.lower():
+                    masked_value = value[:10] + '...' if len(value) > 10 else '***'
+                    results['environment_variables'][var] = {'status': 'set', 'value': masked_value}
+                else:
+                    results['environment_variables'][var] = {'status': 'set', 'value': value}
+            else:
+                results['environment_variables'][var] = {'status': 'missing'}
+        
+        # Test database connection
+        try:
+            import psycopg2
+            results['database_connection']['psycopg2'] = {'status': 'imported'}
+            
+            database_url = os.getenv('DATABASE_URL')
+            if database_url:
+                conn = psycopg2.connect(database_url)
+                cursor = conn.cursor()
+                cursor.execute("SELECT version();")
+                version = cursor.fetchone()
+                results['database_connection']['connection'] = {'status': 'success', 'version': version[0]}
+                
+                cursor.execute("""
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public'
+                    ORDER BY table_name;
+                """)
+                tables = cursor.fetchall()
+                results['database_connection']['tables'] = {'count': len(tables), 'names': [t[0] for t in tables]}
+                
+                cursor.close()
+                conn.close()
+            else:
+                results['database_connection']['connection'] = {'status': 'failed', 'error': 'DATABASE_URL not set'}
+                
+        except Exception as e:
+            results['database_connection']['connection'] = {'status': 'failed', 'error': str(e)}
+        
+        # Test Flask imports
+        modules_to_test = ['flask', 'flask_sqlalchemy', 'werkzeug', 'sqlalchemy', 'vercel_blob']
+        for module in modules_to_test:
+            try:
+                __import__(module)
+                results['flask_imports'][module] = {'status': 'imported'}
+            except ImportError as e:
+                results['flask_imports'][module] = {'status': 'failed', 'error': str(e)}
+        
+        # Test template paths
+        current_dir = os.getcwd()
+        results['template_paths']['current_directory'] = current_dir
+        
+        templates_dir = os.path.join(current_dir, 'templates')
+        if os.path.exists(templates_dir):
+            results['template_paths']['templates_directory'] = {'status': 'exists', 'path': templates_dir}
+            
+            required_templates = ['recruits.html', 'admin.html', 'cadet.html', 'contacts.html']
+            for template in required_templates:
+                template_path = os.path.join(templates_dir, template)
+                if os.path.exists(template_path):
+                    results['template_paths'][template] = {'status': 'exists'}
+                else:
+                    results['template_paths'][template] = {'status': 'missing'}
+        else:
+            results['template_paths']['templates_directory'] = {'status': 'missing', 'path': templates_dir}
+        
+        # Test file permissions
+        files_to_test = ['api/app.py', 'templates/recruits.html', 'templates/admin.html', 'requirements.txt']
+        for file_path in files_to_test:
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r') as f:
+                        f.read(100)
+                    results['file_permissions'][file_path] = {'status': 'readable'}
+                except Exception as e:
+                    results['file_permissions'][file_path] = {'status': 'not_readable', 'error': str(e)}
+            else:
+                results['file_permissions'][file_path] = {'status': 'not_found'}
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Diagnostic failed: {str(e)}',
+            'error_type': str(type(e)),
+            'timestamp': datetime.now().isoformat()
+        })
+
 # For Vercel serverless deployment, we don't need the __main__ block
 # Database initialization now happens during app startup via init_database()
 
