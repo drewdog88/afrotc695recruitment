@@ -1143,6 +1143,16 @@ def recruits():
         if 'user_id' not in session:
             return redirect(url_for('login'))
         
+        # Check if potential_recruit table exists, create if not
+        try:
+            inspector = db.inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            if 'potential_recruit' not in existing_tables:
+                print("Creating missing potential_recruit table...")
+                db.create_all()
+        except Exception as table_error:
+            print(f"Error checking/creating potential_recruit table: {table_error}")
+        
         # Get sort parameters
         sort_by = request.args.get('sort', 'created_at')
         order = request.args.get('order', 'desc')
