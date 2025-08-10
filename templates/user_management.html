@@ -211,7 +211,7 @@
     </div>
 </div>
 
-<script nonce="{{ csp_nonce() }}">
+<script>
 function confirmDelete(userId, userName) {
     document.getElementById('deleteUserName').textContent = userName;
     document.getElementById('deleteForm').action = "{{ url_for('delete_user', user_id=0) }}".replace('0', userId);
@@ -231,3 +231,5 @@ function confirmDisable2FA(userId, userName) {
 }
 </script>
 {% endblock %} 
+
+

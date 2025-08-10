@@ -166,7 +166,7 @@
     </div>
 </div>
 
-<script nonce="{{ csp_nonce() }}">
+<script>
 function deleteRecruit(recruitId, recruitName) {
     if (confirm('Are you sure you want to delete ' + recruitName + '? This action cannot be undone.')) {
         fetch('/recruits/delete/' + recruitId, {
@@ -191,3 +191,5 @@ function deleteRecruit(recruitId, recruitName) {
 }
 </script>
 {% endblock %}
+
+

@@ -812,7 +812,7 @@
                     </div>
                 {% endfor %}
             </div>
-            <script nonce="{{ csp_nonce() }}">
+            <script>
                 // Auto-dismiss flash messages after 3 seconds
                 document.addEventListener('DOMContentLoaded', function() {
                     const alerts = document.querySelectorAll('.alert');
@@ -835,7 +835,7 @@
     {% endif %}
 
     <!-- Theme Toggle Script -->
-    <script nonce="{{ csp_nonce() }}">
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Theme toggle functionality
             const themeButtons = document.querySelectorAll('.theme-btn');
@@ -869,7 +869,7 @@
     </script>
 
     <!-- Mobile sidebar toggle script -->
-    <script nonce="{{ csp_nonce() }}">
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebar = document.getElementById('sidebar');
@@ -913,3 +913,5 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
+
+

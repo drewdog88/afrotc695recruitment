@@ -73,7 +73,7 @@
     </div>
 </div>
 
-<script nonce="{{ csp_nonce() }}">
+<script>
 function printBackupCodes() {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
@@ -135,4 +135,6 @@ function copyBackupCodes() {
 }
 </script>
 {% endblock %}
+
+
 

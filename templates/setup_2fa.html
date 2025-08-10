@@ -64,7 +64,7 @@
                     <p class="text-muted">Enter the 6-digit code from your authenticator app to complete the setup:</p>
 
                     <form method="POST">
-    {{ csrf_token() }}
+    
                         <div class="form-group">
                             <label for="totp_code">Authentication Code</label>
                             <input type="text" class="form-control" id="totp_code" name="totp_code"
@@ -87,7 +87,7 @@
     </div>
 </div>
 
-<script nonce="{{ csp_nonce() }}">
+<script>
 function copySecret() {
     const secretInput = document.getElementById('secret-key');
     secretInput.select();
@@ -114,3 +114,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+

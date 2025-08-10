@@ -14,9 +14,8 @@ from reportlab.lib import colors
 import tempfile
 import zipfile
 
-# Security imports
-from flask_talisman import Talisman
-from flask_wtf.csrf import CSRFProtect
+
+
 
 # 2FA Authentication imports (commented out - separate feature)
 # import pyotp
@@ -40,60 +39,7 @@ if database_url and database_url.startswith('postgres://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Security configuration
-# Content Security Policy (CSP) configuration
-csp = {
-    'default-src': ["'self'"],
-    'script-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline scripts
-        "'unsafe-eval'",    # Required for Chart.js
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://code.jquery.com"
-    ],
-    'style-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline styles
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://fonts.googleapis.com"
-    ],
-    'font-src': [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'img-src': [
-        "'self'",
-        "data:",
-        "https:",
-        "https://www.up.edu",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'connect-src': ["'self'"],
-    'frame-src': ["'none'"],
-    'object-src': ["'none'"],
-    'base-uri': ["'self'"],
-    'form-action': ["'self'"]
-}
 
-# Initialize Flask-Talisman with security headers
-talisman = Talisman(
-    app,
-    content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src'],
-    force_https=False,  # Set to True in production
-    strict_transport_security=True,
-    strict_transport_security_max_age=31536000,
-    strict_transport_security_include_subdomains=True,
-    strict_transport_security_preload=True
-)
-
-# Initialize CSRF protection
-csrf = CSRFProtect(app)
 
 db = SQLAlchemy(app)
 

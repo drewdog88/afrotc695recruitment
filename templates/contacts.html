@@ -200,7 +200,7 @@
 </div>
 {% endif %}
 
-<script nonce="{{ csp_nonce() }}">
+<script>
 // Convert UTC times to local timezone
 document.addEventListener('DOMContentLoaded', function() {
     // Convert date elements
@@ -219,3 +219,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+
