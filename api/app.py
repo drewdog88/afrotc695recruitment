@@ -1216,38 +1216,47 @@ def add_recruit():
 
 @app.route('/cadet')
 def cadet():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Get sort parameters
-    sort_by = request.args.get('sort', 'created_at')
-    order = request.args.get('order', 'desc')
-    
-    # Define valid sort columns
-    valid_sorts = {
-        'first_name': Cadet.first_name,
-        'last_name': Cadet.last_name,
-        'email': Cadet.email,
-        'cadet_rank': Cadet.cadet_rank,
-        'major': Cadet.major,
-        'graduation_year': Cadet.graduation_year,
-        'status': Cadet.status,
-        'gpa': Cadet.gpa,
-        'created_at': Cadet.created_at,
-        'last_modified': Cadet.last_modified
-    }
-    
-    # Default to created_at if invalid sort column
-    if sort_by not in valid_sorts:
-        sort_by = 'created_at'
-    
-    # Apply sorting
-    if order == 'asc':
-        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
-    else:
-        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
-    
-    return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        
+        # Get sort parameters
+        sort_by = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc')
+        
+        # Define valid sort columns
+        valid_sorts = {
+            'first_name': Cadet.first_name,
+            'last_name': Cadet.last_name,
+            'email': Cadet.email,
+            'cadet_rank': Cadet.cadet_rank,
+            'major': Cadet.major,
+            'graduation_year': Cadet.graduation_year,
+            'status': Cadet.status,
+            'gpa': Cadet.gpa,
+            'created_at': Cadet.created_at,
+            'last_modified': Cadet.last_modified
+        }
+        
+        # Default to created_at if invalid sort column
+        if sort_by not in valid_sorts:
+            sort_by = 'created_at'
+        
+        # Apply sorting
+        if order == 'asc':
+            cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
+        else:
+            cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
+        
+        return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
+        
+    except Exception as e:
+        print(f"Error in /cadet route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading cadets panel. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/cadet/add', methods=['GET', 'POST'])
 def add_cadet():
@@ -1359,36 +1368,45 @@ def edit_cadet(cadet_id):
 
 @app.route('/contacts')
 def contacts():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Get sort parameters
-    sort_by = request.args.get('sort', 'created_at')
-    order = request.args.get('order', 'desc')
-    
-    # Define valid sort columns
-    valid_sorts = {
-        'university_name': UniversityContact.university_name,
-        'contact_name': UniversityContact.contact_name,
-        'contact_title': UniversityContact.contact_title,
-        'email': UniversityContact.email,
-        'phone': UniversityContact.phone,
-        'is_active': UniversityContact.is_active,
-        'created_at': UniversityContact.created_at,
-        'last_modified': UniversityContact.last_modified
-    }
-    
-    # Default to created_at if invalid sort column
-    if sort_by not in valid_sorts:
-        sort_by = 'created_at'
-    
-    # Apply sorting
-    if order == 'asc':
-        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
-    else:
-        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
-    
-    return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        
+        # Get sort parameters
+        sort_by = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc')
+        
+        # Define valid sort columns
+        valid_sorts = {
+            'university_name': UniversityContact.university_name,
+            'contact_name': UniversityContact.contact_name,
+            'contact_title': UniversityContact.contact_title,
+            'email': UniversityContact.email,
+            'phone': UniversityContact.phone,
+            'is_active': UniversityContact.is_active,
+            'created_at': UniversityContact.created_at,
+            'last_modified': UniversityContact.last_modified
+        }
+        
+        # Default to created_at if invalid sort column
+        if sort_by not in valid_sorts:
+            sort_by = 'created_at'
+        
+        # Apply sorting
+        if order == 'asc':
+            contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
+        else:
+            contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
+        
+        return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
+        
+    except Exception as e:
+        print(f"Error in /contacts route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading contacts panel. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/contacts/add', methods=['GET', 'POST'])
 def add_contact():
