@@ -9,19 +9,19 @@ psycopg2-binary==2.9.10
 # Essential packages for functionality
 bcrypt==4.0.1
 schedule==1.2.0
-pandas==2.3.1
-reportlab==4.0.4
 
-# Security packages
+# Security packages (lightweight)
 Flask-Talisman==1.1.0
 Flask-WTF==1.2.1
 Flask-Limiter==3.5.0
 
-# 2FA Authentication Dependencies
+# 2FA Authentication Dependencies (minimal)
 pyotp==2.9.0
 qrcode==7.4.2
 Pillow==10.0.0
-cryptography==41.0.7
 
-# Additional dependencies
-openpyxl==3.1.2
+# Remove heavy packages that can be replaced:
+# - pandas (use built-in csv module instead)
+# - reportlab (use simpler PDF generation or remove if not critical)
+# - cryptography (pyotp handles this)
+# - openpyxl (use csv export instead)
