@@ -1,0 +1,11 @@
+Vercel Environment Variables Setup Commands
+==================================================
+
+Run these commands in your terminal:
+
+1. vercel env add DATABASE_URL production
+2. vercel env add BLOB_READ_WRITE_TOKEN production
+3. vercel env add SECRET_KEY production
+4. vercel env add TOTP_ENCRYPTION_KEY production
+5. vercel env add BCRYPT_ROUNDS production
+6. vercel env add FLASK_ENV production

@@ -207,7 +207,12 @@ def get_backup_files():
             print("Warning: BLOB_READ_WRITE_TOKEN not found, returning empty backup list")
             return []
         
-        blob_files = blob_list()
+        # Add more robust error handling for blob operations
+        try:
+            blob_files = blob_list()
+        except Exception as blob_error:
+            print(f"Error accessing blob storage: {blob_error}")
+            return []
         
         if not blob_files:
             return []
@@ -232,29 +237,33 @@ def get_backup_files():
         # Convert blob files to our expected format
         backup_files = []
         for file_info in files:
-            if isinstance(file_info, dict):
-                filename = file_info.get('pathname', '')
-            else:
-                filename = str(file_info)
-            
-            # Only include backup files
-            if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
-                # Extract timestamp from filename
-                try:
-                    timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
-                    created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-                    
-                    backup_files.append({
-                        'filename': filename,
-                        'url': file_info.get('url', ''),
-                        'size': file_info.get('size', 0),
-                        'created': created,
-                        'description': 'Automatic backup',
-                        'user': 'System'
-                    })
-                except Exception as e:
-                    print(f"Error parsing backup filename {filename}: {e}")
-                    continue
+            try:
+                if isinstance(file_info, dict):
+                    filename = file_info.get('pathname', '')
+                else:
+                    filename = str(file_info)
+                
+                # Only include backup files
+                if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
+                    # Extract timestamp from filename
+                    try:
+                        timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
+                        created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                        
+                        backup_files.append({
+                            'filename': filename,
+                            'url': file_info.get('url', ''),
+                            'size': file_info.get('size', 0),
+                            'created': created,
+                            'description': 'Automatic backup',
+                            'user': 'System'
+                        })
+                    except Exception as e:
+                        print(f"Error parsing backup filename {filename}: {e}")
+                        continue
+            except Exception as file_error:
+                print(f"Error processing file info: {file_error}")
+                continue
         
         # Sort by creation date (newest first)
         backup_files.sort(key=lambda x: x['created'], reverse=True)
@@ -1130,36 +1139,45 @@ def dashboard():
 
 @app.route('/recruits')
 def recruits():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Get sort parameters
-    sort_by = request.args.get('sort', 'created_at')
-    order = request.args.get('order', 'desc')
-    
-    # Define valid sort columns
-    valid_sorts = {
-        'first_name': PotentialRecruit.first_name,
-        'last_name': PotentialRecruit.last_name,
-        'email': PotentialRecruit.email,
-        'current_school': PotentialRecruit.current_school,
-        'major': PotentialRecruit.major,
-        'status': PotentialRecruit.status,
-        'created_at': PotentialRecruit.created_at,
-        'last_modified': PotentialRecruit.last_modified
-    }
-    
-    # Default to created_at if invalid sort column
-    if sort_by not in valid_sorts:
-        sort_by = 'created_at'
-    
-    # Apply sorting
-    if order == 'asc':
-        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
-    else:
-        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
-    
-    return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        
+        # Get sort parameters
+        sort_by = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc')
+        
+        # Define valid sort columns
+        valid_sorts = {
+            'first_name': PotentialRecruit.first_name,
+            'last_name': PotentialRecruit.last_name,
+            'email': PotentialRecruit.email,
+            'current_school': PotentialRecruit.current_school,
+            'major': PotentialRecruit.major,
+            'status': PotentialRecruit.status,
+            'created_at': PotentialRecruit.created_at,
+            'last_modified': PotentialRecruit.last_modified
+        }
+        
+        # Default to created_at if invalid sort column
+        if sort_by not in valid_sorts:
+            sort_by = 'created_at'
+        
+        # Apply sorting
+        if order == 'asc':
+            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
+        else:
+            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
+        
+        return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+        
+    except Exception as e:
+        print(f"Error in /recruits route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading recruits. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/recruits/add', methods=['GET', 'POST'])
 def add_recruit():
@@ -1207,47 +1225,38 @@ def add_recruit():
 
 @app.route('/cadet')
 def cadet():
-    try:
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        
-        # Get sort parameters
-        sort_by = request.args.get('sort', 'created_at')
-        order = request.args.get('order', 'desc')
-        
-        # Define valid sort columns
-        valid_sorts = {
-            'first_name': Cadet.first_name,
-            'last_name': Cadet.last_name,
-            'email': Cadet.email,
-            'cadet_rank': Cadet.cadet_rank,
-            'major': Cadet.major,
-            'graduation_year': Cadet.graduation_year,
-            'status': Cadet.status,
-            'gpa': Cadet.gpa,
-            'created_at': Cadet.created_at,
-            'last_modified': Cadet.last_modified
-        }
-        
-        # Default to created_at if invalid sort column
-        if sort_by not in valid_sorts:
-            sort_by = 'created_at'
-        
-        # Apply sorting
-        if order == 'asc':
-            cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
-        else:
-            cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
-        
-        return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
-        
-    except Exception as e:
-        print(f"Error in /cadet route: {e}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        flash('An error occurred while loading cadets panel. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'first_name': Cadet.first_name,
+        'last_name': Cadet.last_name,
+        'email': Cadet.email,
+        'cadet_rank': Cadet.cadet_rank,
+        'major': Cadet.major,
+        'graduation_year': Cadet.graduation_year,
+        'status': Cadet.status,
+        'gpa': Cadet.gpa,
+        'created_at': Cadet.created_at,
+        'last_modified': Cadet.last_modified
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting
+    if order == 'asc':
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
+    else:
+        cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
+    
+    return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
 
 @app.route('/cadet/add', methods=['GET', 'POST'])
 def add_cadet():
@@ -1359,45 +1368,36 @@ def edit_cadet(cadet_id):
 
 @app.route('/contacts')
 def contacts():
-    try:
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        
-        # Get sort parameters
-        sort_by = request.args.get('sort', 'created_at')
-        order = request.args.get('order', 'desc')
-        
-        # Define valid sort columns
-        valid_sorts = {
-            'university_name': UniversityContact.university_name,
-            'contact_name': UniversityContact.contact_name,
-            'contact_title': UniversityContact.contact_title,
-            'email': UniversityContact.email,
-            'phone': UniversityContact.phone,
-            'is_active': UniversityContact.is_active,
-            'created_at': UniversityContact.created_at,
-            'last_modified': UniversityContact.last_modified
-        }
-        
-        # Default to created_at if invalid sort column
-        if sort_by not in valid_sorts:
-            sort_by = 'created_at'
-        
-        # Apply sorting
-        if order == 'asc':
-            contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
-        else:
-            contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
-        
-        return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
-        
-    except Exception as e:
-        print(f"Error in /contacts route: {e}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        flash('An error occurred while loading contacts panel. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Get sort parameters
+    sort_by = request.args.get('sort', 'created_at')
+    order = request.args.get('order', 'desc')
+    
+    # Define valid sort columns
+    valid_sorts = {
+        'university_name': UniversityContact.university_name,
+        'contact_name': UniversityContact.contact_name,
+        'contact_title': UniversityContact.contact_title,
+        'email': UniversityContact.email,
+        'phone': UniversityContact.phone,
+        'is_active': UniversityContact.is_active,
+        'created_at': UniversityContact.created_at,
+        'last_modified': UniversityContact.last_modified
+    }
+    
+    # Default to created_at if invalid sort column
+    if sort_by not in valid_sorts:
+        sort_by = 'created_at'
+    
+    # Apply sorting
+    if order == 'asc':
+        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
+    else:
+        contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
+    
+    return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
 
 @app.route('/contacts/add', methods=['GET', 'POST'])
 def add_contact():
@@ -1589,13 +1589,22 @@ def add_event():
 
 @app.route('/admin')
 def admin():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        flash('Access denied. Admin privileges required.', 'error')
+    try:
+        if 'user_id' not in session or session.get('role') != 'admin':
+            flash('Access denied. Admin privileges required.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        users = User.query.all()
+        backup_files = get_backup_files()
+        return render_template('admin.html', users=users, backup_files=backup_files)
+        
+    except Exception as e:
+        print(f"Error in /admin route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading admin panel. Please try again.', 'error')
         return redirect(url_for('dashboard'))
-    
-    users = User.query.all()
-    backup_files = get_backup_files()
-    return render_template('admin.html', users=users, backup_files=backup_files)
 
 @app.route('/admin/database')
 def database_management():
@@ -2767,112 +2776,6 @@ def test_backup():
         return jsonify({
             'status': 'error',
             'message': f'Error: {str(e)}'
-        })
-
-@app.route('/api/diagnostic')
-def production_diagnostic():
-    """Diagnostic endpoint to test production environment issues"""
-    try:
-        results = {
-            'environment_variables': {},
-            'database_connection': {},
-            'flask_imports': {},
-            'template_paths': {},
-            'file_permissions': {},
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        # Test environment variables
-        required_vars = ['DATABASE_URL', 'SECRET_KEY', 'BLOB_READ_WRITE_TOKEN']
-        for var in required_vars:
-            value = os.getenv(var)
-            if value:
-                if 'password' in var.lower() or 'secret' in var.lower() or 'token' in var.lower():
-                    masked_value = value[:10] + '...' if len(value) > 10 else '***'
-                    results['environment_variables'][var] = {'status': 'set', 'value': masked_value}
-                else:
-                    results['environment_variables'][var] = {'status': 'set', 'value': value}
-            else:
-                results['environment_variables'][var] = {'status': 'missing'}
-        
-        # Test database connection
-        try:
-            import psycopg2
-            results['database_connection']['psycopg2'] = {'status': 'imported'}
-            
-            database_url = os.getenv('DATABASE_URL')
-            if database_url:
-                conn = psycopg2.connect(database_url)
-                cursor = conn.cursor()
-                cursor.execute("SELECT version();")
-                version = cursor.fetchone()
-                results['database_connection']['connection'] = {'status': 'success', 'version': version[0]}
-                
-                cursor.execute("""
-                    SELECT table_name 
-                    FROM information_schema.tables 
-                    WHERE table_schema = 'public'
-                    ORDER BY table_name;
-                """)
-                tables = cursor.fetchall()
-                results['database_connection']['tables'] = {'count': len(tables), 'names': [t[0] for t in tables]}
-                
-                cursor.close()
-                conn.close()
-            else:
-                results['database_connection']['connection'] = {'status': 'failed', 'error': 'DATABASE_URL not set'}
-                
-        except Exception as e:
-            results['database_connection']['connection'] = {'status': 'failed', 'error': str(e)}
-        
-        # Test Flask imports
-        modules_to_test = ['flask', 'flask_sqlalchemy', 'werkzeug', 'sqlalchemy', 'vercel_blob']
-        for module in modules_to_test:
-            try:
-                __import__(module)
-                results['flask_imports'][module] = {'status': 'imported'}
-            except ImportError as e:
-                results['flask_imports'][module] = {'status': 'failed', 'error': str(e)}
-        
-        # Test template paths
-        current_dir = os.getcwd()
-        results['template_paths']['current_directory'] = current_dir
-        
-        templates_dir = os.path.join(current_dir, 'templates')
-        if os.path.exists(templates_dir):
-            results['template_paths']['templates_directory'] = {'status': 'exists', 'path': templates_dir}
-            
-            required_templates = ['recruits.html', 'admin.html', 'cadet.html', 'contacts.html']
-            for template in required_templates:
-                template_path = os.path.join(templates_dir, template)
-                if os.path.exists(template_path):
-                    results['template_paths'][template] = {'status': 'exists'}
-                else:
-                    results['template_paths'][template] = {'status': 'missing'}
-        else:
-            results['template_paths']['templates_directory'] = {'status': 'missing', 'path': templates_dir}
-        
-        # Test file permissions
-        files_to_test = ['api/app.py', 'templates/recruits.html', 'templates/admin.html', 'requirements.txt']
-        for file_path in files_to_test:
-            if os.path.exists(file_path):
-                try:
-                    with open(file_path, 'r') as f:
-                        f.read(100)
-                    results['file_permissions'][file_path] = {'status': 'readable'}
-                except Exception as e:
-                    results['file_permissions'][file_path] = {'status': 'not_readable', 'error': str(e)}
-            else:
-                results['file_permissions'][file_path] = {'status': 'not_found'}
-        
-        return jsonify(results)
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Diagnostic failed: {str(e)}',
-            'error_type': str(type(e)),
-            'timestamp': datetime.now().isoformat()
         })
 
 # For Vercel serverless deployment, we don't need the __main__ block
