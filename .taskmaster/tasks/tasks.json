@@ -310,7 +310,7 @@
         "id": 18,
         "title": "Resolve Production Deployment Failures on /recruits and /admin Routes",
         "description": "Fix persistent 500 errors on /recruits and /admin routes in production by investigating and resolving production-specific issues. Despite successful local testing and applying the psycopg2-binary fix, failures continue in production. Focus on identifying differences between local and production environments, including environment variable configuration, database connection handling in serverless contexts, and blob storage setup. Ensure all dependencies and configurations are correctly applied for production.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           13,
           16
@@ -341,7 +341,7 @@
             "id": 3,
             "title": "Investigate production environment variable configuration",
             "description": "Verify that all required environment variables for database and blob storage are correctly set in the production deployment platform (e.g., Vercel dashboard). Identify any missing, misnamed, or incorrectly scoped variables.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -350,7 +350,7 @@
             "id": 4,
             "title": "Review database connection logic for serverless compatibility",
             "description": "Ensure database connections are properly managed for serverless environments, including connection establishment, closure, and pooling. Address any issues specific to ephemeral production environments.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -359,7 +359,7 @@
             "id": 5,
             "title": "Validate blob storage configuration in production",
             "description": "Check that blob storage SDK initialization uses correct environment variables and credentials in production, and that permissions are sufficient for required operations.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -368,7 +368,7 @@
             "id": 6,
             "title": "Compare local and production configurations",
             "description": "Systematically compare local and production environment settings, dependency versions, and platform-specific configurations to identify and resolve discrepancies.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -377,16 +377,16 @@
             "id": 7,
             "title": "Enhance error handling and logging for /recruits and /admin routes",
             "description": "Add detailed error handling and logging to capture context about failures, including environment variable presence, database connection errors, and blob storage issues.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
+            "details": "<info added on 2025-08-10T04:58:45.270Z>\nEnhanced error handling and logging has been implemented across the /recruits, /admin, /cadet, and /contacts routes. All routes now utilize comprehensive try-except blocks that capture and log error type, traceback, and provide user-friendly flash messages. This improvement enables detailed capture of runtime errors in production that previously resulted in generic 500 errors, facilitating more effective troubleshooting. All changes have been committed and deployed to production.\n</info added on 2025-08-10T04:58:45.270Z>",
             "testStrategy": ""
           },
           {
             "id": 8,
             "title": "Test deployment pipeline for production-specific configuration",
             "description": "Deploy to staging/production and verify that all production-specific configurations are applied, with no local-only settings present.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -395,7 +395,7 @@
             "id": 9,
             "title": "Document findings and update deployment runbooks",
             "description": "Record the investigation process, resolution steps, and update deployment documentation to prevent recurrence of similar issues.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -412,11 +412,24 @@
         "dependencies": [],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Preserve Form Data on Password Validation Failure in User Creation Form",
+        "description": "Update the user creation form so that when password validation fails, all other entered information remains intact and only the password field is flagged for correction, preventing full form reset and improving user experience.",
+        "details": "Refactor the user creation form logic to decouple password validation errors from a full form reset. Use controlled components or state management (e.g., React useState or similar) to persist all non-password field values when a password fails validation. On form submission, validate the password according to existing security requirements. If the password does not meet criteria, display a clear, inline error message next to the password field, and ensure all other form fields retain their values. Only clear or highlight the password field as needed. Avoid using browser default form reset or uncontrolled form elements that would cause loss of user input. Consider providing real-time password validation feedback to further reduce friction. Ensure accessibility by associating error messages with the password input and using appropriate ARIA attributes if necessary.",
+        "testStrategy": "1. Attempt to create a user with all fields filled, but an invalid password; verify that only the password field is cleared or flagged, and all other fields retain their values.\n2. Confirm that error messages are displayed inline and clearly indicate the password requirements that were not met.\n3. Test with multiple consecutive password validation failures to ensure no other form data is lost.\n4. Validate that, upon correcting the password and resubmitting, the user is created successfully and all entered data is processed as expected.\n5. Test with assistive technologies to ensure error messages are accessible and properly linked to the password field.",
+        "status": "pending",
+        "dependencies": [
+          15
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-07T20:34:24.556Z",
-      "updated": "2025-08-10T04:48:11.644Z",
+      "updated": "2025-08-10T05:05:55.691Z",
       "description": "Tasks for master context"
     }
   },

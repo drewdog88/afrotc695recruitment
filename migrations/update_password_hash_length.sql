@@ -20,3 +20,4 @@ WHERE table_name = 'password_history' AND column_name = 'password_hash';
 
 
 
+
