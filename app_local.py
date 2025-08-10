@@ -27,8 +27,8 @@ from vercel_blob import put, list as blob_list, delete, head
 import base64
 
 # Security imports
-from flask_talisman import Talisman
-from flask_wtf.csrf import CSRFProtect
+# from flask_talisman import Talisman  # Removed security hardening
+# from flask_wtf.csrf import CSRFProtect  # Removed security hardening
 
 def test_blob_storage():
     """Test Vercel Blob storage connectivity"""
@@ -177,60 +177,60 @@ if database_url and 'postgresql' in database_url:
 
 # Neon serverless connection removed - using SQLAlchemy with psycopg2 instead
 
-# Security configuration
+# Security configuration - REMOVED for testing
 # Content Security Policy (CSP) configuration
-csp = {
-    'default-src': ["'self'"],
-    'script-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline scripts
-        "'unsafe-eval'",    # Required for Chart.js
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://code.jquery.com"
-    ],
-    'style-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline styles
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://fonts.googleapis.com"
-    ],
-    'font-src': [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'img-src': [
-        "'self'",
-        "data:",
-        "https:",
-        "https://www.up.edu",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'connect-src': ["'self'"],
-    'frame-src': ["'none'"],
-    'object-src': ["'none'"],
-    'base-uri': ["'self'"],
-    'form-action': ["'self'"]
-}
+# csp = {
+#     'default-src': ["'self'"],
+#     'script-src': [
+#         "'self'",
+#         "'unsafe-inline'",  # Required for Bootstrap and inline scripts
+#         "'unsafe-eval'",    # Required for Chart.js
+#         "https://cdn.jsdelivr.net",
+#         "https://cdnjs.cloudflare.com",
+#         "https://code.jquery.com"
+#     ],
+#     'style-src': [
+#         "'self'",
+#         "'unsafe-inline'",  # Required for Bootstrap and inline styles
+#         "https://cdn.jsdelivr.net",
+#         "https://cdnjs.cloudflare.com",
+#         "https://fonts.googleapis.com"
+#     ],
+#     'font-src': [
+#         "'self'",
+#         "https://fonts.gstatic.com",
+#         "https://cdn.jsdelivr.net",
+#         "https://cdnjs.cloudflare.com"
+#     ],
+#     'img-src': [
+#         "'self'",
+#         "data:",
+#         "https:",
+#         "https://www.up.edu",
+#         "https://cdn.jsdelivr.net",
+#         "https://cdnjs.cloudflare.com"
+#     ],
+#     'connect-src': ["'self'"],
+#     'frame-src': ["'none'"],
+#     'object-src': ["'none'"],
+#     'base-uri': ["'self'"],
+#     'form-action': ["'self'"]
+# }
 
-# Initialize Flask-Talisman with security headers
-talisman = Talisman(
-    app,
-    content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src'],
-    force_https=False,  # Set to True in production
-    strict_transport_security=True,
-    strict_transport_security_max_age=31536000,
-    strict_transport_security_include_subdomains=True,
-    strict_transport_security_preload=True
-)
+# Initialize Flask-Talisman with security headers - REMOVED
+# talisman = Talisman(
+#     app,
+#     content_security_policy=csp,
+#     content_security_policy_nonce_in=['script-src'],
+#     force_https=False,  # Set to True in production
+#     strict_transport_security=True,
+#     strict_transport_security_max_age=31536000,
+#     strict_transport_security_include_subdomains=True,
+#     strict_transport_security_preload=True
+# )
 
-# Initialize CSRF protection
-csrf = CSRFProtect(app)
+# Initialize CSRF protection - REMOVED
+# csrf = CSRFProtect(app)
 
 db = SQLAlchemy(app)
 

@@ -7,12 +7,12 @@ import os
 import shutil
 import sqlite3
 from dotenv import load_dotenv
-# import pandas as pd  # Removed to reduce serverless function size
+import pandas as pd
 from io import BytesIO
-# from reportlab.lib.pagesizes import letter, A4, landscape  # Removed to reduce serverless function size
-# from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer  # Removed to reduce serverless function size
-# from reportlab.lib.styles import getSampleStyleSheet  # Removed to reduce serverless function size
-# from reportlab.lib import colors  # Removed to reduce serverless function size
+from reportlab.lib.pagesizes import letter, A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 import tempfile
 import zipfile
 import json
@@ -21,9 +21,7 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from vercel_blob import put, list as blob_list, delete, head
 
-# Security imports
-from flask_talisman import Talisman
-from flask_wtf.csrf import CSRFProtect
+
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
 # Load environment variables
@@ -60,60 +58,7 @@ if database_url and 'postgresql' in database_url:
 
 # Neon serverless connection removed - using SQLAlchemy with psycopg2 instead
 
-# Security configuration
-# Content Security Policy (CSP) configuration
-csp = {
-    'default-src': ["'self'"],
-    'script-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline scripts
-        "'unsafe-eval'",    # Required for Chart.js
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://code.jquery.com"
-    ],
-    'style-src': [
-        "'self'",
-        "'unsafe-inline'",  # Required for Bootstrap and inline styles
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://fonts.googleapis.com"
-    ],
-    'font-src': [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'img-src': [
-        "'self'",
-        "data:",
-        "https:",
-        "https://www.up.edu",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com"
-    ],
-    'connect-src': ["'self'"],
-    'frame-src': ["'none'"],
-    'object-src': ["'none'"],
-    'base-uri': ["'self'"],
-    'form-action': ["'self'"]
-}
 
-# Initialize Flask-Talisman with security headers
-talisman = Talisman(
-    app,
-    content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src'],
-    force_https=True,  # Force HTTPS in production
-    strict_transport_security=True,
-    strict_transport_security_max_age=31536000,
-    strict_transport_security_include_subdomains=True,
-    strict_transport_security_preload=True
-)
-
-# Initialize CSRF protection
-csrf = CSRFProtect(app)
 
 db = SQLAlchemy(app)
 
@@ -2427,42 +2372,89 @@ def download_activity_log(format):
     return export_data(data, f'activity_log_{datetime.now().strftime("%Y%m%d")}', format, 'Activity Log')
 
 def export_data(data, filename, format, title):
-    """Helper function to export data in different formats - DISABLED for serverless size optimization"""
-    # Temporarily disabled to reduce serverless function size
-    flash('Export functionality temporarily disabled for serverless optimization', 'warning')
-    return redirect(url_for('dashboard'))
-    
-    # Original implementation commented out to reduce bundle size:
-    # if format == 'csv':
-    #     df = pd.DataFrame(data)
-    #     output = BytesIO()
-    #     df.to_csv(output, index=False)
-    #     output.seek(0)
-    #     return send_file(
-    #         output,
-    #         mimetype='text/csv',
-    #         as_attachment=True,
-    #         download_name=f'{filename}.csv'
-    #     )
-    # elif format == 'excel':
-    #     df = pd.DataFrame(data)
-    #     output = BytesIO()
-    #     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-    #         df.to_excel(writer, sheet_name=title, index=False)
-    #     output.seek(0)
-    #     return send_file(
-    #         output,
-    #         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    #         as_attachment=True,
-    #         download_name=f'{filename}.xlsx'
-    #     )
-    # elif format == 'pdf':
-    #     # PDF generation disabled for serverless optimization
-    #     flash('PDF export temporarily disabled for serverless optimization', 'warning')
-    #     return redirect(url_for('dashboard'))
-    # else:
-    #     flash('Invalid format specified', 'error')
-    #     return redirect(url_for('dashboard'))
+    """Helper function to export data in different formats"""
+    if format == 'csv':
+        df = pd.DataFrame(data)
+        output = BytesIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'{filename}.csv'
+        )
+
+    elif format == 'excel':
+        df = pd.DataFrame(data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name=title, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'{filename}.xlsx'
+        )
+
+    elif format == 'pdf':
+        output = BytesIO()
+        # Use landscape orientation for better table fit
+        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
+        elements = []
+
+        # Add title
+        styles = getSampleStyleSheet()
+        title_para = Paragraph(f"<h1>{title}</h1>", styles['Title'])
+        elements.append(title_para)
+        elements.append(Paragraph("<br/>", styles['Normal']))
+
+        # Prepare table data
+        if data:
+            headers = list(data[0].keys())
+            table_data = [headers]  # Header row
+
+            for row in data:
+                table_data.append([str(value) for value in row.values()])
+
+            # Calculate available width for table (landscape A4 width minus margins)
+            available_width = landscape(A4)[0] - 72  # 72 points = 1 inch margin on each side
+            num_columns = len(headers)
+
+            # Create table with calculated column widths
+            table = Table(table_data, colWidths=[available_width/num_columns] * num_columns)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),  # Reduced font size for headers
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Reduced font size for data
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),  # Alternating row colors
+                ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
+            ]))
+            elements.append(table)
+
+        doc.build(elements)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'{filename}.pdf'
+        )
+
+    else:
+        flash('Invalid format specified', 'error')
+        return redirect(url_for('dashboard'))
 
 # Recruitment Materials Routes
 @app.route('/materials')
