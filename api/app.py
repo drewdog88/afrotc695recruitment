@@ -1163,11 +1163,20 @@ def recruits():
         if sort_by not in valid_sorts:
             sort_by = 'created_at'
         
-        # Apply sorting
-        if order == 'asc':
-            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
-        else:
-            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
+        # Add specific error handling for database queries
+        try:
+            # Apply sorting
+            if order == 'asc':
+                recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
+            else:
+                recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
+        except Exception as db_error:
+            print(f"Database error in /recruits route: {db_error}")
+            print(f"Database error type: {type(db_error)}")
+            import traceback
+            print(f"Database traceback: {traceback.format_exc()}")
+            flash('Database connection error. Please try again.', 'error')
+            return redirect(url_for('dashboard'))
         
         return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
         
@@ -1594,7 +1603,17 @@ def admin():
             flash('Access denied. Admin privileges required.', 'error')
             return redirect(url_for('dashboard'))
         
-        users = User.query.all()
+        # Add specific error handling for database queries
+        try:
+            users = User.query.all()
+        except Exception as db_error:
+            print(f"Database error in /admin route: {db_error}")
+            print(f"Database error type: {type(db_error)}")
+            import traceback
+            print(f"Database traceback: {traceback.format_exc()}")
+            flash('Database connection error. Please try again.', 'error')
+            return redirect(url_for('dashboard'))
+        
         backup_files = get_backup_files()
         return render_template('admin.html', users=users, backup_files=backup_files)
         
