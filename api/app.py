@@ -1188,7 +1188,16 @@ def recruits():
             flash('Database connection error. Please try again.', 'error')
             return redirect(url_for('dashboard'))
         
-        return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+        print(f"About to render recruits template with {len(recruits)} recruits")
+        try:
+            return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+        except Exception as template_error:
+            print(f"Template rendering error: {template_error}")
+            print(f"Template error type: {type(template_error)}")
+            import traceback
+            print(f"Template traceback: {traceback.format_exc()}")
+            flash('Template rendering error. Please try again.', 'error')
+            return redirect(url_for('dashboard'))
         
     except Exception as e:
         print(f"Error in /recruits route: {e}")
