@@ -1188,16 +1188,7 @@ def recruits():
             flash('Database connection error. Please try again.', 'error')
             return redirect(url_for('dashboard'))
         
-        print(f"About to render recruits template with {len(recruits)} recruits")
-        try:
-            return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
-        except Exception as template_error:
-            print(f"Template rendering error: {template_error}")
-            print(f"Template error type: {type(template_error)}")
-            import traceback
-            print(f"Template traceback: {traceback.format_exc()}")
-            flash('Template rendering error. Please try again.', 'error')
-            return redirect(url_for('dashboard'))
+        return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
         
     except Exception as e:
         print(f"Error in /recruits route: {e}")
@@ -1250,6 +1241,90 @@ def add_recruit():
         return redirect(url_for('recruits'))
     
     return render_template('add_recruit.html')
+
+@app.route('/recruits/edit/<int:recruit_id>', methods=['GET', 'POST'])
+def edit_recruit(recruit_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    recruit = PotentialRecruit.query.get_or_404(recruit_id)
+    
+    if request.method == 'POST':
+        # Store old values for logging
+        old_status = recruit.status
+        old_school = recruit.current_school
+        
+        # Update recruit
+        recruit.first_name = request.form['first_name']
+        recruit.last_name = request.form['last_name']
+        recruit.email = request.form['email']
+        recruit.phone = request.form['phone']
+        recruit.major = request.form['major']
+        recruit.current_school = request.form['current_school']
+        recruit.school_type = request.form['school_type']
+        recruit.high_school_graduation_year = request.form.get('high_school_graduation_year')
+        recruit.expected_college_graduation_year = request.form.get('expected_college_graduation_year')
+        recruit.gpa = request.form.get('gpa')
+        recruit.sat_score = request.form.get('sat_score')
+        recruit.act_score = request.form.get('act_score')
+        recruit.interests = request.form['interests']
+        recruit.notes = request.form['notes']
+        recruit.status = request.form['status']
+        
+        try:
+            db.session.commit()
+            
+            # Log changes
+            changes = []
+            if old_status != recruit.status:
+                changes.append(f"Status: {old_status} → {recruit.status}")
+            if old_school != recruit.current_school:
+                changes.append(f"School: {old_school} → {recruit.current_school}")
+            
+            log_activity(
+                'UPDATE',
+                'potential_recruit',
+                recruit.id,
+                f"Recruit: {recruit.first_name} {recruit.last_name}",
+                f"Updated recruit. Changes: {', '.join(changes) if changes else 'General update'}"
+            )
+            
+            flash('Recruit updated successfully!', 'success')
+            return redirect(url_for('recruits'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating recruit. Please try again.', 'error')
+            print(f"Error updating recruit: {e}")
+    
+    return render_template('edit_recruit.html', recruit=recruit)
+
+@app.route('/recruits/delete/<int:recruit_id>', methods=['POST'])
+def delete_recruit(recruit_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    recruit = PotentialRecruit.query.get_or_404(recruit_id)
+    name = f"{recruit.first_name} {recruit.last_name}"
+    
+    try:
+        db.session.delete(recruit)
+        db.session.commit()
+        
+        log_activity(
+            'DELETE',
+            'potential_recruit',
+            recruit_id,
+            f"Recruit: {name}",
+            f"Deleted recruit from {recruit.current_school}"
+        )
+        
+        flash('Recruit deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting recruit. Please try again.', 'error')
+        print(f"Error deleting recruit: {e}")
+    
+    return redirect(url_for('recruits'))
 
 @app.route('/cadet')
 def cadet():
