@@ -2800,6 +2800,30 @@ def test_backup():
 # For Vercel serverless deployment, we don't need the __main__ block
 # Database initialization now happens during app startup via init_database()
 
+@app.route('/admin/code-coverage')
+def code_coverage():
+    """Code coverage analysis page"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    return render_template('code_coverage.html')
+
+@app.route('/admin/quality-analysis')
+def quality_analysis():
+    """Quality analysis page"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    return render_template('quality_analysis.html')
+
+@app.route('/admin/vulnerability-scan')
+def vulnerability_scan():
+    """Vulnerability scan page"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    return render_template('vulnerability_scan.html')
+
 # Initialize database after all models are defined
 init_database()
 
