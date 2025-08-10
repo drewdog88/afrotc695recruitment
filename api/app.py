@@ -891,8 +891,14 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        # Check if form data is present
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        # Validate that both fields are provided
+        if not username or not password:
+            flash('Please enter both username and password.', 'error')
+            return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         if user:
