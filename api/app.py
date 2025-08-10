@@ -202,6 +202,11 @@ def restore_database(backup_url):
 def get_backup_files():
     """Get list of available backup files with metadata"""
     try:
+        # Check if blob storage is configured
+        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
+            print("Warning: BLOB_READ_WRITE_TOKEN not found, returning empty backup list")
+            return []
+        
         blob_files = blob_list()
         
         if not blob_files:
@@ -257,6 +262,7 @@ def get_backup_files():
         
     except Exception as e:
         print(f"Error getting backup files: {e}")
+        # Return empty list instead of crashing
         return []
 
 
