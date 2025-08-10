@@ -92,7 +92,7 @@ class ActivityLog(db.Model):
 class PasswordHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship to user
@@ -103,18 +103,19 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     phone = db.Column(db.String(20))
     role = db.Column(db.String(20), default='recruiter')  # admin or recruiter
     is_active = db.Column(db.Boolean, default=True)
     is_locked = db.Column(db.Boolean, default=False)
+    failed_login_attempts = db.Column(db.Integer, default=0)
     password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_expires_at = db.Column(db.DateTime)
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
-    secret_answer_hash = db.Column(db.String(120), nullable=False)
+    secret_answer_hash = db.Column(db.String(255), nullable=False)
     
     # 2FA Authentication Fields
     totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
@@ -458,34 +459,378 @@ def login():
         password = request.form['password']
         
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            # Check account status
-            access_granted, error_message = check_user_access(user)
-            if not access_granted:
-                flash(f'Login failed: {error_message}', 'error')
-                log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+        if user:
+            # Check if account is locked
+            if user.is_locked:
+                flash('Account is locked', 'error')
+                log_activity('LOGIN_FAILED', details=f'User {username} login failed: Account is locked')
                 return render_template('login.html')
             
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            
-            # Log successful login
-            log_activity('LOGIN', details=f'User {username} logged in successfully')
-            
-            # Check if password change is required
-            if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                flash('Your password will expire soon. Please change it.', 'warning')
-                return redirect(url_for('change_password'))
-            
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
+            if check_password_hash(user.password_hash, password):
+                # Check account status
+                access_granted, error_message = check_user_access(user)
+                if not access_granted:
+                    flash(f'Login failed: {error_message}', 'error')
+                    log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+                    return render_template('login.html')
+                
+                # Reset failed login attempts on successful login
+                user.failed_login_attempts = 0
+                user.is_locked = False
+                db.session.commit()
+                
+                # Check if 2FA is enabled for this user
+                if user.is_2fa_enabled:
+                    # Store user info in session for 2FA verification
+                    session['pending_2fa_user_id'] = user.id
+                    session['pending_2fa_username'] = user.username
+                    session['pending_2fa_role'] = user.role
+                    
+                    # Log 2FA verification required
+                    log_activity('LOGIN_2FA_REQUIRED', 'user', user.id, f'2FA verification required for {username}')
+                    
+                    flash('Please complete two-factor authentication to continue.', 'info')
+                    return redirect(url_for('verify_2fa'))
+                else:
+                    # Complete login for users without 2FA
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['role'] = user.role
+                    
+                    # Log successful login
+                    log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
+                    
+                    # Check if password change is required
+                    if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                        flash('Your password will expire soon. Please change it.', 'warning')
+                        return redirect(url_for('change_password'))
+                    
+                    flash('Login successful!', 'success')
+                    return redirect(url_for('dashboard'))
+            else:
+                # Increment failed login attempts
+                user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                if user.failed_login_attempts >= 5:  # Lock after 5 failed attempts
+                    user.is_locked = True
+                    flash('Account is locked', 'error')
+                else:
+                    flash('Invalid username or password', 'error')
+                db.session.commit()
+                
+                # Log failed login attempt
+                log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}. Attempts: {user.failed_login_attempts}')
         else:
-            # Log failed login attempt
-            log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}')
+            # Log failed login attempt for non-existent user
+            log_activity('LOGIN_FAILED', details=f'Failed login attempt for non-existent username: {username}')
             flash('Invalid username or password', 'error')
     
     return render_template('login.html')
+
+# 2FA Authentication Routes
+@app.route('/setup-2fa', methods=['GET', 'POST'])
+def setup_2fa():
+    """Setup 2FA for the current user"""
+    if 'user_id' not in session:
+        flash('Please log in to set up 2FA.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    # Check if user can enable 2FA
+    if not user.can_use_2fa:
+        flash('2FA is not available for your account.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Check if 2FA is already set up
+    if user.has_2fa_setup():
+        flash('2FA is already set up for your account.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'GET':
+        # Generate TOTP secret and QR code
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
+        twofa_utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(twofa_utils)
+        
+        secret = twofa_utils.generate_totp_secret()
+        qr_code = twofa_utils.generate_qr_code(secret, user.username, 'AFROTC 695 Recruitment')
+        
+        # Store secret temporarily in session
+        session['temp_2fa_secret'] = secret
+        
+        return render_template('setup_2fa.html', 
+                             qr_code=qr_code, 
+                             secret=secret, 
+                             username=user.username)
+    
+    elif request.method == 'POST':
+        totp_code = request.form.get('totp_code')
+        if not totp_code:
+            flash('Please enter the verification code.', 'error')
+            return redirect(url_for('setup_2fa'))
+        
+        # Get the secret from session
+        secret = session.get('temp_2fa_secret')
+        if not secret:
+            flash('Setup session expired. Please try again.', 'error')
+            return redirect(url_for('setup_2fa'))
+        
+        # Import 2FA utils
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
+        twofa_utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(twofa_utils)
+        
+        # Verify the TOTP code
+        if twofa_utils.verify_totp_code(secret, totp_code):
+            # Generate backup codes
+            backup_codes = twofa_utils.generate_backup_codes()
+            backup_hashes = [twofa_utils.hash_backup_code(code) for code in backup_codes]
+            
+            # Encrypt and store the secret
+            encrypted_secret = twofa_utils.encrypt_totp_secret(secret)
+            
+            # Update user
+            user.totp_secret = encrypted_secret
+            user.totp_enabled = True
+            user.totp_setup_completed = True
+            user.backup_codes_hash = twofa_utils.serialize_backup_codes_hash(backup_hashes)
+            
+            db.session.commit()
+            
+            # Clear temporary session data
+            session.pop('temp_2fa_secret', None)
+            
+            # Log 2FA setup
+            log_activity('2FA_SETUP', 'user', user.id, f'2FA setup completed for {user.username}')
+            
+            flash('Two-factor authentication has been set up successfully!', 'success')
+            return render_template('setup_2fa_complete.html', backup_codes=backup_codes)
+        else:
+            flash('Invalid verification code. Please try again.', 'error')
+            return redirect(url_for('setup_2fa'))
+
+@app.route('/verify-2fa', methods=['GET', 'POST'])
+def verify_2fa():
+    """Verify 2FA during login"""
+    # Check if there's a pending 2FA verification
+    pending_user_id = session.get('pending_2fa_user_id')
+    if not pending_user_id:
+        flash('No pending 2FA verification.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(pending_user_id)
+    if not user or not user.is_2fa_enabled:
+        flash('Invalid 2FA verification request.', 'error')
+        session.pop('pending_2fa_user_id', None)
+        session.pop('pending_2fa_username', None)
+        session.pop('pending_2fa_role', None)
+        return redirect(url_for('login'))
+    
+    if request.method == 'GET':
+        return render_template('verify_2fa.html', username=user.username)
+    
+    elif request.method == 'POST':
+        totp_code = request.form.get('totp_code')
+        backup_code = request.form.get('backup_code')
+        
+        if not totp_code and not backup_code:
+            flash('Please enter either a TOTP code or backup code.', 'error')
+            return render_template('verify_2fa.html', username=user.username)
+        
+        # Import 2FA utils
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
+        twofa_utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(twofa_utils)
+        
+        # Verify TOTP code
+        if totp_code:
+            try:
+                decrypted_secret = twofa_utils.decrypt_totp_secret(user.totp_secret)
+                if twofa_utils.verify_totp_code(decrypted_secret, totp_code):
+                    # Complete login
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['role'] = user.role
+                    
+                    # Clear pending 2FA session data
+                    session.pop('pending_2fa_user_id', None)
+                    session.pop('pending_2fa_username', None)
+                    session.pop('pending_2fa_role', None)
+                    
+                    # Log successful 2FA verification
+                    log_activity('LOGIN_2FA_SUCCESS', 'user', user.id, f'2FA verification successful for {user.username}')
+                    
+                    flash('Login successful!', 'success')
+                    return redirect(url_for('dashboard'))
+                else:
+                    flash('Invalid TOTP code. Please try again.', 'error')
+                    return render_template('verify_2fa.html', username=user.username)
+            except Exception as e:
+                flash('Error verifying TOTP code. Please try again.', 'error')
+                return render_template('verify_2fa.html', username=user.username)
+        
+        # Verify backup code
+        elif backup_code:
+            try:
+                stored_hashes = twofa_utils.parse_backup_codes_hash(user.backup_codes_hash)
+                is_valid, used_hash = twofa_utils.verify_backup_code(backup_code, stored_hashes)
+                
+                if is_valid:
+                    # Remove used backup code
+                    user.backup_codes_hash = twofa_utils.remove_used_backup_code(user.backup_codes_hash, used_hash)
+                    db.session.commit()
+                    
+                    # Complete login
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['role'] = user.role
+                    
+                    # Clear pending 2FA session data
+                    session.pop('pending_2fa_user_id', None)
+                    session.pop('pending_2fa_username', None)
+                    session.pop('pending_2fa_role', None)
+                    
+                    # Log successful backup code usage
+                    log_activity('LOGIN_2FA_BACKUP', 'user', user.id, f'Backup code used for {user.username}')
+                    
+                    flash('Login successful using backup code!', 'success')
+                    return redirect(url_for('dashboard'))
+                else:
+                    flash('Invalid backup code. Please try again.', 'error')
+                    return render_template('verify_2fa.html', username=user.username)
+            except Exception as e:
+                flash('Error verifying backup code. Please try again.', 'error')
+                return render_template('verify_2fa.html', username=user.username)
+
+@app.route('/disable-2fa', methods=['POST'])
+def disable_2fa():
+    """Disable 2FA for the current user"""
+    if 'user_id' not in session:
+        flash('Please log in to manage 2FA.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if not user.is_2fa_enabled:
+        flash('2FA is not enabled for your account.', 'error')
+        return redirect(url_for('profile'))
+    
+    # Disable 2FA
+    user.totp_enabled = False
+    user.totp_setup_completed = False
+    user.totp_secret = None
+    user.backup_codes_hash = None
+    
+    db.session.commit()
+    
+    # Log 2FA disable
+    log_activity('2FA_DISABLE', 'user', user.id, f'2FA disabled for {user.username}')
+    
+    flash('Two-factor authentication has been disabled.', 'success')
+    return redirect(url_for('profile'))
+
+@app.route('/regenerate-backup-codes', methods=['POST'])
+def regenerate_backup_codes():
+    """Regenerate backup codes for the current user"""
+    if 'user_id' not in session:
+        flash('Please log in to manage 2FA.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if not user.is_2fa_enabled:
+        flash('2FA is not enabled for your account.', 'error')
+        return redirect(url_for('profile'))
+    
+    # Import 2FA utils
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
+    twofa_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(twofa_utils)
+    
+    # Generate new backup codes
+    backup_codes = twofa_utils.generate_backup_codes()
+    backup_hashes = [twofa_utils.hash_backup_code(code) for code in backup_codes]
+    
+    # Update user
+    user.backup_codes_hash = twofa_utils.serialize_backup_codes_hash(backup_hashes)
+    db.session.commit()
+    
+    # Log backup code regeneration
+    log_activity('2FA_BACKUP_REGENERATE', 'user', user.id, f'Backup codes regenerated for {user.username}')
+    
+    flash('Backup codes have been regenerated. Please save them securely.', 'success')
+    return render_template('setup_2fa_complete.html', backup_codes=backup_codes)
+
+# Admin 2FA Management Routes
+@app.route('/admin/enable-2fa/<int:user_id>', methods=['POST'])
+def admin_enable_2fa(user_id):
+    """Admin route to enable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+    
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Check if user can enable 2FA
+    if not target_user.can_use_2fa:
+        flash('2FA is not available for this user.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Enable 2FA for the user
+    target_user.totp_enabled = True
+    target_user.totp_setup_completed = False  # User needs to complete setup
+    db.session.commit()
+    
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_ENABLE', 'user', target_user.id, 
+                f'Admin {admin_user.username} enabled 2FA for {target_user.username}')
+    
+    flash(f'Two-factor authentication has been enabled for {target_user.full_name}. They will be prompted to complete setup on their next login.', 'success')
+    return redirect(url_for('user_management'))
+
+@app.route('/admin/disable-2fa/<int:user_id>', methods=['POST'])
+def admin_disable_2fa(user_id):
+    """Admin route to disable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+    
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Disable 2FA for the user
+    target_user.totp_enabled = False
+    target_user.totp_setup_completed = False
+    target_user.totp_secret = None
+    target_user.backup_codes_hash = None
+    db.session.commit()
+    
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_DISABLE', 'user', target_user.id, 
+                f'Admin {admin_user.username} disabled 2FA for {target_user.username}')
+    
+    flash(f'Two-factor authentication has been disabled for {target_user.full_name}.', 'success')
+    return redirect(url_for('user_management'))
 
 @app.route('/logout')
 def logout():
@@ -1225,6 +1570,168 @@ def system_statistics():
     }
     
     return render_template('system_statistics.html', stats=stats)
+
+@app.route('/admin/code-coverage')
+def code_coverage():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load coverage summary
+    coverage_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "coverage_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                coverage_data = json.load(f)
+                last_updated = coverage_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading coverage data: {e}', 'error')
+    
+    return render_template('code_coverage.html', 
+                         coverage_data=coverage_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/code-coverage/run', methods=['POST'])
+def run_code_coverage():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the coverage analysis
+        result = subprocess.run([
+            sys.executable, "coverage_runner.py"
+        ], capture_output=True, text=True, timeout=300)  # 5 minute timeout
+        
+        if result.returncode == 0:
+            flash('Code coverage analysis completed successfully!', 'success')
+        else:
+            flash(f'Coverage analysis failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Coverage analysis timed out after 5 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running coverage analysis: {e}', 'error')
+    
+    return redirect(url_for('code_coverage'))
+
+@app.route('/admin/quality-analysis')
+def quality_analysis():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load quality summary
+    quality_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "quality_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                quality_data = json.load(f)
+                last_updated = quality_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading quality data: {e}', 'error')
+    
+    return render_template('quality_analysis.html', 
+                         quality_data=quality_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/quality-analysis/run', methods=['POST'])
+def run_quality_analysis():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the quality analysis
+        result = subprocess.run([
+            sys.executable, "quality_analyzer.py"
+        ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
+        
+        if result.returncode == 0:
+            flash('Quality analysis completed successfully!', 'success')
+        else:
+            flash(f'Quality analysis failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Quality analysis timed out after 10 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running quality analysis: {e}', 'error')
+    
+    return redirect(url_for('quality_analysis'))
+
+@app.route('/admin/vulnerability-scan')
+def vulnerability_scan():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load vulnerability summary
+    vuln_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "vulnerability_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                vuln_data = json.load(f)
+                last_updated = vuln_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading vulnerability data: {e}', 'error')
+    
+    return render_template('vulnerability_scan.html', 
+                         vuln_data=vuln_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/vulnerability-scan/run', methods=['POST'])
+def run_vulnerability_scan():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the vulnerability scan
+        result = subprocess.run([
+            sys.executable, "vulnerability_scanner.py"
+        ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
+        
+        if result.returncode == 0:
+            flash('Vulnerability scan completed successfully!', 'success')
+        else:
+            flash(f'Vulnerability scan failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Vulnerability scan timed out after 10 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running vulnerability scan: {e}', 'error')
+    
+    return redirect(url_for('vulnerability_scan'))
 
 @app.route('/admin/users/add', methods=['GET', 'POST'])
 def add_user():

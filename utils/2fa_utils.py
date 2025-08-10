@@ -265,8 +265,14 @@ def validate_totp_secret(secret: str) -> bool:
         True if secret is valid, False otherwise
     """
     try:
-        # Check if it's valid base32
-        pyotp.TOTP(secret)
+        # Check if it's valid base32 and has proper length
+        if not secret or len(secret) < 16:
+            return False
+        
+        # Try to create TOTP object
+        totp = pyotp.TOTP(secret)
+        # Verify it can generate a code
+        totp.now()
         return True
     except Exception:
         return False

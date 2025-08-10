@@ -3,7 +3,7 @@ import unittest
 import tempfile
 from datetime import datetime
 from app_local import app, db, RecruitmentDocument
-from vercel_storage import blob
+from vercel_blob import put, list as blob_list, delete, head
 from sqlalchemy import text
 
 class TestBlobOperations(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestBlobOperations(unittest.TestCase):
             
             try:
                 # Upload to blob storage
-                blob_response = blob.put(test_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(test_filename, test_content, {"addRandomSuffix": False})
                 
                 # Verify response structure
                 self.assertIsInstance(blob_response, dict)
@@ -48,7 +48,7 @@ class TestBlobOperations(unittest.TestCase):
                 print(f"✅ Successfully uploaded file: {blob_response['url']}")
                 
                 # Clean up - delete the test file
-                blob.delete(blob_response['url'], {})
+                delete(blob_response['url'], {})
                 
             except Exception as e:
                 self.fail(f"Blob put operation failed: {str(e)}")
@@ -62,11 +62,11 @@ class TestBlobOperations(unittest.TestCase):
             
             try:
                 # Upload to blob storage
-                blob_response = blob.put(test_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(test_filename, test_content, {"addRandomSuffix": False})
                 blob_url = blob_response['url']
                 
                 # Get metadata
-                blob_meta = blob.head(blob_url, {})
+                blob_meta = head(blob_url, {})
                 
                 # Verify metadata structure
                 self.assertIsInstance(blob_meta, dict)
@@ -76,7 +76,7 @@ class TestBlobOperations(unittest.TestCase):
                 print(f"✅ Successfully retrieved metadata: size={blob_meta['size']} bytes")
                 
                 # Clean up
-                blob.delete(blob_url, {})
+                delete(blob_url, {})
                 
             except Exception as e:
                 self.fail(f"Blob head operation failed: {str(e)}")
@@ -90,21 +90,21 @@ class TestBlobOperations(unittest.TestCase):
             
             try:
                 # Upload to blob storage
-                blob_response = blob.put(test_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(test_filename, test_content, {"addRandomSuffix": False})
                 blob_url = blob_response['url']
                 
                 # Verify file exists by getting metadata
-                blob_meta = blob.head(blob_url, {})
+                blob_meta = head(blob_url, {})
                 self.assertIsNotNone(blob_meta)
                 
                 # Delete the file
-                blob.delete(blob_url, {})
+                delete(blob_url, {})
                 
                 print(f"✅ Successfully deleted file: {blob_url}")
                 
                 # Verify file is deleted by trying to get metadata (should fail)
                 try:
-                    blob.head(blob_url, {})
+                    head(blob_url, {})
                     self.fail("File should have been deleted but still exists")
                 except Exception:
                     # This is expected - file should not exist
@@ -125,7 +125,7 @@ class TestBlobOperations(unittest.TestCase):
                 unique_filename = f"documents/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{test_filename}"
                 
                 # Upload to blob storage
-                blob_response = blob.put(unique_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(unique_filename, test_content, {"addRandomSuffix": False})
                 blob_url = blob_response['url']
                 
                 # Create database record
@@ -148,13 +148,13 @@ class TestBlobOperations(unittest.TestCase):
                 self.assertEqual(retrieved_doc.file_size, len(test_content))
                 
                 # Verify blob file exists
-                blob_meta = blob.head(blob_url, {})
+                blob_meta = head(blob_url, {})
                 self.assertEqual(blob_meta['size'], len(test_content))
                 
                 print(f"✅ Successfully completed document upload flow")
                 
                 # Clean up
-                blob.delete(blob_url, {})
+                delete(blob_url, {})
                 db.session.delete(retrieved_doc)
                 db.session.commit()
                 
@@ -171,7 +171,7 @@ class TestBlobOperations(unittest.TestCase):
             
             try:
                 # Upload to blob storage
-                blob_response = blob.put(unique_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(unique_filename, test_content, {"addRandomSuffix": False})
                 blob_url = blob_response['url']
                 
                 # Create database record
@@ -192,13 +192,13 @@ class TestBlobOperations(unittest.TestCase):
                 self.assertIsNotNone(retrieved_doc)
                 
                 # Verify we can get blob metadata (simulating download preparation)
-                blob_meta = blob.head(blob_url, {})
+                blob_meta = head(blob_url, {})
                 self.assertEqual(blob_meta['size'], len(test_content))
                 
                 print(f"✅ Successfully completed document download flow preparation")
                 
                 # Clean up
-                blob.delete(blob_url, {})
+                delete(blob_url, {})
                 db.session.delete(retrieved_doc)
                 db.session.commit()
                 
@@ -215,7 +215,7 @@ class TestBlobOperations(unittest.TestCase):
             
             try:
                 # Upload to blob storage
-                blob_response = blob.put(unique_filename, test_content, {"addRandomSuffix": False})
+                blob_response = put(unique_filename, test_content, {"addRandomSuffix": False})
                 blob_url = blob_response['url']
                 
                 # Create database record
@@ -237,12 +237,12 @@ class TestBlobOperations(unittest.TestCase):
                 self.assertIsNotNone(retrieved_doc)
                 
                 # Verify blob file exists
-                blob_meta = blob.head(blob_url, {})
+                blob_meta = head(blob_url, {})
                 self.assertIsNotNone(blob_meta)
                 
                 # Test deletion flow (simulate delete_document route)
                 # Delete from blob storage
-                blob.delete(blob_url, {})
+                delete(blob_url, {})
                 
                 # Delete from database
                 db.session.delete(retrieved_doc)
@@ -254,7 +254,7 @@ class TestBlobOperations(unittest.TestCase):
                 
                 # Verify blob file is deleted
                 try:
-                    blob.head(blob_url, {})
+                    head(blob_url, {})
                     self.fail("Blob file should have been deleted but still exists")
                 except Exception:
                     # This is expected - file should not exist
@@ -273,14 +273,14 @@ class TestBlobOperations(unittest.TestCase):
                 fake_url = "https://example.com/nonexistent.txt"
                 
                 try:
-                    blob.head(fake_url, {})
+                    head(fake_url, {})
                     self.fail("Should have failed for non-existent file")
                 except Exception as e:
                     print(f"✅ Correctly handled error for non-existent file: {str(e)}")
                 
                 # Test deleting non-existent file
                 try:
-                    blob.delete(fake_url, {})
+                    delete(fake_url, {})
                     # Note: delete might not fail for non-existent files in some storage systems
                     print(f"✅ Delete operation completed (may not fail for non-existent files)")
                 except Exception as e:

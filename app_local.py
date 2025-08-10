@@ -195,7 +195,7 @@ class ActivityLog(db.Model):
 class PasswordHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship to user
@@ -206,7 +206,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     phone = db.Column(db.String(20))
@@ -218,7 +218,7 @@ class User(db.Model):
     password_expires_at = db.Column(db.DateTime)
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
-    secret_answer_hash = db.Column(db.String(120), nullable=False)
+    secret_answer_hash = db.Column(db.String(255), nullable=False)
     
     # 2FA Authentication Fields
     totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
@@ -1113,20 +1113,34 @@ def login():
                 user.is_locked = False
                 db.session.commit()
                 
-                session['user_id'] = user.id
-                session['username'] = user.username
-                session['role'] = user.role
-                
-                # Log successful login
-                log_activity('LOGIN', details=f'User {username} logged in successfully')
-                
-                # Check if password change is required
-                if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                    flash('Your password will expire soon. Please change it.', 'warning')
-                    return redirect(url_for('change_password'))
-                
-                flash('Login successful!', 'success')
-                return redirect(url_for('dashboard'))
+                # Check if 2FA is enabled for this user
+                if user.is_2fa_enabled:
+                    # Store user info in session for 2FA verification
+                    session['pending_2fa_user_id'] = user.id
+                    session['pending_2fa_username'] = user.username
+                    session['pending_2fa_role'] = user.role
+                    
+                    # Log 2FA verification required
+                    log_activity('LOGIN_2FA_REQUIRED', 'user', user.id, f'2FA verification required for {username}')
+                    
+                    flash('Please complete two-factor authentication to continue.', 'info')
+                    return redirect(url_for('verify_2fa'))
+                else:
+                    # Complete login for users without 2FA
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['role'] = user.role
+                    
+                    # Log successful login
+                    log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
+                    
+                    # Check if password change is required
+                    if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                        flash('Your password will expire soon. Please change it.', 'warning')
+                        return redirect(url_for('change_password'))
+                    
+                    flash('Login successful!', 'success')
+                    return redirect(url_for('dashboard'))
             else:
                 # Increment failed login attempts
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
@@ -1183,7 +1197,14 @@ def setup_2fa():
         # Generate new TOTP secret if not already set
         if not user.totp_secret:
             try:
-                from utils.2fa_utils import generate_totp_secret, encrypt_totp_secret, generate_qr_code
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("2fa_utils", "utils/2fa_utils.py")
+                twofa_utils = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(twofa_utils)
+                
+                generate_totp_secret = twofa_utils.generate_totp_secret
+                encrypt_totp_secret = twofa_utils.encrypt_totp_secret
+                generate_qr_code = twofa_utils.generate_qr_code
                 
                 # Generate new TOTP secret
                 totp_secret = generate_totp_secret()
@@ -1215,7 +1236,13 @@ def setup_2fa():
         else:
             # User has a secret but hasn't completed setup
             try:
-                from utils.2fa_utils import decrypt_totp_secret, generate_qr_code
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("2fa_utils", "utils/2fa_utils.py")
+                twofa_utils = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(twofa_utils)
+                
+                decrypt_totp_secret = twofa_utils.decrypt_totp_secret
+                generate_qr_code = twofa_utils.generate_qr_code
                 
                 # Decrypt existing secret
                 totp_secret = decrypt_totp_secret(user.totp_secret)
@@ -1254,7 +1281,15 @@ def setup_2fa():
             return redirect(url_for('setup_2fa'))
         
         try:
-            from utils.2fa_utils import verify_totp_code, generate_backup_codes, hash_backup_code, serialize_backup_codes_hash
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("2fa_utils", "utils/2fa_utils.py")
+            twofa_utils = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(twofa_utils)
+            
+            verify_totp_code = twofa_utils.verify_totp_code
+            generate_backup_codes = twofa_utils.generate_backup_codes
+            hash_backup_code = twofa_utils.hash_backup_code
+            serialize_backup_codes_hash = twofa_utils.serialize_backup_codes_hash
             
             # Verify the TOTP code
             if not verify_totp_code(totp_secret, totp_code):
@@ -1316,7 +1351,17 @@ def verify_2fa():
             return render_template('verify_2fa.html', username=user.username)
         
         try:
-            from utils.2fa_utils import decrypt_totp_secret, verify_totp_code, parse_backup_codes_hash, verify_backup_code, remove_used_backup_code
+            # Import 2FA utilities using importlib to avoid syntax errors
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("2fa_utils", "utils/2fa_utils.py")
+            twofa_utils = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(twofa_utils)
+            
+            decrypt_totp_secret = twofa_utils.decrypt_totp_secret
+            verify_totp_code = twofa_utils.verify_totp_code
+            parse_backup_codes_hash = twofa_utils.parse_backup_codes_hash
+            verify_backup_code = twofa_utils.verify_backup_code
+            remove_used_backup_code = twofa_utils.remove_used_backup_code
             
             # Try TOTP code first
             if totp_code:
@@ -1430,7 +1475,15 @@ def regenerate_backup_codes():
         return redirect(url_for('profile'))
     
     try:
-        from utils.2fa_utils import generate_backup_codes, hash_backup_code, serialize_backup_codes_hash
+        # Import 2FA utilities using importlib to avoid syntax errors
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("2fa_utils", "utils/2fa_utils.py")
+        twofa_utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(twofa_utils)
+        
+        generate_backup_codes = twofa_utils.generate_backup_codes
+        hash_backup_code = twofa_utils.hash_backup_code
+        serialize_backup_codes_hash = twofa_utils.serialize_backup_codes_hash
         
         # Generate new backup codes
         backup_codes = generate_backup_codes(10)
@@ -1448,6 +1501,64 @@ def regenerate_backup_codes():
     except Exception as e:
         flash(f'Error regenerating backup codes: {str(e)}', 'error')
         return redirect(url_for('profile'))
+
+# Admin 2FA Management Routes
+@app.route('/admin/enable-2fa/<int:user_id>', methods=['POST'])
+def admin_enable_2fa(user_id):
+    """Admin route to enable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+    
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Check if user can enable 2FA
+    if not target_user.can_use_2fa:
+        flash('2FA is not available for this user.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Enable 2FA for the user
+    target_user.totp_enabled = True
+    target_user.totp_setup_completed = False  # User needs to complete setup
+    db.session.commit()
+    
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_ENABLE', 'user', target_user.id, 
+                f'Admin {admin_user.username} enabled 2FA for {target_user.username}')
+    
+    flash(f'Two-factor authentication has been enabled for {target_user.full_name}. They will be prompted to complete setup on their next login.', 'success')
+    return redirect(url_for('user_management'))
+
+@app.route('/admin/disable-2fa/<int:user_id>', methods=['POST'])
+def admin_disable_2fa(user_id):
+    """Admin route to disable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+    
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+    
+    # Disable 2FA for the user
+    target_user.totp_enabled = False
+    target_user.totp_setup_completed = False
+    target_user.totp_secret = None
+    target_user.backup_codes_hash = None
+    db.session.commit()
+    
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_DISABLE', 'user', target_user.id, 
+                f'Admin {admin_user.username} disabled 2FA for {target_user.username}')
+    
+    flash(f'Two-factor authentication has been disabled for {target_user.full_name}.', 'success')
+    return redirect(url_for('user_management'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -2282,6 +2393,168 @@ def system_statistics():
         print(f"Error in system statistics: {e}")
         flash('Error loading system statistics. Please try again.', 'error')
         return redirect(url_for('dashboard'))
+
+@app.route('/admin/code-coverage')
+def code_coverage():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load coverage summary
+    coverage_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "coverage_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                coverage_data = json.load(f)
+                last_updated = coverage_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading coverage data: {e}', 'error')
+    
+    return render_template('code_coverage.html', 
+                         coverage_data=coverage_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/code-coverage/run', methods=['POST'])
+def run_code_coverage():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the coverage analysis
+        result = subprocess.run([
+            sys.executable, "coverage_runner.py"
+        ], capture_output=True, text=True, timeout=300)  # 5 minute timeout
+        
+        if result.returncode == 0:
+            flash('Code coverage analysis completed successfully!', 'success')
+        else:
+            flash(f'Coverage analysis failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Coverage analysis timed out after 5 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running coverage analysis: {e}', 'error')
+    
+    return redirect(url_for('code_coverage'))
+
+@app.route('/admin/quality-analysis')
+def quality_analysis():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load quality summary
+    quality_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "quality_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                quality_data = json.load(f)
+                last_updated = quality_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading quality data: {e}', 'error')
+    
+    return render_template('quality_analysis.html', 
+                         quality_data=quality_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/quality-analysis/run', methods=['POST'])
+def run_quality_analysis():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the quality analysis
+        result = subprocess.run([
+            sys.executable, "quality_analyzer.py"
+        ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
+        
+        if result.returncode == 0:
+            flash('Quality analysis completed successfully!', 'success')
+        else:
+            flash(f'Quality analysis failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Quality analysis timed out after 10 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running quality analysis: {e}', 'error')
+    
+    return redirect(url_for('quality_analysis'))
+
+@app.route('/admin/vulnerability-scan')
+def vulnerability_scan():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import json
+    import os
+    from datetime import datetime
+    
+    # Try to load vulnerability summary
+    vuln_data = None
+    last_updated = None
+    
+    try:
+        summary_path = "vulnerability_reports/summary.json"
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r') as f:
+                vuln_data = json.load(f)
+                last_updated = vuln_data.get('generated_at')
+    except Exception as e:
+        flash(f'Error loading vulnerability data: {e}', 'error')
+    
+    return render_template('vulnerability_scan.html', 
+                         vuln_data=vuln_data, 
+                         last_updated=last_updated)
+
+@app.route('/admin/vulnerability-scan/run', methods=['POST'])
+def run_vulnerability_scan():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    import subprocess
+    import sys
+    
+    try:
+        # Run the vulnerability scan
+        result = subprocess.run([
+            sys.executable, "vulnerability_scanner.py"
+        ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
+        
+        if result.returncode == 0:
+            flash('Vulnerability scan completed successfully!', 'success')
+        else:
+            flash(f'Vulnerability scan failed: {result.stderr}', 'error')
+            
+    except subprocess.TimeoutExpired:
+        flash('Vulnerability scan timed out after 10 minutes', 'error')
+    except Exception as e:
+        flash(f'Error running vulnerability scan: {e}', 'error')
+    
+    return redirect(url_for('vulnerability_scan'))
 
 @app.route('/admin/activity-log/export/<format>')
 def export_activity_log(format):

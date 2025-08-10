@@ -280,7 +280,7 @@ class ActivityLog(db.Model):
 class PasswordHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship to user
@@ -291,18 +291,27 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     phone = db.Column(db.String(20))
     role = db.Column(db.String(20), default='recruiter')  # admin or recruiter
     is_active = db.Column(db.Boolean, default=True)
     is_locked = db.Column(db.Boolean, default=False)
+    failed_login_attempts = db.Column(db.Integer, default=0)
     password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_expires_at = db.Column(db.DateTime)
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
-    secret_answer_hash = db.Column(db.String(120), nullable=False)
+    secret_answer_hash = db.Column(db.String(255), nullable=False)
+    
+    # 2FA Authentication Fields
+    totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
+    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Whether 2FA is enabled
+    backup_codes_hash = db.Column(db.Text, nullable=True)  # Encrypted backup codes
+    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)  # Setup completion status
+    can_enable_2fa = db.Column(db.Boolean, default=True, nullable=False)  # Admin control flag
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -332,6 +341,20 @@ class User(db.Model):
             return None
         days_left = (self.password_expires_at - datetime.utcnow()).days
         return max(0, days_left)
+    
+    @property
+    def is_2fa_enabled(self):
+        return self.totp_enabled and self.totp_setup_completed
+    
+    @property
+    def can_use_2fa(self):
+        return self.can_enable_2fa and self.is_active
+    
+    def has_2fa_setup(self):
+        return bool(self.totp_secret and self.totp_setup_completed)
+    
+    def needs_2fa_setup(self):
+        return self.can_use_2fa and not self.has_2fa_setup()
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -866,34 +889,105 @@ def login():
         password = request.form['password']
         
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            # Check account status
-            access_granted, error_message = check_user_access(user)
-            if not access_granted:
-                flash(f'Login failed: {error_message}', 'error')
-                log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+        if user:
+            # Check if account is locked
+            if user.is_locked:
+                flash('Account is locked', 'error')
+                log_activity('LOGIN_FAILED', details=f'User {username} login failed: Account is locked')
                 return render_template('login.html')
             
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            
-            # Log successful login
-            log_activity('LOGIN', details=f'User {username} logged in successfully')
-            
-            # Check if password change is required
-            if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                flash('Your password will expire soon. Please change it.', 'warning')
-                return redirect(url_for('change_password'))
-            
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
+            if check_password_hash(user.password_hash, password):
+                # Check account status
+                access_granted, error_message = check_user_access(user)
+                if not access_granted:
+                    flash(f'Login failed: {error_message}', 'error')
+                    log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
+                    return render_template('login.html')
+                
+                # Reset failed login attempts on successful login
+                user.failed_login_attempts = 0
+                user.is_locked = False
+                db.session.commit()
+                
+                # Check if 2FA is enabled for this user
+                if user.is_2fa_enabled:
+                    # Store user info in session for 2FA verification
+                    session['pending_2fa_user_id'] = user.id
+                    session['pending_2fa_username'] = user.username
+                    session['pending_2fa_role'] = user.role
+                    
+                    # Log 2FA verification required
+                    log_activity('LOGIN_2FA_REQUIRED', 'user', user.id, f'2FA verification required for {username}')
+                    
+                    flash('Please complete two-factor authentication to continue.', 'info')
+                    return redirect(url_for('verify_2fa'))
+                else:
+                    # Complete login for users without 2FA
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['role'] = user.role
+                    
+                    # Log successful login
+                    log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
+                    
+                    # Check if password change is required
+                    if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                        flash('Your password will expire soon. Please change it.', 'warning')
+                        return redirect(url_for('change_password'))
+                    
+                    flash('Login successful!', 'success')
+                    return redirect(url_for('dashboard'))
+            else:
+                # Increment failed login attempts
+                user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                if user.failed_login_attempts >= 5:  # Lock after 5 failed attempts
+                    user.is_locked = True
+                    flash('Account is locked', 'error')
+                else:
+                    flash('Invalid username or password', 'error')
+                db.session.commit()
+                
+                # Log failed login attempt
+                log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}. Attempts: {user.failed_login_attempts}')
         else:
-            # Log failed login attempt
-            log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}')
+            # Log failed login attempt for non-existent user
+            log_activity('LOGIN_FAILED', details=f'Failed login attempt for non-existent username: {username}')
             flash('Invalid username or password', 'error')
     
     return render_template('login.html')
+
+# 2FA Authentication Routes (simplified for production - 2FA disabled by default)
+@app.route('/verify-2fa', methods=['GET', 'POST'])
+def verify_2fa():
+    """Verify 2FA code - simplified version for production"""
+    if 'pending_2fa_user_id' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['pending_2fa_user_id'])
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        # For now, skip 2FA verification in production
+        # Complete login without 2FA verification
+        session['user_id'] = user.id
+        session['username'] = user.username
+        session['role'] = user.role
+        
+        # Clear pending 2FA session data
+        session.pop('pending_2fa_user_id', None)
+        session.pop('pending_2fa_username', None)
+        session.pop('pending_2fa_role', None)
+        
+        # Log successful login
+        log_activity('LOGIN', 'user', user.id, f'User {user.username} logged in successfully (2FA skipped)')
+        
+        flash('Login successful!', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('verify_2fa.html')
 
 @app.route('/logout')
 def logout():

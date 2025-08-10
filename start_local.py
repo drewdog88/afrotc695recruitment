@@ -52,10 +52,10 @@ def test_database_connection():
 def test_blob_connection():
     """Test the Vercel Blob connection"""
     try:
-        from vercel_storage import blob
+        from vercel_blob import list as blob_list
         
         # Test blob connection by listing files
-        blobs = blob.list()
+        blobs = blob_list()
         print("✅ Vercel Blob connection successful")
         return True
     except Exception as e:

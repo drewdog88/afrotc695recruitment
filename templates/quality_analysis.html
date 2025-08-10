@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Quality Analysis - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Quality Analysis Dashboard</h1>
+    <div>
+        <form method="POST" action="{{ url_for('run_quality_analysis') }}" class="d-inline">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-play"></i> Run Full Analysis
+            </button>
+        </form>
+        <a href="{{ url_for('code_coverage') }}" class="btn btn-info ms-2">
+            <i class="fas fa-code"></i> Code Coverage
+        </a>
+        <a href="{{ url_for('vulnerability_scan') }}" class="btn btn-warning ms-2">
+            <i class="fas fa-shield-alt"></i> Security Scan
+        </a>
+    </div>
+</div>
+
+{% if last_updated %}
+<div class="alert alert-info">
+    <i class="fas fa-clock"></i> 
+    <strong>Last Updated:</strong> {{ last_updated }}
+</div>
+{% endif %}
+
+{% if quality_data %}
+<!-- Overall Quality Score -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h1 class="display-4 
+                    {% if quality_data.grade == 'A+' or quality_data.grade == 'A' %}text-success
+                    {% elif quality_data.grade == 'B' %}text-info
+                    {% elif quality_data.grade == 'C' %}text-warning
+                    {% else %}text-danger{% endif %}">
+                    {{ quality_data.grade }}
+                </h1>
+                <h5 class="card-title">Overall Grade</h5>
+                <p class="card-text">{{ quality_data.quality_score }}/100</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ "%.1f"|format(quality_data.coverage.coverage_percentage) }}%</h3>
+                <p class="card-text">Code Coverage</p>
+                <small class="text-muted">{{ quality_data.coverage.covered_lines }}/{{ quality_data.coverage.total_lines }} lines</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="
+                    {% if quality_data.security.status == 'secure' %}text-success
+                    {% elif quality_data.security.status == 'low' %}text-info
+                    {% elif quality_data.security.status == 'medium' %}text-warning
+                    {% else %}text-danger{% endif %}">
+                    {{ quality_data.security.status.title() }}
+                </h3>
+                <p class="card-text">Security Status</p>
+                <small class="text-muted">{{ quality_data.security.total_issues }} issues found</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quality Progress Bar -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Overall Quality Score</h5>
+    </div>
+    <div class="card-body">
+        <div class="progress mb-2" style="height: 30px;">
+            {% set quality_percent = quality_data.quality_score %}
+            {% if quality_percent >= 90 %}
+                {% set progress_class = "bg-success" %}
+            {% elif quality_percent >= 80 %}
+                {% set progress_class = "bg-info" %}
+            {% elif quality_percent >= 70 %}
+                {% set progress_class = "bg-warning" %}
+            {% elif quality_percent >= 60 %}
+                {% set progress_class = "bg-orange" %}
+            {% else %}
+                {% set progress_class = "bg-danger" %}
+            {% endif %}
+            
+            <div class="progress-bar {{ progress_class }}" 
+                 role="progressbar" 
+                 style="width: {{ quality_percent }}%"
+                 aria-valuenow="{{ quality_percent }}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+                {{ "%.1f"|format(quality_percent) }}%
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    <strong>Coverage Weight:</strong> 70% | 
+                    <strong>Security Weight:</strong> 30%
+                </small>
+            </div>
+            <div class="col-md-6 text-end">
+                <small class="text-muted">
+                    Status: {{ quality_data.status.replace('_', ' ').title() }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Metrics -->
+<div class="row mb-4">
+    <!-- Code Coverage Details -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-code"></i> Code Coverage Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 class="text-success">{{ quality_data.coverage.covered_lines }}</h4>
+                        <small class="text-muted">Covered</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-danger">{{ quality_data.coverage.missing_lines }}</h4>
+                        <small class="text-muted">Missing</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-info">{{ quality_data.coverage.files_analyzed }}</h4>
+                        <small class="text-muted">Files</small>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-success" 
+                             style="width: {{ quality_data.coverage.coverage_percentage }}%">
+                            {{ "%.1f"|format(quality_data.coverage.coverage_percentage) }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Security Details -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Security Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 class="text-danger">{{ quality_data.security.high_severity }}</h4>
+                        <small class="text-muted">High</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-warning">{{ quality_data.security.medium_severity }}</h4>
+                        <small class="text-muted">Medium</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-info">{{ quality_data.security.low_severity }}</h4>
+                        <small class="text-muted">Low</small>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="progress" style="height: 20px;">
+                        {% set security_percent = (10 - quality_data.security.risk_score) * 10 %}
+                        <div class="progress-bar 
+                            {% if security_percent >= 80 %}bg-success
+                            {% elif security_percent >= 60 %}bg-warning
+                            {% else %}bg-danger{% endif %}" 
+                             style="width: {{ security_percent }}%">
+                            {{ "%.1f"|format(security_percent) }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">Risk Score: {{ quality_data.security.risk_score }}/10</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recommendations -->
+{% if quality_data.recommendations %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Recommendations</h5>
+    </div>
+    <div class="card-body">
+        {% for rec in quality_data.recommendations %}
+        <div class="alert 
+            {% if rec.priority == 'high' %}alert-danger
+            {% elif rec.priority == 'medium' %}alert-warning
+            {% else %}alert-info{% endif %} mb-2">
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    {% if rec.priority == 'high' %}🔴
+                    {% elif rec.priority == 'medium' %}🟡
+                    {% else %}🟢{% endif %}
+                </div>
+                <div>
+                    <strong>{{ rec.type.title() }}:</strong> {{ rec.message }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Quality Trends -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Quality Metrics Breakdown</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Coverage Impact</h6>
+                <div class="progress mb-2" style="height: 25px;">
+                    {% set coverage_impact = quality_data.coverage.coverage_percentage * 0.7 %}
+                    <div class="progress-bar bg-info" 
+                         style="width: {{ coverage_impact }}%">
+                        {{ "%.1f"|format(coverage_impact) }} points
+                    </div>
+                </div>
+                <small class="text-muted">70% of total quality score</small>
+            </div>
+            <div class="col-md-6">
+                <h6>Security Impact</h6>
+                <div class="progress mb-2" style="height: 25px;">
+                    {% set security_impact = (10 - quality_data.security.risk_score) * 3 %}
+                    <div class="progress-bar 
+                        {% if security_impact >= 24 %}bg-success
+                        {% elif security_impact >= 18 %}bg-warning
+                        {% else %}bg-danger{% endif %}" 
+                         style="width: {{ security_impact }}%">
+                        {{ "%.1f"|format(security_impact) }} points
+                    </div>
+                </div>
+                <small class="text-muted">30% of total quality score</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- No Quality Data -->
+<div class="text-center py-5">
+    <i class="fas fa-chart-bar fa-4x text-muted mb-3"></i>
+    <h3>No Quality Data Available</h3>
+    <p class="text-muted">Run a comprehensive quality analysis to see detailed metrics.</p>
+    <form method="POST" action="{{ url_for('run_quality_analysis') }}" class="d-inline">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-play"></i> Run First Quality Analysis
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Information Panel -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">About Quality Analysis</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Quality Score Calculation</h6>
+                <p class="text-muted">
+                    Overall quality is calculated as a weighted combination of code coverage (70%) 
+                    and security score (30%). The security score is inverted from the risk score.
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6>Grade Scale</h6>
+                <ul class="text-muted">
+                    <li><span class="badge bg-success">A+ (90-100)</span> Excellent quality</li>
+                    <li><span class="badge bg-info">A (80-89)</span> Very good quality</li>
+                    <li><span class="badge bg-warning">B (70-79)</span> Good quality</li>
+                    <li><span class="badge bg-orange">C (60-69)</span> Fair quality</li>
+                    <li><span class="badge bg-danger">D/F (&lt;60)</span> Needs improvement</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

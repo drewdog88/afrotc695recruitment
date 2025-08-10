@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Code Coverage - AFROTC 695{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Code Coverage Analysis</h1>
+    <div>
+        <form method="POST" action="{{ url_for('run_code_coverage') }}" class="d-inline">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-play"></i> Run Coverage Analysis
+            </button>
+        </form>
+        {% if coverage_data %}
+        <a href="coverage_reports/html/index.html" target="_blank" class="btn btn-info ms-2">
+            <i class="fas fa-external-link-alt"></i> View Detailed Report
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if last_updated %}
+<div class="alert alert-info">
+    <i class="fas fa-clock"></i> 
+    <strong>Last Updated:</strong> {{ last_updated }}
+</div>
+{% endif %}
+
+{% if coverage_data %}
+<!-- Overall Coverage Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ "%.1f"|format(coverage_data.coverage_percentage) }}%</h3>
+                <p class="card-text">Overall Coverage</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ coverage_data.total_lines }}</h3>
+                <p class="card-text">Total Lines</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ coverage_data.covered_lines }}</h3>
+                <p class="card-text">Covered Lines</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ coverage_data.missing_lines }}</h3>
+                <p class="card-text">Missing Lines</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Coverage Progress Bar -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Coverage Progress</h5>
+    </div>
+    <div class="card-body">
+        <div class="progress mb-2" style="height: 25px;">
+            {% set coverage_percent = coverage_data.coverage_percentage %}
+            {% if coverage_percent >= 90 %}
+                {% set progress_class = "bg-success" %}
+            {% elif coverage_percent >= 70 %}
+                {% set progress_class = "bg-info" %}
+            {% elif coverage_percent >= 50 %}
+                {% set progress_class = "bg-warning" %}
+            {% else %}
+                {% set progress_class = "bg-danger" %}
+            {% endif %}
+            
+            <div class="progress-bar {{ progress_class }}" 
+                 role="progressbar" 
+                 style="width: {{ coverage_percent }}%"
+                 aria-valuenow="{{ coverage_percent }}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+                {{ "%.1f"|format(coverage_percent) }}%
+            </div>
+        </div>
+        <small class="text-muted">
+            {{ coverage_data.covered_lines }} of {{ coverage_data.total_lines }} lines covered
+        </small>
+    </div>
+</div>
+
+<!-- File Coverage Details -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">File Coverage Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Coverage</th>
+                        <th>Lines</th>
+                        <th>Covered</th>
+                        <th>Missing</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in coverage_data.files %}
+                    <tr>
+                        <td>
+                            <code>{{ file.file }}</code>
+                        </td>
+                        <td>
+                            <div class="progress" style="height: 20px; width: 100px;">
+                                {% set file_coverage = file.coverage_percentage %}
+                                {% if file_coverage >= 90 %}
+                                    {% set file_progress_class = "bg-success" %}
+                                {% elif file_coverage >= 70 %}
+                                    {% set file_progress_class = "bg-info" %}
+                                {% elif file_coverage >= 50 %}
+                                    {% set file_progress_class = "bg-warning" %}
+                                {% else %}
+                                    {% set file_progress_class = "bg-danger" %}
+                                {% endif %}
+                                
+                                <div class="progress-bar {{ file_progress_class }}" 
+                                     role="progressbar" 
+                                     style="width: {{ file_coverage }}%"
+                                     aria-valuenow="{{ file_coverage }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ "%.1f"|format(file_coverage) }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ file.total_lines }}</td>
+                        <td class="text-success">{{ file.covered_lines }}</td>
+                        <td class="text-danger">{{ file.missing_lines }}</td>
+                        <td>
+                            {% if file.coverage_percentage >= 90 %}
+                                <span class="badge bg-success">Excellent</span>
+                            {% elif file.coverage_percentage >= 70 %}
+                                <span class="badge bg-info">Good</span>
+                            {% elif file.coverage_percentage >= 50 %}
+                                <span class="badge bg-warning">Fair</span>
+                            {% else %}
+                                <span class="badge bg-danger">Poor</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Coverage Recommendations -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Coverage Recommendations</h5>
+    </div>
+    <div class="card-body">
+        {% set low_coverage_files = coverage_data.files | selectattr('coverage_percentage', '<', 70) | list %}
+        {% if low_coverage_files %}
+        <div class="alert alert-warning">
+            <h6><i class="fas fa-exclamation-triangle"></i> Files Needing Attention</h6>
+            <ul class="mb-0">
+                {% for file in low_coverage_files %}
+                <li><code>{{ file.file }}</code> - {{ "%.1f"|format(file.coverage_percentage) }}% coverage</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if coverage_data.coverage_percentage < 80 %}
+        <div class="alert alert-info">
+            <h6><i class="fas fa-lightbulb"></i> Improvement Suggestions</h6>
+            <ul class="mb-0">
+                <li>Focus on files with coverage below 70%</li>
+                <li>Add unit tests for critical business logic</li>
+                <li>Test edge cases and error conditions</li>
+                <li>Consider integration tests for complex workflows</li>
+            </ul>
+        </div>
+        {% else %}
+        <div class="alert alert-success">
+            <h6><i class="fas fa-check-circle"></i> Great Job!</h6>
+            <p class="mb-0">Your code coverage is excellent. Keep maintaining high test coverage as you add new features.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% else %}
+<!-- No Coverage Data -->
+<div class="text-center py-5">
+    <i class="fas fa-chart-line fa-4x text-muted mb-3"></i>
+    <h3>No Coverage Data Available</h3>
+    <p class="text-muted">Run a coverage analysis to see detailed code coverage information.</p>
+    <form method="POST" action="{{ url_for('run_code_coverage') }}" class="d-inline">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-play"></i> Run First Coverage Analysis
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Information Panel -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">About Code Coverage</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>What is Code Coverage?</h6>
+                <p class="text-muted">
+                    Code coverage measures how much of your source code is executed during testing. 
+                    It helps identify untested parts of your codebase and ensures quality.
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6>Coverage Levels</h6>
+                <ul class="text-muted">
+                    <li><span class="badge bg-success">90%+</span> Excellent - Comprehensive testing</li>
+                    <li><span class="badge bg-info">70-89%</span> Good - Adequate testing</li>
+                    <li><span class="badge bg-warning">50-69%</span> Fair - Needs improvement</li>
+                    <li><span class="badge bg-danger">&lt;50%</span> Poor - Critical gaps</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
