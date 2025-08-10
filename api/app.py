@@ -1787,12 +1787,29 @@ def system_statistics():
 
         # Get backup info
         backup_files = get_backup_files()
-        total_backup_size_mb = sum(backup.get('size', 0) for backup in backup_files) / (1024 * 1024)
+        backup_count = len(backup_files) if backup_files else 0
 
         # Get cadet retention data
         retention_data = get_cadet_retention_data()
 
-        stats_data = {
+        # Create stats object with the structure expected by the template
+        stats = {
+            # User statistics
+            'total_users': user_activity.get('total_users', 0),
+            'active_users': user_activity.get('active_users', 0),
+            'admin_users': db.session.query(User).filter_by(role='admin').count(),
+            'recent_logins': user_activity.get('recent_logins', 0),
+
+            # Record counts
+            'total_recruits': record_counts.get('potential_recruit', 0),
+            'total_cadets': record_counts.get('cadet', 0),
+            'total_contacts': record_counts.get('university_contact', 0),
+            'total_events': record_counts.get('recruitment_event', 0),
+
+            # Recent activities (last 10 activities)
+            'recent_activities': db.session.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(10).all(),
+
+            # Additional data for potential future use
             'database_size': db_size,
             'record_counts': record_counts,
             'total_records': total_records,
@@ -1800,19 +1817,18 @@ def system_statistics():
             'user_activity': user_activity,
             'recruitment_stats': recruitment_stats,
             'backup_info': {
-                'count': len(backup_files),
-                'total_size_mb': round(total_backup_size_mb, 2),
+                'count': backup_count,
+                'total_size_mb': sum(b.get('size', 0) / (1024*1024) for b in backup_files) if backup_files else 0,
                 'latest_backup': backup_files[0] if backup_files else None
             },
             'retention_data': retention_data
         }
 
-        return render_template('system_statistics.html', stats=stats_data)
-
+        return render_template('system_statistics.html', stats=stats)
     except Exception as e:
-        print(f"Error getting system statistics: {e}")
+        print(f"Error in system statistics: {e}")
         flash('Error loading system statistics. Please try again.', 'error')
-        return redirect(url_for('admin'))
+        return redirect(url_for('dashboard'))
 
 @app.route('/admin/backup', methods=['GET', 'POST'])
 def backup():
@@ -2899,6 +2915,34 @@ def test_backup():
         return jsonify({
             'status': 'error',
             'message': f'Error: {str(e)}'
+        })
+
+@app.route('/api/test-database')
+def test_database():
+    """Test endpoint to verify database connectivity and admin user"""
+    try:
+        # Initialize database
+        init_database()
+        
+        # Check if admin user exists
+        admin_user = User.query.filter_by(username='admin').first()
+        
+        # Get basic database info
+        record_counts = get_record_counts()
+        
+        return jsonify({
+            'status': 'success',
+            'database_connected': True,
+            'admin_user_exists': admin_user is not None,
+            'admin_user_id': admin_user.id if admin_user else None,
+            'record_counts': record_counts,
+            'total_records': sum(record_counts.values())
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'database_connected': False
         })
 
 # For Vercel serverless deployment, we don't need the __main__ block
