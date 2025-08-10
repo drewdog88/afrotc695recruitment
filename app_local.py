@@ -2412,6 +2412,22 @@ def system_statistics():
 
         # Create stats object with the structure expected by the template
         stats = {
+            # User statistics
+            'total_users': user_activity.get('total_users', 0),
+            'active_users': user_activity.get('active_users', 0),
+            'admin_users': db.session.query(User).filter_by(role='admin').count(),
+            'recent_logins': user_activity.get('recent_logins', 0),
+            
+            # Record counts
+            'total_recruits': record_counts.get('potential_recruit', 0),
+            'total_cadets': record_counts.get('cadet', 0),
+            'total_contacts': record_counts.get('university_contact', 0),
+            'total_events': record_counts.get('recruitment_event', 0),
+            
+            # Recent activities (last 10 activities)
+            'recent_activities': db.session.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(10).all(),
+            
+            # Additional data for potential future use
             'database_size': db_size,
             'record_counts': record_counts,
             'total_records': total_records,
@@ -3565,7 +3581,7 @@ def delete_cadet(cadet_id):
 def api_recruits():
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
-    
+
     recruits = PotentialRecruit.query.all()
     return jsonify([{
         'id': r.id,
@@ -3579,7 +3595,7 @@ def api_recruits():
 def api_cadet():
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
-    
+
     cadet = Cadet.query.all()
     return jsonify([{
         'id': c.id,
