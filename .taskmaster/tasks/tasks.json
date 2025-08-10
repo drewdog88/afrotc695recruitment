@@ -547,11 +547,289 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "Develop Comprehensive Testing Plan and Checklist for AFROTC 695 Recruitment System",
+        "description": "Create a detailed, systematic testing plan and checklist covering 100% of features, links, and functionalities for the AFROTC 695 Recruitment System, ensuring identical behavior in both local and production environments and robust regression coverage.",
+        "details": "1. Define the scope and objectives of the testing plan, explicitly listing all modules, features, and workflows to be tested, including forms, data operations, file uploads, exports, admin features, user management, and every interactive element. \n2. Enumerate all application features and links, mapping each to specific test cases and scenarios. Use a test management tool or structured spreadsheet for traceability.\n3. For each feature, write detailed test cases specifying preconditions, step-by-step actions, expected results, and pass/fail criteria. Include both positive and negative scenarios, edge cases, and error handling.\n4. Develop separate checklists for local and production environments, ensuring all environment-specific configurations, integrations (e.g., Neon, Blob storage), and deployment differences are tested.\n5. Specify the test environments, including hardware, software, browser versions, and network conditions. Document any differences between local and production setups.\n6. Define the testing approach: manual, automated, or hybrid. Identify tools (e.g., Selenium, Postman, TestRail) and assign responsibilities for test execution and defect logging.\n7. Include regression testing procedures to ensure that changes to features do not introduce new defects elsewhere. Maintain a regression suite that is updated with every new feature or bug fix.\n8. Establish procedures for test data management, including anonymized production data where appropriate, and ensure repeatability of tests.\n9. Document reporting requirements: how test results, defects, and coverage will be tracked and communicated to stakeholders.\n10. Include risk assessment and mitigation strategies for potential issues such as environment drift, incomplete coverage, or data inconsistencies.\n11. Review and update the plan regularly to reflect new features, bug fixes, and changes in system architecture.",
+        "testStrategy": "1. Review the completed test plan and checklist to confirm that every feature, link, and functionality is mapped to at least one test case for both local and production environments.\n2. Execute all test cases in both environments, documenting results (pass/fail, defects) and noting any discrepancies between environments.\n3. Validate that all forms, data operations, file uploads, exports, admin features, user management, and interactive elements behave identically in both environments.\n4. Perform regression testing after any feature change to ensure no unintended side effects occur.\n5. Use automated tools where possible to verify link integrity, UI consistency, and API responses across environments.\n6. Review defect logs and test coverage reports to ensure 100% functional coverage and that all critical workflows are tested.\n7. Obtain sign-off from stakeholders on the completeness and adequacy of the testing plan and checklist.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          9,
+          25
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define Testing Scope and Objectives",
+            "description": "Establish the overall scope and objectives for the testing plan, explicitly listing all modules, features, and workflows to be covered.",
+            "dependencies": [],
+            "details": "Document all system modules (authentication, data management, admin, user management, file uploads, exports, etc.) and clarify what is in and out of scope. Specify the goals for testing, such as 100% feature coverage and identical behavior across environments.",
+            "status": "pending",
+            "testStrategy": "Review the documented scope with stakeholders to confirm completeness and alignment with project requirements."
+          },
+          {
+            "id": 2,
+            "title": "Enumerate All Features, Links, and Workflows",
+            "description": "Create a comprehensive inventory of every feature, link, and workflow in the AFROTC 695 Recruitment System.",
+            "dependencies": [
+              "29.1"
+            ],
+            "details": "List all user-facing and admin features, navigation links, forms, data operations, and integrations. Use system documentation, UI walkthroughs, and codebase analysis to ensure nothing is missed.",
+            "status": "pending",
+            "testStrategy": "Cross-check the inventory against system documentation and UI to ensure 100% coverage."
+          },
+          {
+            "id": 3,
+            "title": "Map Features to Test Cases and Scenarios",
+            "description": "For each feature and link, define specific test cases and scenarios, ensuring traceability.",
+            "dependencies": [
+              "29.2"
+            ],
+            "details": "Use a test management tool or structured spreadsheet to map each feature to one or more test cases. Include both standard and edge-case scenarios.",
+            "status": "pending",
+            "testStrategy": "Verify that every feature and link is mapped to at least one test case."
+          },
+          {
+            "id": 4,
+            "title": "Develop Detailed Test Cases",
+            "description": "Write detailed test cases for each feature, specifying preconditions, steps, expected results, and pass/fail criteria.",
+            "dependencies": [
+              "29.3"
+            ],
+            "details": "For each mapped feature, create test cases covering positive, negative, edge, and error-handling scenarios. Include step-by-step instructions and clear expected outcomes.",
+            "status": "pending",
+            "testStrategy": "Peer review test cases for clarity, completeness, and accuracy."
+          },
+          {
+            "id": 5,
+            "title": "Create Environment-Specific Checklists",
+            "description": "Develop separate checklists for local and production environments, accounting for all configuration and integration differences.",
+            "dependencies": [
+              "29.4"
+            ],
+            "details": "Document environment-specific items such as integrations (Neon, Blob storage), deployment settings, and any feature toggles. Ensure both checklists cover all features and workflows.",
+            "status": "pending",
+            "testStrategy": "Validate checklists by comparing environment configurations and running sample tests in both."
+          },
+          {
+            "id": 6,
+            "title": "Specify Test Environments and Configurations",
+            "description": "Document the hardware, software, browser versions, and network conditions for all test environments.",
+            "dependencies": [
+              "29.5"
+            ],
+            "details": "List all required environment details for both local and production, including OS, browsers, device types, and network settings. Note any differences and their impact on testing.",
+            "status": "pending",
+            "testStrategy": "Confirm that all documented environments are available and match production as closely as possible."
+          },
+          {
+            "id": 7,
+            "title": "Define Testing Approach and Methodologies",
+            "description": "Specify the overall testing approach, including manual, automated, or hybrid strategies, and identify required tools.",
+            "dependencies": [
+              "29.6"
+            ],
+            "details": "Document which tests will be manual vs. automated, select tools (e.g., Selenium, Postman, TestRail), and assign responsibilities for test execution and defect logging.",
+            "status": "pending",
+            "testStrategy": "Review the approach with the QA team and ensure tool access and training are in place."
+          },
+          {
+            "id": 8,
+            "title": "Develop Regression Testing Procedures",
+            "description": "Establish procedures for regression testing to ensure new changes do not introduce defects.",
+            "dependencies": [
+              "29.7"
+            ],
+            "details": "Create and maintain a regression test suite that is updated with every new feature or bug fix. Define when and how regression tests are executed.",
+            "status": "pending",
+            "testStrategy": "Run regression suite after each release and document results."
+          },
+          {
+            "id": 9,
+            "title": "Establish Test Data Management Processes",
+            "description": "Define procedures for creating, managing, and anonymizing test data to ensure repeatability and data privacy.",
+            "dependencies": [
+              "29.8"
+            ],
+            "details": "Document how test data will be generated, anonymized (if using production data), and reset between test runs. Ensure data covers all test scenarios.",
+            "status": "pending",
+            "testStrategy": "Validate test data processes by running sample tests and confirming data integrity."
+          },
+          {
+            "id": 10,
+            "title": "Document Reporting and Communication Requirements",
+            "description": "Specify how test results, defects, and coverage will be tracked and communicated to stakeholders.",
+            "dependencies": [
+              "29.9"
+            ],
+            "details": "Define reporting formats, frequency, and tools (e.g., dashboards, spreadsheets, TestRail). Assign responsibility for reporting and establish communication channels.",
+            "status": "pending",
+            "testStrategy": "Test reporting workflow by generating sample reports and soliciting stakeholder feedback."
+          },
+          {
+            "id": 11,
+            "title": "Perform Risk Assessment and Define Mitigation Strategies",
+            "description": "Identify potential risks (e.g., environment drift, incomplete coverage) and document mitigation strategies.",
+            "dependencies": [
+              "29.10"
+            ],
+            "details": "List all known risks to testing completeness and reliability. For each, define mitigation actions such as environment monitoring, coverage reviews, or backup plans.",
+            "status": "pending",
+            "testStrategy": "Review risk log regularly and update mitigation strategies as needed."
+          },
+          {
+            "id": 12,
+            "title": "Assign Roles and Responsibilities",
+            "description": "Document the roles and responsibilities for all testing activities, including test execution, defect logging, and reporting.",
+            "dependencies": [
+              "29.7"
+            ],
+            "details": "List all team members involved in testing, their roles (e.g., test manager, analyst, automation engineer), and specific responsibilities for each testing phase.",
+            "status": "pending",
+            "testStrategy": "Confirm assignments with team members and ensure clarity of responsibilities."
+          },
+          {
+            "id": 13,
+            "title": "Schedule Testing Phases and Milestones",
+            "description": "Develop a detailed schedule for all testing phases, including planning, execution, regression, and completion.",
+            "dependencies": [
+              "29.12"
+            ],
+            "details": "Create a timeline with start/end dates for each phase, key milestones, and dependencies. Include buffer time for defect resolution and retesting.",
+            "status": "pending",
+            "testStrategy": "Monitor progress against the schedule and adjust as needed."
+          },
+          {
+            "id": 14,
+            "title": "Review and Validate the Testing Plan",
+            "description": "Conduct a formal review of the entire testing plan and checklist with stakeholders and the QA team.",
+            "dependencies": [
+              "29.13"
+            ],
+            "details": "Organize a walkthrough meeting to review all plan components, checklists, and test cases. Collect feedback and update documentation as necessary.",
+            "status": "pending",
+            "testStrategy": "Track review comments and confirm all required updates are made."
+          },
+          {
+            "id": 15,
+            "title": "Implement Plan Update and Maintenance Procedures",
+            "description": "Establish procedures for regularly updating the testing plan to reflect new features, bug fixes, and system changes.",
+            "dependencies": [
+              "29.14"
+            ],
+            "details": "Define a process for periodic review and revision of the plan, including triggers (e.g., new release, major bug fix) and responsible parties.",
+            "status": "pending",
+            "testStrategy": "Test the update process by simulating a plan revision and verifying documentation is current."
+          },
+          {
+            "id": 16,
+            "title": "Finalize and Distribute the Comprehensive Testing Plan and Checklist",
+            "description": "Compile all components into a single, accessible document or repository and distribute to all relevant stakeholders.",
+            "dependencies": [
+              "29.15"
+            ],
+            "details": "Ensure the final plan includes all sections, checklists, test cases, and supporting materials. Store in a version-controlled repository and notify stakeholders of availability.",
+            "status": "pending",
+            "testStrategy": "Confirm all stakeholders have access and acknowledge receipt of the final plan."
+          }
+        ]
+      },
+      {
+        "id": 30,
+        "title": "Investigate and Remediate Critical Authentication Bypass Vulnerability",
+        "description": "Update: The previously suspected authentication bypass was a false positive caused by the testing script automatically following redirects. The authentication system is functioning correctly, with protected routes returning 302 redirects to /login when unauthenticated. However, there are real security issues to address: (1) Export functionality is missing (404 errors) in the local environment; (2) In production, export endpoints are accessible without authentication; (3) Certain API endpoints are accessible without authentication in production. The task is now to investigate and remediate these specific issues, ensuring all export and API endpoints are properly protected and available as intended.",
+        "status": "pending",
+        "dependencies": [
+          25,
+          15,
+          23
+        ],
+        "priority": "high",
+        "details": "1. Audit export functionality in the local environment to identify and resolve the cause of 404 errors, ensuring all expected export routes are present and functional.\n2. In the production environment, review all export endpoints and ensure server-side authentication and authorization checks are enforced—no export endpoint should be accessible without proper authentication.\n3. Audit all API endpoints in production for authentication enforcement; patch any endpoints that are accessible without authentication to require valid user sessions.\n4. Document all affected routes and components, and summarize the root causes for each environment-specific issue.\n5. After remediation, coordinate with DevOps to verify that environment-specific settings (e.g., route registration, authentication middleware) are consistent and correct in both local and production deployments.\n6. Perform a full regression test of export and API functionality in both environments, including edge cases and privilege escalation attempts.\n7. Document the incident, root causes, remediation steps, and preventive measures (e.g., automated endpoint security tests, code review checklists) to avoid recurrence.\n8. Align all fixes with OWASP Top 10 and NIST SP 800-63B guidelines for authentication and API security.",
+        "testStrategy": "1. In the local environment, attempt to access all export routes as an authenticated and unauthenticated user; confirm that routes exist and are only accessible to authorized users.\n2. In production, attempt to access export and API endpoints without authentication; confirm that unauthenticated users are redirected to the login page or receive a 401/403 response.\n3. Log in as users with different roles (admin, regular user) and verify that only authorized users can access each export and API endpoint.\n4. Attempt privilege escalation and forced browsing attacks (e.g., direct URL access, manipulation of session tokens) to ensure access controls are enforced server-side.\n5. Review server logs for unauthorized access attempts and confirm no sensitive data is exposed.\n6. Conduct penetration testing using automated tools (e.g., OWASP ZAP, Burp Suite) to validate that export and API endpoints cannot be accessed without authentication.\n7. Validate session management: confirm that session tokens are securely generated, rotated, and invalidated on logout or timeout, and that cookies have appropriate security flags.\n8. Review and test all recent code and configuration changes to ensure no regression or reintroduction of the vulnerability.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit and fix export functionality in local environment",
+            "description": "Investigate the cause of 404 errors for export routes in the local environment. Ensure all expected export endpoints are registered and functional. Update route registration or controller logic as needed.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Enforce authentication on export endpoints in production",
+            "description": "Review all export endpoints in the production environment. Patch any endpoints that are accessible without authentication to require valid user sessions. Confirm that only authorized users can access export functionality.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Enforce authentication on API endpoints in production",
+            "description": "Audit all API endpoints in production for authentication enforcement. Patch any endpoints that are accessible without authentication to require valid user sessions. Document all affected endpoints.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Regression and security testing",
+            "description": "Perform regression testing of export and API endpoints in both local and production environments. Include tests for unauthenticated access, privilege escalation, and forced browsing. Use automated tools to validate endpoint security.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Document incident and preventive measures",
+            "description": "Document the incident, root causes, remediation steps, and preventive measures (e.g., automated endpoint security tests, code review checklists) to avoid recurrence. Ensure alignment with OWASP Top 10 and NIST SP 800-63B guidelines.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 31,
+        "title": "Enforce Authentication on /api/recruits and /api/cadet Endpoints to Prevent Unauthorized Access",
+        "description": "Implement strict authentication checks on the /api/recruits and /api/cadet production API endpoints to prevent exposure of sensitive PII data to unauthorized users.",
+        "details": "1. Audit the /api/recruits and /api/cadet endpoints in the production codebase to confirm the absence of authentication checks and identify all code paths that return sensitive data.\n2. Integrate robust authentication middleware (e.g., session-based, JWT, or OIDC token validation) into these endpoints. For Flask, use @login_required or equivalent decorators, or validate JWT/OIDC tokens using libraries such as PyJWT or Flask-OIDC, referencing Vercel's OIDC integration guidance if deployed on Vercel[4][5].\n3. Ensure that all requests to these endpoints require a valid, authenticated user session or a valid access token. Reject unauthenticated requests with HTTP 401 Unauthorized responses and do not leak any data or endpoint existence information.\n4. Log all authentication failures for monitoring and incident response, but do not include sensitive request details in logs.\n5. Review and update API documentation to reflect the new authentication requirements.\n6. Coordinate with the security audit and incident response team to ensure the fix aligns with broader security hardening efforts and incident response plans.",
+        "testStrategy": "1. Attempt to access /api/recruits and /api/cadet endpoints in production without authentication and verify that access is denied with HTTP 401 responses and no data is returned.\n2. Authenticate as a valid user and confirm that authorized requests succeed and return only data permitted for that user.\n3. Attempt to use expired, malformed, or invalid tokens and verify that access is denied.\n4. Review server logs to confirm that authentication failures are logged without exposing sensitive data.\n5. Conduct regression testing to ensure that the authentication enforcement does not break legitimate access or introduce new errors.\n6. Coordinate with the security audit team to validate that the endpoints are no longer accessible without authentication as part of the broader security review.",
+        "status": "done",
+        "dependencies": [
+          25,
+          30
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 32,
+        "title": "Investigate and Restore Export Route Registration in Local Environment",
+        "description": "Diagnose and resolve the issue causing all /download/* export endpoints to return 404 errors in the local environment by ensuring export routes are correctly registered and functional.",
+        "details": "1. Audit the Express application startup and route registration logic to confirm whether the export route modules (handling /download/* endpoints) are being imported and mounted in the local environment. Check for conditional imports, environment-specific configuration, or feature flags that may prevent these routes from loading locally.\n2. Review the export route module(s) for correct usage of express.Router and ensure they are properly exported and mounted using app.use('/download', exportRouter) or equivalent syntax, as per Express best practices[1][2].\n3. Examine any middleware, authentication, or environment checks that could block route registration or execution in local mode. Pay attention to differences in environment variables, build scripts, or server entry points between local and production environments.\n4. If route files are missing or misconfigured, restore or correct them. If the issue is due to a misapplied feature flag or environment variable, update configuration to enable export routes locally.\n5. Restart the local server after changes and monitor logs for route registration confirmation and error messages. Document the root cause and the fix applied.",
+        "testStrategy": "1. Start the local development server and attempt to access all /download/* export endpoints as both authenticated and unauthenticated users. Confirm that endpoints return the expected file downloads or appropriate authentication errors, not 404s.\n2. Use Express route listing tools or add temporary logging to verify that all export routes are registered at startup.\n3. Review server logs for any errors or warnings related to route registration or middleware execution.\n4. If applicable, run automated or manual tests that exercise export functionality and confirm successful file downloads in the local environment.",
+        "status": "done",
+        "dependencies": [
+          30
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-07T20:34:24.556Z",
-      "updated": "2025-08-10T17:49:35.838Z",
+      "updated": "2025-08-10T18:49:38.952Z",
       "description": "Tasks for master context"
     }
   },

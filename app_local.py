@@ -2417,16 +2417,16 @@ def system_statistics():
             'active_users': user_activity.get('active_users', 0),
             'admin_users': db.session.query(User).filter_by(role='admin').count(),
             'recent_logins': user_activity.get('recent_logins', 0),
-            
+
             # Record counts
             'total_recruits': record_counts.get('potential_recruit', 0),
             'total_cadets': record_counts.get('cadet', 0),
             'total_contacts': record_counts.get('university_contact', 0),
             'total_events': record_counts.get('recruitment_event', 0),
-            
+
             # Recent activities (last 10 activities)
             'recent_activities': db.session.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(10).all(),
-            
+
             # Additional data for potential future use
             'database_size': db_size,
             'record_counts': record_counts,

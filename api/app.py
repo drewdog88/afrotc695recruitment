@@ -2768,7 +2768,7 @@ def download_document(document_id):
 def api_recruits():
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
-    
+
     recruits = PotentialRecruit.query.all()
     return jsonify([{
         'id': r.id,
@@ -2782,7 +2782,7 @@ def api_recruits():
 def api_cadet():
     if 'user_id' not in session:
         return jsonify({'error': 'Authentication required'}), 401
-    
+
     cadet = Cadet.query.all()
     return jsonify([{
         'id': c.id,

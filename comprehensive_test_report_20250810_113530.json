@@ -1,0 +1,119 @@
+{
+  "timestamp": "2025-08-10T11:32:31.281224",
+  "local_results": {},
+  "production_results": {},
+  "issues": [
+    {
+      "environment": "local",
+      "test": "GET /download/recruits/csv",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:34:49.934934"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/recruits/excel",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:34:52.203858"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/recruits/pdf",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:34:54.489738"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/cadet/csv",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:34:56.756731"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/cadet/excel",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:34:59.034727"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/cadet/pdf",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:01.326527"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/contacts/csv",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:03.595314"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/contacts/excel",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:05.872183"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/contacts/pdf",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:08.118216"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/activity-log/csv",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:10.420505"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/activity-log/excel",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:12.779184"
+    },
+    {
+      "environment": "local",
+      "test": "GET /download/activity-log/pdf",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:15.154571"
+    },
+    {
+      "environment": "local",
+      "test": "GET /api/recruits",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:17.563979"
+    },
+    {
+      "environment": "production",
+      "test": "GET /api/recruits",
+      "issue": "Expected 302 redirect, got 200 but not login page",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:17.740603"
+    },
+    {
+      "environment": "local",
+      "test": "GET /api/cadet",
+      "issue": "Expected status 302, got 404",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:19.771817"
+    },
+    {
+      "environment": "production",
+      "test": "GET /api/cadet",
+      "issue": "Expected 302 redirect, got 200 but not login page",
+      "details": "",
+      "timestamp": "2025-08-10T11:35:19.943396"
+    }
+  ]
+}
