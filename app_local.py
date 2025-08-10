@@ -1183,7 +1183,13 @@ def setup_2fa():
         # Generate new TOTP secret if not already set
         if not user.totp_secret:
             try:
-                from utils.2fa_utils import generate_totp_secret, encrypt_totp_secret, generate_qr_code
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
+                fa_utils = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(fa_utils)
+                generate_totp_secret = fa_utils.generate_totp_secret
+                encrypt_totp_secret = fa_utils.encrypt_totp_secret
+                generate_qr_code = fa_utils.generate_qr_code
                 
                 # Generate new TOTP secret
                 totp_secret = generate_totp_secret()
@@ -1215,7 +1221,12 @@ def setup_2fa():
         else:
             # User has a secret but hasn't completed setup
             try:
-                from utils.2fa_utils import decrypt_totp_secret, generate_qr_code
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
+                fa_utils = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(fa_utils)
+                decrypt_totp_secret = fa_utils.decrypt_totp_secret
+                generate_qr_code = fa_utils.generate_qr_code
                 
                 # Decrypt existing secret
                 totp_secret = decrypt_totp_secret(user.totp_secret)
@@ -1254,7 +1265,14 @@ def setup_2fa():
             return redirect(url_for('setup_2fa'))
         
         try:
-            from utils.2fa_utils import verify_totp_code, generate_backup_codes, hash_backup_code, serialize_backup_codes_hash
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
+            fa_utils = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(fa_utils)
+            verify_totp_code = fa_utils.verify_totp_code
+            generate_backup_codes = fa_utils.generate_backup_codes
+            hash_backup_code = fa_utils.hash_backup_code
+            serialize_backup_codes_hash = fa_utils.serialize_backup_codes_hash
             
             # Verify the TOTP code
             if not verify_totp_code(totp_secret, totp_code):
@@ -1316,7 +1334,15 @@ def verify_2fa():
             return render_template('verify_2fa.html', username=user.username)
         
         try:
-            from utils.2fa_utils import decrypt_totp_secret, verify_totp_code, parse_backup_codes_hash, verify_backup_code, remove_used_backup_code
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
+            fa_utils = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(fa_utils)
+            decrypt_totp_secret = fa_utils.decrypt_totp_secret
+            verify_totp_code = fa_utils.verify_totp_code
+            parse_backup_codes_hash = fa_utils.parse_backup_codes_hash
+            verify_backup_code = fa_utils.verify_backup_code
+            remove_used_backup_code = fa_utils.remove_used_backup_code
             
             # Try TOTP code first
             if totp_code:
@@ -1430,7 +1456,13 @@ def regenerate_backup_codes():
         return redirect(url_for('profile'))
     
     try:
-        from utils.2fa_utils import generate_backup_codes, hash_backup_code, serialize_backup_codes_hash
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
+        fa_utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fa_utils)
+        generate_backup_codes = fa_utils.generate_backup_codes
+        hash_backup_code = fa_utils.hash_backup_code
+        serialize_backup_codes_hash = fa_utils.serialize_backup_codes_hash
         
         # Generate new backup codes
         backup_codes = generate_backup_codes(10)
@@ -3445,6 +3477,73 @@ def backup_cleanup_cron():
     except Exception as e:
         print(f"Error in backup cleanup cron: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/code-coverage')
+def code_coverage():
+    """Code coverage analysis page"""
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Placeholder for code coverage data
+    coverage_data = {
+        'total_lines': 0,
+        'covered_lines': 0,
+        'coverage_percentage': 0,
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    return render_template('code_coverage.html', coverage_data=coverage_data)
+
+@app.route('/admin/quality-analysis')
+def quality_analysis():
+    """Quality analysis page"""
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Placeholder for quality analysis data
+    quality_data = {
+        'code_quality_score': 85,
+        'test_coverage': 75,
+        'security_score': 90,
+        'performance_score': 88,
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    return render_template('quality_analysis.html', quality_data=quality_data)
+
+@app.route('/admin/vulnerability-scan')
+def vulnerability_scan():
+    """Vulnerability scan page"""
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Placeholder for vulnerability scan data
+    scan_data = {
+        'total_vulnerabilities': 0,
+        'critical': 0,
+        'high': 0,
+        'medium': 0,
+        'low': 0,
+        'last_scan': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'scan_status': 'completed'
+    }
+    
+    return render_template('vulnerability_scan.html', scan_data=scan_data)
 
 if __name__ == '__main__':
     with app.app_context():
