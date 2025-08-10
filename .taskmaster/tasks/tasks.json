@@ -305,11 +305,118 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Resolve Production Deployment Failures on /recruits and /admin Routes",
+        "description": "Fix persistent 500 errors on /recruits and /admin routes in production by investigating and resolving production-specific issues. Despite successful local testing and applying the psycopg2-binary fix, failures continue in production. Focus on identifying differences between local and production environments, including environment variable configuration, database connection handling in serverless contexts, and blob storage setup. Ensure all dependencies and configurations are correctly applied for production.",
+        "status": "pending",
+        "dependencies": [
+          13,
+          16
+        ],
+        "priority": "high",
+        "details": "1. Audit requirements.txt and deployment scripts to confirm only psycopg2-binary is installed for serverless environments, as previously completed.\n2. Investigate production environment variables: verify all required variables (e.g., database connection strings, blob storage tokens) are present and correctly set in the production deployment platform (e.g., Vercel dashboard).\n3. Review database connection logic for compatibility with serverless deployment: ensure connections are established and closed properly, and that pooling or connection reuse does not cause issues in ephemeral environments.\n4. Validate blob storage configuration specifically in production: check that SDK initialization uses the correct environment variables and credentials, and that permissions are sufficient for read/write operations.\n5. Compare local and production configurations to identify discrepancies (e.g., missing or misnamed environment variables, differences in dependency versions, or platform-specific settings).\n6. Enhance error handling and logging in /recruits and /admin route handlers to capture detailed context about failures, including environment variable presence, database connection errors, and blob storage issues.\n7. Test the deployment pipeline to ensure all production-specific configurations are applied and no local-only settings are present.\n8. Document findings, resolution steps, and update deployment runbooks to prevent recurrence.",
+        "testStrategy": "- Deploy the application to a staging or production environment and verify that /recruits and /admin routes respond without 500 errors.\n- Intentionally misconfigure environment variables (database and blob storage) in production to confirm that errors are logged and handled gracefully, not resulting in unhandled 500s.\n- Review deployment logs to ensure only psycopg2-binary is installed and imported, and that all required environment variables are present.\n- Run integration tests covering all major workflows on /recruits and /admin, including file upload/download and database operations, specifically in production.\n- Compare local and production logs to identify and resolve configuration differences.\n- Confirm that error logs contain actionable information for any failures encountered in production.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit requirements.txt and deployment scripts for psycopg2-binary usage",
+            "description": "Ensure only psycopg2-binary is present in requirements.txt and deployment scripts, removing any conflicting psycopg2 entries.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Update import statements to use 'import psycopg2'",
+            "description": "Standardize all database import statements to 'import psycopg2', regardless of package installed.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Investigate production environment variable configuration",
+            "description": "Verify that all required environment variables for database and blob storage are correctly set in the production deployment platform (e.g., Vercel dashboard). Identify any missing, misnamed, or incorrectly scoped variables.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Review database connection logic for serverless compatibility",
+            "description": "Ensure database connections are properly managed for serverless environments, including connection establishment, closure, and pooling. Address any issues specific to ephemeral production environments.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Validate blob storage configuration in production",
+            "description": "Check that blob storage SDK initialization uses correct environment variables and credentials in production, and that permissions are sufficient for required operations.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Compare local and production configurations",
+            "description": "Systematically compare local and production environment settings, dependency versions, and platform-specific configurations to identify and resolve discrepancies.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Enhance error handling and logging for /recruits and /admin routes",
+            "description": "Add detailed error handling and logging to capture context about failures, including environment variable presence, database connection errors, and blob storage issues.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Test deployment pipeline for production-specific configuration",
+            "description": "Deploy to staging/production and verify that all production-specific configurations are applied, with no local-only settings present.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Document findings and update deployment runbooks",
+            "description": "Record the investigation process, resolution steps, and update deployment documentation to prevent recurrence of similar issues.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Diagnose and Resolve Git Commit Hanging Issue in Cursor on Windows",
+        "description": "Investigate and fix the recurring issue where Git commit commands hang in the Cursor terminal on Windows, identifying the root cause and implementing a robust workaround or configuration change.",
+        "details": "1. Collect detailed reports from affected users, including Git version, Windows version, Cursor terminal version, and any relevant logs or error messages. \n2. Attempt to reproduce the hanging behavior in a controlled environment using the same versions and configurations. \n3. Systematically test for known causes of Git commit hangs on Windows, including:\n   - Conflicts or misconfiguration with Windows Credential Manager (e.g., credential.helper settings).\n   - Issues with terminal integration (e.g., how Cursor spawns or manages Git processes, environment variables, or stdin/stdout handling).\n   - Git configuration conflicts (e.g., autocrlf, hooks, or editor settings).\n   - Interference from antivirus or security software.\n4. Review similar issues in public trackers (e.g., TortoiseGit, GitHub Desktop) for patterns and potential solutions, such as disabling certain credential helpers, updating Git, or adjusting terminal settings[1][2][3].\n5. If the root cause is identified (e.g., credential manager deadlock, terminal process mismanagement), implement a workaround:\n   - For credential manager issues: switch to a different credential helper or use SSH keys.\n   - For terminal integration: adjust how Cursor launches Git, or use a different shell.\n   - For configuration conflicts: document and enforce recommended Git settings for all users.\n6. Document the findings, root cause, and implemented solution. Provide clear instructions for users to apply the fix or update their environment.\n7. If no single root cause is found, implement and document a set of best practices and mitigations to minimize the issue's occurrence.",
+        "testStrategy": "1. Reproduce the commit hanging issue in a test environment using the same versions and configurations as affected users.\n2. Apply the identified fix or workaround and verify that Git commit commands complete promptly in Cursor across multiple projects.\n3. Test with various credential helpers (Windows Credential Manager, cache, SSH) and terminal settings to ensure the solution is robust.\n4. Confirm that the fix does not introduce regressions or new issues in Git workflows (commit, push, pull, etc.).\n5. Provide a step-by-step guide for users to verify the fix on their own systems and collect feedback to ensure the issue is resolved.",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-07T20:34:24.556Z",
-      "updated": "2025-08-07T21:35:54.241Z",
+      "updated": "2025-08-10T04:48:11.644Z",
       "description": "Tasks for master context"
     }
   },

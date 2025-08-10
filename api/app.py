@@ -1130,36 +1130,45 @@ def dashboard():
 
 @app.route('/recruits')
 def recruits():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
-    # Get sort parameters
-    sort_by = request.args.get('sort', 'created_at')
-    order = request.args.get('order', 'desc')
-    
-    # Define valid sort columns
-    valid_sorts = {
-        'first_name': PotentialRecruit.first_name,
-        'last_name': PotentialRecruit.last_name,
-        'email': PotentialRecruit.email,
-        'current_school': PotentialRecruit.current_school,
-        'major': PotentialRecruit.major,
-        'status': PotentialRecruit.status,
-        'created_at': PotentialRecruit.created_at,
-        'last_modified': PotentialRecruit.last_modified
-    }
-    
-    # Default to created_at if invalid sort column
-    if sort_by not in valid_sorts:
-        sort_by = 'created_at'
-    
-    # Apply sorting
-    if order == 'asc':
-        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
-    else:
-        recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
-    
-    return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        
+        # Get sort parameters
+        sort_by = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc')
+        
+        # Define valid sort columns
+        valid_sorts = {
+            'first_name': PotentialRecruit.first_name,
+            'last_name': PotentialRecruit.last_name,
+            'email': PotentialRecruit.email,
+            'current_school': PotentialRecruit.current_school,
+            'major': PotentialRecruit.major,
+            'status': PotentialRecruit.status,
+            'created_at': PotentialRecruit.created_at,
+            'last_modified': PotentialRecruit.last_modified
+        }
+        
+        # Default to created_at if invalid sort column
+        if sort_by not in valid_sorts:
+            sort_by = 'created_at'
+        
+        # Apply sorting
+        if order == 'asc':
+            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
+        else:
+            recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
+        
+        return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
+        
+    except Exception as e:
+        print(f"Error in /recruits route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading recruits. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/recruits/add', methods=['GET', 'POST'])
 def add_recruit():
@@ -1571,13 +1580,22 @@ def add_event():
 
 @app.route('/admin')
 def admin():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        flash('Access denied. Admin privileges required.', 'error')
+    try:
+        if 'user_id' not in session or session.get('role') != 'admin':
+            flash('Access denied. Admin privileges required.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        users = User.query.all()
+        backup_files = get_backup_files()
+        return render_template('admin.html', users=users, backup_files=backup_files)
+        
+    except Exception as e:
+        print(f"Error in /admin route: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('An error occurred while loading admin panel. Please try again.', 'error')
         return redirect(url_for('dashboard'))
-    
-    users = User.query.all()
-    backup_files = get_backup_files()
-    return render_template('admin.html', users=users, backup_files=backup_files)
 
 @app.route('/admin/database')
 def database_management():
