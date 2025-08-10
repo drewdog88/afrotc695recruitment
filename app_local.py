@@ -3268,13 +3268,13 @@ def edit_cadet(cadet_id):
 
     return render_template('edit_cadet.html', cadet=cadet)
 
-@app.route('/contacts/download/<format>')
-def download_contacts(format):
+# Standard export routes to match production environment
+@app.route('/download/contacts/<format>')
+def download_contacts_standard(format):
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # Get all contacts
-    contacts = UniversityContact.query.all()
+    contacts = UniversityContact.query.order_by(UniversityContact.created_at.desc()).all()
 
     # Prepare data for export
     data = []
@@ -3282,85 +3282,121 @@ def download_contacts(format):
         data.append({
             'University Name': contact.university_name,
             'Contact Name': contact.contact_name,
-            'Contact Title': contact.contact_title,
+            'Contact Title': contact.contact_title or '',
             'Email': contact.email,
-            'Phone': contact.phone,
-            'Address': contact.address,
-            'Notes': contact.notes,
-            'Created At': contact.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'Last Modified': contact.last_modified.strftime('%Y-%m-%d %H:%M:%S')
+            'Phone': contact.phone or '',
+            'Address': contact.address or '',
+            'Status': 'Active' if contact.is_active else 'Inactive',
+            'Notes': contact.notes or '',
+            'Created Date': utc_to_local(contact.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.created_at) else '',
+            'Last Modified': utc_to_local(contact.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(contact.last_modified) else ''
         })
 
     # Log the export activity
-    log_activity('EXPORT', 'university_contacts', None, f'Exported {len(data)} university contacts as {format.upper()}')
+    log_activity('EXPORT', 'university_contact', None, 'Contacts Export', f'Exported {len(contacts)} contacts to {format.upper()}')
 
-    if format == 'csv':
-        # Create CSV
-        df = pd.DataFrame(data)
-        output = BytesIO()
-        df.to_csv(output, index=False)
-        output.seek(0)
+    return export_data(data, f'high_school_contacts_{datetime.now().strftime("%Y%m%d")}', format, 'High School Contacts')
 
-        return send_file(
-            output,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-        )
+@app.route('/download/recruits/<format>')
+def download_recruits_standard(format):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
 
-    elif format == 'excel':
-        # Create Excel
-        df = pd.DataFrame(data)
-        output = BytesIO()
-        df.to_excel(output, index=False, engine='openpyxl')
-        output.seek(0)
+    recruits = PotentialRecruit.query.order_by(PotentialRecruit.created_at.desc()).all()
 
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
-        )
+    # Prepare data for export
+    data = []
+    for recruit in recruits:
+        data.append({
+            'First Name': recruit.first_name,
+            'Last Name': recruit.last_name,
+            'Email': recruit.email or '',
+            'Phone': recruit.phone or '',
+            'Major': recruit.major or '',
+            'Current School': recruit.current_school,
+            'School Type': recruit.school_type,
+            'HS Graduation Year': recruit.high_school_graduation_year or '',
+            'College Graduation Year': recruit.expected_college_graduation_year or '',
+            'GPA': recruit.gpa or '',
+            'SAT Score': recruit.sat_score or '',
+            'ACT Score': recruit.act_score or '',
+            'Interests': recruit.interests or '',
+            'Status': recruit.status,
+            'Notes': recruit.notes or '',
+            'Created Date': utc_to_local(recruit.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.created_at) else '',
+            'Last Modified': utc_to_local(recruit.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(recruit.last_modified) else ''
+        })
 
-    elif format == 'pdf':
-        # Create PDF
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+    # Log the export activity
+    log_activity('EXPORT', 'potential_recruit', None, 'Recruits Export', f'Exported {len(recruits)} recruits to {format.upper()}')
 
-        # Create table data
-        table_data = [list(data[0].keys())]  # Headers
-        for row in data:
-            table_data.append(list(row.values()))
+    return export_data(data, f'potential_recruits_{datetime.now().strftime("%Y%m%d")}', format, 'Potential Recruits')
 
-        # Create table
-        table = Table(table_data)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('FONTSIZE', (0, 1), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
+@app.route('/download/cadet/<format>')
+def download_cadet_standard(format):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
 
-        # Build PDF
-        elements = [table]
-        doc.build(elements)
+    cadet_members = Cadet.query.order_by(Cadet.created_at.desc()).all()
 
-        buffer.seek(0)
-        return send_file(
-            buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
-        )
+    # Prepare data for export
+    data = []
+    for cadet in cadet_members:
+        data.append({
+            'First Name': cadet.first_name,
+            'Last Name': cadet.last_name,
+            'Email': cadet.email,
+            'Phone': cadet.phone or '',
+            'Major': cadet.major,
+            'Graduation Year': cadet.graduation_year,
+            'Cadet Rank': cadet.cadet_rank,
+            'Hometown': cadet.hometown or '',
+            'Officer Interest': cadet.officer_interest or '',
+            'Status': cadet.status.title(),
+            'Unenrollment Date': cadet.unenrollment_date_display or '',
+            'Unenrollment Reason': cadet.unenrollment_reason or '',
+            'GPA': cadet.gpa or '',
+            'Created Date': utc_to_local(cadet.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.created_at) else '',
+            'Last Modified': utc_to_local(cadet.last_modified).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(cadet.last_modified) else ''
+        })
 
-    else:
-        flash('Invalid export format.', 'error')
-        return redirect(url_for('contacts'))
+    # Log the export activity
+    log_activity('EXPORT', 'cadet', None, 'Cadet Export', f'Exported {len(cadet_members)} cadet members to {format.upper()}')
+
+    return export_data(data, f'cadet_members_{datetime.now().strftime("%Y%m%d")}', format, 'Cadet Members')
+
+@app.route('/download/activity-log/<format>')
+def download_activity_log_standard(format):
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+
+    # Get activity log entries
+    activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
+
+    # Prepare data for export
+    data = []
+    for activity in activities:
+        data.append({
+            'Username': activity.username,
+            'Action': activity.action,
+            'Table': activity.table_name or '',
+            'Record ID': activity.record_id or '',
+            'Description': activity.record_description or '',
+            'Details': activity.details or '',
+            'IP Address': activity.ip_address or '',
+            'User Agent': activity.user_agent or '',
+            'Created At': utc_to_local(activity.created_at).strftime('%Y-%m-%d %H:%M:%S') if utc_to_local(activity.created_at) else ''
+        })
+
+    # Log the export activity
+    log_activity('EXPORT', 'activity_log', None, 'Activity Log Export', f'Exported {len(activities)} activity log entries to {format.upper()}')
+
+    return export_data(data, f'activity_log_{datetime.now().strftime("%Y%m%d")}', format, 'Activity Log')
+
+# Legacy routes for backward compatibility
+@app.route('/contacts/download/<format>')
+def download_contacts(format):
+    return download_contacts_standard(format)
 
 @app.route('/recruits/download/<format>')
 def download_recruits(format):
@@ -3523,6 +3559,36 @@ def delete_cadet(cadet_id):
         print(f"Error deleting cadet: {e}")
 
     return redirect(url_for('cadet'))
+
+# API routes to match production environment
+@app.route('/api/recruits')
+def api_recruits():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    recruits = PotentialRecruit.query.all()
+    return jsonify([{
+        'id': r.id,
+        'name': f"{r.first_name} {r.last_name}",
+        'school': r.current_school,
+        'status': r.status,
+        'created_at': r.created_at.strftime('%Y-%m-%d')
+    } for r in recruits])
+
+@app.route('/api/cadet')
+def api_cadet():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    cadet = Cadet.query.all()
+    return jsonify([{
+        'id': c.id,
+        'name': f"{c.first_name} {c.last_name}",
+        'rank': c.cadet_rank,
+        'major': c.major,
+        'graduation_year': c.graduation_year,
+        'status': c.status
+    } for c in cadet])
 
 @app.route('/api/backup/nightly')
 def nightly_backup_cron():
