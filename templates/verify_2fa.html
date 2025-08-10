@@ -87,7 +87,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Auto-focus on the code input
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('totp_code').focus();
@@ -128,3 +128,4 @@ document.addEventListener('submit', function(e) {
 });
 </script>
 {% endblock %}
+

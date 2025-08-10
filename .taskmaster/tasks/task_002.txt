@@ -1,0 +1,21 @@
+# Task ID: 2
+# Title: Configure Neon PostgreSQL for Production and Migrate Data from SQLite
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Set up the Neon PostgreSQL database for the production environment, configure secure access, update application connection settings, and migrate all data from SQLite to Neon. Test connectivity and optimize for production use.
+# Details:
+1. Provision a Neon PostgreSQL database instance and create a dedicated user with strong credentials and least-privilege access.
+2. Store database credentials securely as environment variables in the Vercel dashboard.
+3. Update the application's configuration to use the Neon PostgreSQL connection string and ensure all database access is via environment variables.
+4. Use a migration tool (such as Django's migrate, Alembic, or custom scripts) to transfer all data from the existing SQLite database to Neon PostgreSQL, mapping data types and handling schema differences as needed.
+5. After migration, verify data integrity by comparing record counts and spot-checking key tables.
+6. Optimize the Neon database by reviewing indexes, schema design, and connection pooling settings for production workloads. Set up automated backups if not enabled by default.
+7. Document the migration and configuration steps for future reference and disaster recovery.
+
+# Test Strategy:
+- Attempt to connect to the Neon PostgreSQL database from the production environment using the configured credentials and environment variables.
+- Run the application and verify all database-driven features function as expected.
+- Compare row counts and sample data between SQLite and Neon PostgreSQL to confirm successful migration.
+- Use Neon and application monitoring tools to check for slow queries and resource bottlenecks.
+- Test backup and restore procedures to ensure data can be recovered if needed.

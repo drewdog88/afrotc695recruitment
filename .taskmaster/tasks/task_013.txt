@@ -1,0 +1,22 @@
+# Task ID: 13
+# Title: Implement Vercel Blob Storage for File Uploads and Document Management
+# Status: done
+# Dependencies: 1, 11
+# Priority: high
+# Description: Replace local file storage with Vercel Blob storage, update all file upload/download functionality to use Vercel Blob, migrate existing documents, and ensure secure, access-controlled file management.
+# Details:
+1. Set up a Vercel Blob store via the Vercel dashboard under the Storage tab, ensuring the environment variable BLOB_READ_WRITE_TOKEN is configured for all environments (development, preview, production).
+2. Install the @vercel/blob SDK in the project and update backend and frontend code to use the SDK for file uploads and downloads. For server uploads, use the Blob SDK's upload methods, ensuring compliance with Vercel's 4.5 MB request body size limit; for larger files, implement client-side uploads as recommended by Vercel.
+3. Refactor all file upload endpoints and document management logic to interact with Vercel Blob instead of local storage. Use unique file naming (e.g., nanoid or UUID) to prevent collisions and store returned Blob URLs in the database for reference.
+4. Implement secure access controls: set file access to 'public' only when necessary, otherwise use signed URLs or token-based access for sensitive documents. Ensure environment variables are securely managed and not exposed to the client.
+5. Migrate all existing files from local storage to Vercel Blob using the vercel blob CLI or SDK, updating database references to point to new Blob URLs. Use the '--force' option to overwrite if needed and '--multipart' for large files.
+6. Update file download logic to retrieve files from Vercel Blob, handling cache control headers and access permissions as appropriate.
+7. Document the new upload/download process and update any user-facing documentation or admin guides.
+
+# Test Strategy:
+- Upload files of various types and sizes through the application and verify they are stored in Vercel Blob, with correct URLs and metadata saved in the database.
+- Download files via the application and confirm correct file retrieval, access control enforcement, and cache behavior.
+- Attempt uploads exceeding the 4.5 MB server limit to ensure client-side upload fallback works as intended.
+- Migrate a sample set of existing documents and verify their accessibility and integrity post-migration.
+- Review environment variable security and confirm no sensitive tokens are exposed to the client.
+- Conduct regression testing on all document management features to ensure no loss of functionality or security.

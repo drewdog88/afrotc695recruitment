@@ -200,7 +200,7 @@
 </div>
 {% endif %}
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Convert UTC times to local timezone
 document.addEventListener('DOMContentLoaded', function() {
     // Convert date elements
@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const localDate = new Date(utcDate);
         element.textContent = localDate.toLocaleDateString();
     });
-    
+
     // Convert time elements
     document.querySelectorAll('[data-utc-time]').forEach(function(element) {
         const utcTime = element.getAttribute('data-utc-time');
@@ -218,4 +218,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %} 
+{% endblock %}

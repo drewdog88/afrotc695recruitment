@@ -1,0 +1,81 @@
+# Task ID: 18
+# Title: Resolve Production Deployment Failures on /recruits and /admin Routes
+# Status: done
+# Dependencies: 13, 16
+# Priority: high
+# Description: Fix persistent 500 errors on /recruits and /admin routes in production by investigating and resolving production-specific issues. Despite successful local testing and applying the psycopg2-binary fix, failures continue in production. Focus on identifying differences between local and production environments, including environment variable configuration, database connection handling in serverless contexts, and blob storage setup. Ensure all dependencies and configurations are correctly applied for production.
+# Details:
+1. Audit requirements.txt and deployment scripts to confirm only psycopg2-binary is installed for serverless environments, as previously completed.
+2. Investigate production environment variables: verify all required variables (e.g., database connection strings, blob storage tokens) are present and correctly set in the production deployment platform (e.g., Vercel dashboard).
+3. Review database connection logic for compatibility with serverless deployment: ensure connections are established and closed properly, and that pooling or connection reuse does not cause issues in ephemeral environments.
+4. Validate blob storage configuration specifically in production: check that SDK initialization uses the correct environment variables and credentials, and that permissions are sufficient for read/write operations.
+5. Compare local and production configurations to identify discrepancies (e.g., missing or misnamed environment variables, differences in dependency versions, or platform-specific settings).
+6. Enhance error handling and logging in /recruits and /admin route handlers to capture detailed context about failures, including environment variable presence, database connection errors, and blob storage issues.
+7. Test the deployment pipeline to ensure all production-specific configurations are applied and no local-only settings are present.
+8. Document findings, resolution steps, and update deployment runbooks to prevent recurrence.
+
+# Test Strategy:
+- Deploy the application to a staging or production environment and verify that /recruits and /admin routes respond without 500 errors.
+- Intentionally misconfigure environment variables (database and blob storage) in production to confirm that errors are logged and handled gracefully, not resulting in unhandled 500s.
+- Review deployment logs to ensure only psycopg2-binary is installed and imported, and that all required environment variables are present.
+- Run integration tests covering all major workflows on /recruits and /admin, including file upload/download and database operations, specifically in production.
+- Compare local and production logs to identify and resolve configuration differences.
+- Confirm that error logs contain actionable information for any failures encountered in production.
+
+# Subtasks:
+## 1. Audit requirements.txt and deployment scripts for psycopg2-binary usage [done]
+### Dependencies: None
+### Description: Ensure only psycopg2-binary is present in requirements.txt and deployment scripts, removing any conflicting psycopg2 entries.
+### Details:
+
+
+## 2. Update import statements to use 'import psycopg2' [done]
+### Dependencies: None
+### Description: Standardize all database import statements to 'import psycopg2', regardless of package installed.
+### Details:
+
+
+## 3. Investigate production environment variable configuration [done]
+### Dependencies: None
+### Description: Verify that all required environment variables for database and blob storage are correctly set in the production deployment platform (e.g., Vercel dashboard). Identify any missing, misnamed, or incorrectly scoped variables.
+### Details:
+
+
+## 4. Review database connection logic for serverless compatibility [done]
+### Dependencies: None
+### Description: Ensure database connections are properly managed for serverless environments, including connection establishment, closure, and pooling. Address any issues specific to ephemeral production environments.
+### Details:
+
+
+## 5. Validate blob storage configuration in production [done]
+### Dependencies: None
+### Description: Check that blob storage SDK initialization uses correct environment variables and credentials in production, and that permissions are sufficient for required operations.
+### Details:
+
+
+## 6. Compare local and production configurations [done]
+### Dependencies: None
+### Description: Systematically compare local and production environment settings, dependency versions, and platform-specific configurations to identify and resolve discrepancies.
+### Details:
+
+
+## 7. Enhance error handling and logging for /recruits and /admin routes [done]
+### Dependencies: None
+### Description: Add detailed error handling and logging to capture context about failures, including environment variable presence, database connection errors, and blob storage issues.
+### Details:
+<info added on 2025-08-10T04:58:45.270Z>
+Enhanced error handling and logging has been implemented across the /recruits, /admin, /cadet, and /contacts routes. All routes now utilize comprehensive try-except blocks that capture and log error type, traceback, and provide user-friendly flash messages. This improvement enables detailed capture of runtime errors in production that previously resulted in generic 500 errors, facilitating more effective troubleshooting. All changes have been committed and deployed to production.
+</info added on 2025-08-10T04:58:45.270Z>
+
+## 8. Test deployment pipeline for production-specific configuration [done]
+### Dependencies: None
+### Description: Deploy to staging/production and verify that all production-specific configurations are applied, with no local-only settings present.
+### Details:
+
+
+## 9. Document findings and update deployment runbooks [done]
+### Dependencies: None
+### Description: Record the investigation process, resolution steps, and update deployment documentation to prevent recurrence of similar issues.
+### Details:
+
+

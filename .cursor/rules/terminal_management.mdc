@@ -1,0 +1,61 @@
+- **Terminal Session Management:**
+  - **Always check terminal state before running commands**
+  - **Use `is_background: false` for interactive commands**
+  - **Set reasonable timeouts for long-running operations**
+  - **Provide clear feedback when commands complete or fail**
+
+- **Command Execution Best Practices:**
+  - **Prefer single, focused commands over complex pipelines**
+  - **Use `exit` or `Ctrl+C` to exit interactive sessions (WSL, bash, etc.)**
+  - **Check command exit codes and handle failures gracefully**
+  - **Avoid nested terminal sessions that can cause confusion**
+
+- **WSL and Cross-Platform Commands:**
+  - **Use `wsl -e <command>` for single WSL commands**
+  - **Use `wsl` to enter WSL session, then `exit` to return**
+  - **Prefer PowerShell-native commands when possible**
+  - **Use `& "path/to/executable"` for external tools in PowerShell**
+
+- **Hanging Command Prevention:**
+  - **Set `is_background: true` for long-running processes (servers, etc.)**
+  - **Use `timeout` or `Start-Sleep` for controlled delays**
+  - **Avoid commands that wait for user input without timeout**
+  - **Provide clear instructions when user intervention is needed**
+
+- **Error Handling:**
+  - **Check `exit code` after each command**
+  - **Handle common errors (permission denied, not found, etc.)**
+  - **Provide alternative approaches when commands fail**
+  - **Log errors and recovery steps for debugging**
+
+- **User Experience:**
+  - **Acknowledge when commands are taking longer than expected**
+  - **Provide progress updates for long operations**
+  - **Ask for user input when multiple options exist**
+  - **Confirm understanding before proceeding with destructive operations**
+
+- **Example Patterns:**
+  ```powershell
+  # ✅ DO: Single command with clear exit
+  wsl -e curl --version
+  
+  # ✅ DO: Background process for servers
+  python start_local.py  # is_background: true
+  
+  # ✅ DO: Controlled timeout
+  Start-Sleep -Seconds 3
+  
+  # ❌ DON'T: Nested sessions without exit
+  wsl
+  curl --version  # This can hang
+  ```
+
+- **Session Recovery:**
+  - **Use `exit` to return to PowerShell from WSL/bash**
+  - **Use `Ctrl+C` to interrupt hanging commands**
+  - **Restart terminal session if state becomes unclear**
+  - **Document session state for debugging**
+description:
+globs:
+alwaysApply: false
+---

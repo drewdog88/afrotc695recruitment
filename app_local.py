@@ -26,45 +26,49 @@ from dotenv import load_dotenv
 from vercel_blob import put, list as blob_list, delete, head
 import base64
 
+# Security imports
+from flask_talisman import Talisman
+from flask_wtf.csrf import CSRFProtect
+
 def test_blob_storage():
     """Test Vercel Blob storage connectivity"""
     try:
         # Create a small test file
         test_content = b"Hello, this is a test file for Vercel Blob storage!"
         test_filename = "blob_test.txt"
-        
+
         # Upload test file
         print("Uploading test file to Vercel Blob...")
         with open(test_filename, 'wb') as f:
             f.write(test_content)
-        
+
         with open(test_filename, 'rb') as f:
             blob_response = put(test_filename, f.read(), {"addRandomSuffix": False})
-        
+
         if not blob_response or 'url' not in blob_response:
             print("Error: Failed to upload test file")
             return False
-            
+
         print(f"Test file uploaded successfully. URL: {blob_response['url']}")
-        
+
         # Verify file exists
         print("Verifying file exists...")
         blob_meta = head(blob_response['url'])
         if not blob_meta:
             print("Error: Failed to verify file exists")
             return False
-            
+
         print("File exists in Blob storage")
-        
+
         # Delete test file
         print("Cleaning up test file...")
         delete(blob_response['url'], {})
         print("Test file deleted")
-        
+
         # Clean up local test file
         import os
         os.remove(test_filename)
-        
+
         return True
     except Exception as e:
         print(f"Blob storage test failed: {str(e)}")
@@ -72,24 +76,24 @@ def test_blob_storage():
 
 def test_file_upload(file_data, filename):
     """Test file upload to Vercel Blob storage
-    
+
     Args:
         file_data (bytes): The file content as bytes
         filename (str): The name to use for the file
-        
+
     Returns:
         tuple: (success, url, error_message)
     """
     try:
         print(f"Uploading file {filename} to Vercel Blob...")
         blob_response = put(filename, file_data)
-        
+
         if not blob_response or 'url' not in blob_response:
             return False, None, "Failed to upload file"
-            
+
         print(f"File uploaded successfully. URL: {blob_response['url']}")
         return True, blob_response['url'], None
-        
+
     except Exception as e:
         error_msg = f"File upload failed: {str(e)}"
         print(error_msg)
@@ -97,25 +101,25 @@ def test_file_upload(file_data, filename):
 
 def test_file_download(blob_url):
     """Test file download from Vercel Blob storage
-    
+
     Args:
         blob_url (str): The Blob storage URL to download from
-        
+
     Returns:
         tuple: (success, file_data, error_message)
     """
     try:
         print(f"Downloading file from {blob_url}...")
         blob_meta = head(blob_url)
-        
+
         if not blob_meta:
             return False, None, "File not found in Blob storage"
-            
+
         # For testing, we'll just verify the file exists
         # In production, you would use the downloadUrl to get the file
         print("File exists and is downloadable")
         return True, None, None
-        
+
     except Exception as e:
         error_msg = f"File download failed: {str(e)}"
         print(error_msg)
@@ -123,10 +127,10 @@ def test_file_download(blob_url):
 
 def test_file_delete(blob_url):
     """Test file deletion from Vercel Blob storage
-    
+
     Args:
         blob_url (str): The Blob storage URL to delete
-        
+
     Returns:
         tuple: (success, error_message)
     """
@@ -135,7 +139,7 @@ def test_file_delete(blob_url):
         delete(blob_url, {})
         print("File deleted successfully")
         return True, None
-        
+
     except Exception as e:
         error_msg = f"File deletion failed: {str(e)}"
         print(error_msg)
@@ -148,7 +152,7 @@ load_dotenv('env.local')
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 static_dir = os.path.join(os.path.dirname(__file__), 'static')
 
-app = Flask(__name__, 
+app = Flask(__name__,
            template_folder=template_dir,
            static_folder=static_dir,
            static_url_path='/static')
@@ -173,6 +177,61 @@ if database_url and 'postgresql' in database_url:
 
 # Neon serverless connection removed - using SQLAlchemy with psycopg2 instead
 
+# Security configuration
+# Content Security Policy (CSP) configuration
+csp = {
+    'default-src': ["'self'"],
+    'script-src': [
+        "'self'",
+        "'unsafe-inline'",  # Required for Bootstrap and inline scripts
+        "'unsafe-eval'",    # Required for Chart.js
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+        "https://code.jquery.com"
+    ],
+    'style-src': [
+        "'self'",
+        "'unsafe-inline'",  # Required for Bootstrap and inline styles
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+        "https://fonts.googleapis.com"
+    ],
+    'font-src': [
+        "'self'",
+        "https://fonts.gstatic.com",
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com"
+    ],
+    'img-src': [
+        "'self'",
+        "data:",
+        "https:",
+        "https://www.up.edu",
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com"
+    ],
+    'connect-src': ["'self'"],
+    'frame-src': ["'none'"],
+    'object-src': ["'none'"],
+    'base-uri': ["'self'"],
+    'form-action': ["'self'"]
+}
+
+# Initialize Flask-Talisman with security headers
+talisman = Talisman(
+    app,
+    content_security_policy=csp,
+    content_security_policy_nonce_in=['script-src'],
+    force_https=False,  # Set to True in production
+    strict_transport_security=True,
+    strict_transport_security_max_age=31536000,
+    strict_transport_security_include_subdomains=True,
+    strict_transport_security_preload=True
+)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
 db = SQLAlchemy(app)
 
 # Activity Log Model for tracking all user actions
@@ -188,7 +247,7 @@ class ActivityLog(db.Model):
     ip_address = db.Column(db.String(45))  # Store IP address for security
     user_agent = db.Column(db.String(500))  # Store user agent for security
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationship to user
     user = db.relationship('User', backref='activity_logs')
 
@@ -197,7 +256,7 @@ class PasswordHistory(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationship to user
     user = db.relationship('User', backref='password_history')
 
@@ -219,17 +278,17 @@ class User(db.Model):
     force_password_change = db.Column(db.Boolean, default=False)
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(120), nullable=False)
-    
+
     # 2FA Authentication Fields
     totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
     totp_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Whether 2FA is enabled
     backup_codes_hash = db.Column(db.Text, nullable=True)  # Encrypted backup codes
     totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)  # Setup completion status
     can_enable_2fa = db.Column(db.Boolean, default=True, nullable=False)  # Admin control flag
-    
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Set password expiry for non-admin users (180 days)
@@ -237,11 +296,11 @@ class User(db.Model):
             self.password_expires_at = datetime.utcnow() + timedelta(days=180)
         else:
             self.password_expires_at = None  # Admin passwords never expire
-    
+
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
-    
+
     @property
     def is_password_expired(self):
         if self.role == 'admin':
@@ -249,29 +308,29 @@ class User(db.Model):
         if self.password_expires_at:
             return datetime.utcnow() > self.password_expires_at
         return False
-    
+
     @property
     def days_until_password_expiry(self):
         if self.role == 'admin' or not self.password_expires_at:
             return None
         days_left = (self.password_expires_at - datetime.utcnow()).days
         return max(0, days_left)
-    
+
     # 2FA Authentication Methods
     @property
     def is_2fa_enabled(self):
         """Check if 2FA is fully enabled for this user"""
         return self.totp_enabled and self.totp_setup_completed
-    
+
     @property
     def can_use_2fa(self):
         """Check if user can enable/use 2FA"""
         return self.can_enable_2fa and self.is_active
-    
+
     def has_2fa_setup(self):
         """Check if user has started 2FA setup process"""
         return self.totp_secret is not None
-    
+
     def needs_2fa_setup(self):
         """Check if user needs to complete 2FA setup"""
         return self.totp_enabled and not self.totp_setup_completed
@@ -313,7 +372,7 @@ class Cadet(db.Model):
     gpa = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     def __init__(self, **kwargs):
         # Handle unenrollment_date parsing
         if 'unenrollment_date' in kwargs and kwargs['unenrollment_date']:
@@ -328,7 +387,7 @@ class Cadet(db.Model):
             except (ValueError, TypeError, AttributeError):
                 kwargs['unenrollment_date'] = None
         super().__init__(**kwargs)
-    
+
     @property
     def unenrollment_date_display(self):
         """Safe property to get unenrollment_date for display"""
@@ -413,16 +472,16 @@ def log_activity(action, table_name=None, record_id=None, record_description=Non
     """Log user activity to the database"""
     if 'user_id' not in session:
         return
-    
+
     try:
         # Get user info
         user_id = session['user_id']
         username = session.get('username', 'Unknown')
-        
+
         # Get request info
         ip_address = request.remote_addr
         user_agent = request.headers.get('User-Agent', 'Unknown')
-        
+
         # Create activity log entry
         activity = ActivityLog(
             user_id=user_id,
@@ -435,7 +494,7 @@ def log_activity(action, table_name=None, record_id=None, record_description=Non
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
         db.session.add(activity)
         db.session.commit()
     except Exception as e:
@@ -447,11 +506,11 @@ def log_activity(action, table_name=None, record_id=None, record_description=Non
 def validate_password(password, user_id=None):
     """Validate password strength and check against history"""
     errors = []
-    
+
     # Check minimum length
     if len(password) < 8:
         errors.append("Password must be at least 8 characters long")
-    
+
     # Check for complexity requirements
     if not any(c.isupper() for c in password):
         errors.append("Password must contain at least one uppercase letter")
@@ -461,7 +520,7 @@ def validate_password(password, user_id=None):
         errors.append("Password must contain at least one number")
     if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
         errors.append("Password must contain at least one special character")
-    
+
     # Check against password history (last 5 passwords)
     if user_id:
         recent_passwords = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).limit(5).all()
@@ -469,7 +528,7 @@ def validate_password(password, user_id=None):
             if check_password_hash(hist.password_hash, password):
                 errors.append("Password cannot be the same as any of your last 5 passwords")
                 break
-    
+
     return errors
 
 def update_password_history(user_id, password_hash):
@@ -477,25 +536,25 @@ def update_password_history(user_id, password_hash):
     # Add new password to history
     history_entry = PasswordHistory(user_id=user_id, password_hash=password_hash)
     db.session.add(history_entry)
-    
+
     # Keep only last 10 password entries
     old_entries = PasswordHistory.query.filter_by(user_id=user_id).order_by(PasswordHistory.created_at.desc()).offset(10).all()
     for entry in old_entries:
         db.session.delete(entry)
-    
+
     db.session.commit()
 
 def check_user_access(user, required_role='recruiter'):
     """Check if user has required role access"""
     if not user.is_active:
         return False, "Account is inactive"
-    
+
     if user.is_locked:
         return False, "Account is locked"
-    
+
     if required_role == 'admin' and user.role != 'admin':
         return False, "Admin access required"
-    
+
     return True, None
 
 def validate_secret_answer(user, secret_answer):
@@ -506,22 +565,22 @@ def get_cadet_retention_data():
     """Calculate cadet retention data by graduation year"""
     current_year = datetime.now().year
     retention_data = []
-    
+
     # Get the 4 graduation years (current year + 3 years)
     graduation_years = [current_year + i for i in range(4)]
-    
+
     for year in graduation_years:
         # Get total cadets for this graduation year
         total_cadets = Cadet.query.filter_by(graduation_year=year).count()
-        
+
         if total_cadets > 0:
             # Get active cadets for this graduation year
             active_cadets = Cadet.query.filter_by(graduation_year=year, status='active').count()
-            
+
             # Calculate percentages
             active_percentage = (active_cadets / total_cadets) * 100
             inactive_percentage = 100 - active_percentage
-            
+
             retention_data.append({
                 'year': year,
                 'total_cadets': total_cadets,
@@ -540,7 +599,7 @@ def get_cadet_retention_data():
                 'active_percentage': 0,
                 'inactive_percentage': 0
             })
-    
+
     # Sort by year in ascending order
     retention_data.sort(key=lambda x: x['year'])
     return retention_data
@@ -550,20 +609,20 @@ def get_database_size():
     try:
         # Query database size using PostgreSQL-specific queries
         query = """
-        SELECT 
+        SELECT
             schemaname,
             ROUND(SUM(pg_total_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as size_mb,
             ROUND(SUM(pg_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as data_mb,
             ROUND(SUM(pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename)) / 1024.0 / 1024.0, 2) as index_mb,
             COUNT(*) as table_count
-        FROM pg_tables 
+        FROM pg_tables
         WHERE schemaname = 'public'
         GROUP BY schemaname
         """
-        
+
         result = db.session.execute(text(query))
         row = result.fetchone()
-        
+
         if row:
             return {
                 'database': row[0],
@@ -594,7 +653,7 @@ def get_record_counts():
     """Get record counts for all major tables"""
     try:
         counts = {}
-        
+
         # Define tables to count (using current model names)
         tables = [
             ('user', User),
@@ -607,7 +666,7 @@ def get_record_counts():
             ('activity_log', ActivityLog),
             ('password_history', PasswordHistory)
         ]
-        
+
         for table_name, model in tables:
             try:
                 count = db.session.query(model).count()
@@ -615,7 +674,7 @@ def get_record_counts():
             except Exception as e:
                 print(f"Error counting {table_name}: {e}")
                 counts[table_name] = 0
-        
+
         return counts
     except Exception as e:
         print(f"Error getting record counts: {e}")
@@ -625,16 +684,16 @@ def get_system_performance():
     """Get current system performance metrics"""
     try:
         import psutil
-        
+
         # CPU usage
         cpu_percent = psutil.cpu_percent(interval=1)
-        
+
         # Memory usage
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         memory_used_mb = memory.used / (1024 * 1024)
         memory_total_mb = memory.total / (1024 * 1024)
-        
+
         # Disk usage (if available)
         try:
             disk = psutil.disk_usage('/')
@@ -645,7 +704,7 @@ def get_system_performance():
             disk_percent = 0
             disk_used_mb = 0
             disk_total_mb = 0
-        
+
         return {
             'cpu_percent': round(cpu_percent, 1),
             'memory_percent': round(memory_percent, 1),
@@ -676,23 +735,23 @@ def get_user_activity_stats():
             ActivityLog.action == 'LOGIN',
             ActivityLog.created_at >= thirty_days_ago
         ).count()
-        
+
         # Active users (users who logged in within last 7 days)
         seven_days_ago = datetime.utcnow() - timedelta(days=7)
         active_users = db.session.query(ActivityLog).filter(
             ActivityLog.action == 'LOGIN',
             ActivityLog.created_at >= seven_days_ago
         ).distinct(ActivityLog.user_id).count()
-        
+
         # Total users
         total_users = db.session.query(User).count()
-        
+
         # Recent activity (last 24 hours)
         one_day_ago = datetime.utcnow() - timedelta(days=1)
         recent_activity = db.session.query(ActivityLog).filter(
             ActivityLog.created_at >= one_day_ago
         ).count()
-        
+
         # Most active users (top 5)
         most_active_users = db.session.query(
             ActivityLog.user_id,
@@ -706,7 +765,7 @@ def get_user_activity_stats():
         ).order_by(
             db.func.count(ActivityLog.id).desc()
         ).limit(5).all()
-        
+
         return {
             'recent_logins': recent_logins,
             'active_users': active_users,
@@ -739,31 +798,31 @@ def get_recruitment_stats():
             PotentialRecruit.status,
             db.func.count(PotentialRecruit.id).label('count')
         ).group_by(PotentialRecruit.status).all()
-        
+
         # Total cadets by status
         cadet_status_counts = db.session.query(
             Cadet.status,
             db.func.count(Cadet.id).label('count')
         ).group_by(Cadet.status).all()
-        
+
         # Recent recruits (last 30 days)
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         recent_recruits = db.session.query(PotentialRecruit).filter(
             PotentialRecruit.created_at >= thirty_days_ago
         ).count()
-        
+
         # Recent cadets (last 30 days)
         recent_cadets = db.session.query(Cadet).filter(
             Cadet.created_at >= thirty_days_ago
         ).count()
-        
+
         # Upcoming events (next 30 days)
         thirty_days_from_now = datetime.utcnow() + timedelta(days=30)
         upcoming_events = db.session.query(RecruitmentEvent).filter(
             RecruitmentEvent.event_date >= date.today(),
             RecruitmentEvent.event_date <= thirty_days_from_now.date()
         ).count()
-        
+
         return {
             'recruit_status_counts': [
                 {
@@ -798,19 +857,19 @@ def backup_database(description="Manual backup"):
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"afrotc695_backup_{timestamp}.json"
-        
+
         # Export all data to JSON format
         backup_data = {
             'timestamp': timestamp,
             'description': description,
             'tables': {}
         }
-        
+
         # Export each table
-        tables = ['user', 'potential_recruit', 'cadet', 'university_contact', 
-                 'recruitment_event', 'external_link', 'recruitment_document', 
+        tables = ['user', 'potential_recruit', 'cadet', 'university_contact',
+                 'recruitment_event', 'external_link', 'recruitment_document',
                  'activity_log', 'password_history']
-        
+
         for table_name in tables:
             try:
                 # Use raw SQL to get all data
@@ -820,23 +879,23 @@ def backup_database(description="Manual backup"):
             except Exception as e:
                 print(f"Error backing up table {table_name}: {e}")
                 backup_data['tables'][table_name] = []
-        
+
         # Convert to JSON string
         backup_json = json.dumps(backup_data, indent=2, default=str)
-        
+
         # Upload to Vercel Blob
         blob_response = put(
             backup_filename,
             backup_json.encode('utf-8'),
             {"addRandomSuffix": False}
         )
-        
+
         if blob_response and 'url' in blob_response:
             return backup_filename, blob_response['url']
         else:
             print("Failed to upload backup to blob storage")
             return None, None
-            
+
     except Exception as e:
         print(f"Error creating backup: {e}")
         return None, None
@@ -849,16 +908,16 @@ def restore_database(backup_url):
         if backup_response.status_code != 200:
             print(f"Failed to download backup: {backup_response.status_code}")
             return False
-        
+
         backup_data = json.loads(backup_response.text)
-        
+
         # Clear existing data
         for table_name in reversed(backup_data['tables'].keys()):
             try:
                 db.session.execute(text(f'DELETE FROM "{table_name}"'))
             except Exception as e:
                 print(f"Error clearing table {table_name}: {e}")
-        
+
         # Restore data
         for table_name, rows in backup_data['tables'].items():
             if rows:
@@ -872,22 +931,22 @@ def restore_database(backup_url):
                                     row[key] = datetime.fromisoformat(value.replace('Z', '+00:00'))
                                 except:
                                     pass
-                        
+
                         # Build INSERT statement
                         columns = ', '.join([f'"{k}"' for k in row.keys()])
                         placeholders = ', '.join(['%s'] * len(row))
                         sql = f'INSERT INTO "{table_name}" ({columns}) VALUES ({placeholders})'
-                        
+
                         db.session.execute(text(sql), list(row.values()))
-                        
+
                 except Exception as e:
                     print(f"Error restoring table {table_name}: {e}")
                     db.session.rollback()
                     return False
-        
+
         db.session.commit()
         return True
-        
+
     except Exception as e:
         print(f"Error restoring database: {e}")
         db.session.rollback()
@@ -897,10 +956,10 @@ def get_backup_files():
     """Get list of backup files from blob storage"""
     try:
         blob_files = blob_list()
-        
+
         if not blob_files:
             return []
-        
+
         # Handle different response types from vercel_blob
         if isinstance(blob_files, list):
             files = blob_files
@@ -917,7 +976,7 @@ def get_backup_files():
             print(f"Unexpected response type from blob.list(): {type(blob_files)}")
             print(f"Response content: {blob_files}")
             return []
-        
+
         # Convert blob files to our expected format
         backup_files = []
         for file_info in files:
@@ -925,14 +984,14 @@ def get_backup_files():
                 filename = file_info.get('pathname', '')
             else:
                 filename = str(file_info)
-            
+
             # Only include backup files
             if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
                 # Extract timestamp from filename
                 try:
                     timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
                     created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-                    
+
                     backup_files.append({
                         'filename': filename,
                         'url': file_info.get('url', ''),
@@ -944,11 +1003,11 @@ def get_backup_files():
                 except Exception as e:
                     print(f"Error parsing backup filename {filename}: {e}")
                     continue
-        
+
         # Sort by creation date (newest first)
         backup_files.sort(key=lambda x: x['created'], reverse=True)
         return backup_files
-        
+
     except Exception as e:
         print(f"Error getting backup files: {e}")
         return []
@@ -966,7 +1025,7 @@ def export_data(data, filename, format, title):
             as_attachment=True,
             download_name=f'{filename}.csv'
         )
-    
+
     elif format == 'excel':
         df = pd.DataFrame(data)
         output = BytesIO()
@@ -979,31 +1038,31 @@ def export_data(data, filename, format, title):
             as_attachment=True,
             download_name=f'{filename}.xlsx'
         )
-    
+
     elif format == 'pdf':
         output = BytesIO()
         # Use landscape orientation for better table fit
         doc = SimpleDocTemplate(output, pagesize=landscape(A4))
         elements = []
-        
+
         # Add title
         styles = getSampleStyleSheet()
         title_para = Paragraph(f"<h1>{title}</h1>", styles['Title'])
         elements.append(title_para)
         elements.append(Paragraph("<br/>", styles['Normal']))
-        
+
         # Prepare table data
         if data:
             headers = list(data[0].keys())
             table_data = [headers]  # Header row
-            
+
             for row in data:
                 table_data.append([str(value) for value in row.values()])
-            
+
             # Calculate available width for table (landscape A4 width minus margins)
             available_width = landscape(A4)[0] - 72  # 72 points = 1 inch margin on each side
             num_columns = len(headers)
-            
+
             # Create table with calculated column widths
             table = Table(table_data, colWidths=[available_width/num_columns] * num_columns)
             table.setStyle(TableStyle([
@@ -1024,7 +1083,7 @@ def export_data(data, filename, format, title):
                 ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
             ]))
             elements.append(table)
-        
+
         doc.build(elements)
         output.seek(0)
         return send_file(
@@ -1033,7 +1092,7 @@ def export_data(data, filename, format, title):
             as_attachment=True,
             download_name=f'{filename}.pdf'
         )
-    
+
     else:
         flash('Invalid format specified', 'error')
         return redirect(url_for('dashboard'))
@@ -1045,24 +1104,24 @@ def test_blob_storage_route():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     success = test_blob_storage()
     if success:
         flash('Basic Blob storage test completed successfully!', 'success')
     else:
         flash('Basic Blob storage test failed. Check the console for details.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Test file operations
     test_content = b"This is a test file for Vercel Blob storage operations!"
     test_filename = f"test_file_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
-    
+
     # Test upload
     upload_success, blob_url, upload_error = test_file_upload(test_content, test_filename)
     if not upload_success:
         flash(f'File upload test failed: {upload_error}', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Test download
     download_success, _, download_error = test_file_download(blob_url)
     if not download_success:
@@ -1070,13 +1129,13 @@ def test_blob_storage_route():
         # Try to clean up the uploaded file
         test_file_delete(blob_url)
         return redirect(url_for('dashboard'))
-    
+
     # Test delete
     delete_success, delete_error = test_file_delete(blob_url)
     if not delete_success:
         flash(f'File deletion test failed: {delete_error}', 'error')
         return redirect(url_for('dashboard'))
-    
+
     flash('All Blob storage tests completed successfully!', 'success')
     return redirect(url_for('dashboard'))
 
@@ -1091,7 +1150,7 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
+
         user = User.query.filter_by(username=username).first()
         if user:
             # Check if account is locked
@@ -1099,7 +1158,7 @@ def login():
                 flash('Account is locked', 'error')
                 log_activity('LOGIN_FAILED', details=f'User {username} login failed: Account is locked')
                 return render_template('login.html')
-            
+
             if check_password_hash(user.password_hash, password):
                 # Check account status
                 access_granted, error_message = check_user_access(user)
@@ -1107,24 +1166,24 @@ def login():
                     flash(f'Login failed: {error_message}', 'error')
                     log_activity('LOGIN_FAILED', details=f'User {username} login failed: {error_message}')
                     return render_template('login.html')
-                
+
                 # Reset failed login attempts on successful login
                 user.failed_login_attempts = 0
                 user.is_locked = False
                 db.session.commit()
-                
+
                 session['user_id'] = user.id
                 session['username'] = user.username
                 session['role'] = user.role
-                
+
                 # Log successful login
                 log_activity('LOGIN', details=f'User {username} logged in successfully')
-                
+
                 # Check if password change is required
                 if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
                     flash('Your password will expire soon. Please change it.', 'warning')
                     return redirect(url_for('change_password'))
-                
+
                 flash('Login successful!', 'success')
                 return redirect(url_for('dashboard'))
             else:
@@ -1136,14 +1195,14 @@ def login():
                 else:
                     flash('Invalid username or password', 'error')
                 db.session.commit()
-                
+
                 # Log failed login attempt
                 log_activity('LOGIN_FAILED', details=f'Failed login attempt for username: {username}. Attempts: {user.failed_login_attempts}')
         else:
             # Log failed login attempt for non-existent user
             log_activity('LOGIN_FAILED', details=f'Failed login attempt for non-existent username: {username}')
             flash('Invalid username or password', 'error')
-    
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -1151,7 +1210,7 @@ def logout():
     if 'user_id' in session:
         username = session.get('username', 'Unknown')
         log_activity('LOGOUT', details=f'User {username} logged out')
-    
+
     session.clear()
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
@@ -1163,22 +1222,22 @@ def setup_2fa():
     if 'user_id' not in session:
         flash('Please log in to set up 2FA.', 'error')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('login'))
-    
+
     # Check if user can enable 2FA
     if not user.can_use_2fa:
         flash('2FA is not available for your account.', 'error')
         return redirect(url_for('profile'))
-    
+
     # Check if 2FA is already enabled
     if user.is_2fa_enabled:
         flash('2FA is already enabled for your account.', 'info')
         return redirect(url_for('profile'))
-    
+
     if request.method == 'GET':
         # Generate new TOTP secret if not already set
         if not user.totp_secret:
@@ -1190,31 +1249,31 @@ def setup_2fa():
                 generate_totp_secret = fa_utils.generate_totp_secret
                 encrypt_totp_secret = fa_utils.encrypt_totp_secret
                 generate_qr_code = fa_utils.generate_qr_code
-                
+
                 # Generate new TOTP secret
                 totp_secret = generate_totp_secret()
                 encrypted_secret = encrypt_totp_secret(totp_secret)
-                
+
                 # Update user with encrypted secret
                 user.totp_secret = encrypted_secret
                 user.totp_enabled = True
                 user.totp_setup_completed = False
                 db.session.commit()
-                
+
                 # Generate QR code
                 qr_code_bytes = generate_qr_code(totp_secret, user.username)
-                
+
                 # Store QR code in session for verification
                 session['setup_2fa_secret'] = totp_secret
                 session['setup_2fa_qr'] = base64.b64encode(qr_code_bytes).decode()
-                
+
                 log_activity('2FA_SETUP_STARTED', 'user', user.id, f'Started 2FA setup for {user.username}')
-                
-                return render_template('setup_2fa.html', 
+
+                return render_template('setup_2fa.html',
                                      qr_code=session['setup_2fa_qr'],
                                      secret=totp_secret,
                                      username=user.username)
-                
+
             except Exception as e:
                 flash(f'Error setting up 2FA: {str(e)}', 'error')
                 return redirect(url_for('profile'))
@@ -1227,43 +1286,43 @@ def setup_2fa():
                 spec.loader.exec_module(fa_utils)
                 decrypt_totp_secret = fa_utils.decrypt_totp_secret
                 generate_qr_code = fa_utils.generate_qr_code
-                
+
                 # Decrypt existing secret
                 totp_secret = decrypt_totp_secret(user.totp_secret)
-                
+
                 # Generate QR code
                 qr_code_bytes = generate_qr_code(totp_secret, user.username)
-                
+
                 # Store in session
                 session['setup_2fa_secret'] = totp_secret
                 session['setup_2fa_qr'] = base64.b64encode(qr_code_bytes).decode()
-                
-                return render_template('setup_2fa.html', 
+
+                return render_template('setup_2fa.html',
                                      qr_code=session['setup_2fa_qr'],
                                      secret=totp_secret,
                                      username=user.username)
-                
+
             except Exception as e:
                 flash(f'Error retrieving 2FA setup: {str(e)}', 'error')
                 return redirect(url_for('profile'))
-    
+
     elif request.method == 'POST':
         # Verify the TOTP code
         totp_code = request.form.get('totp_code', '').strip()
-        
+
         if not totp_code:
             flash('Please enter the 6-digit code from your authenticator app.', 'error')
-            return render_template('setup_2fa.html', 
+            return render_template('setup_2fa.html',
                                  qr_code=session.get('setup_2fa_qr'),
                                  secret=session.get('setup_2fa_secret'),
                                  username=user.username)
-        
+
         # Get the secret from session
         totp_secret = session.get('setup_2fa_secret')
         if not totp_secret:
             flash('2FA setup session expired. Please try again.', 'error')
             return redirect(url_for('setup_2fa'))
-        
+
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
@@ -1273,36 +1332,36 @@ def setup_2fa():
             generate_backup_codes = fa_utils.generate_backup_codes
             hash_backup_code = fa_utils.hash_backup_code
             serialize_backup_codes_hash = fa_utils.serialize_backup_codes_hash
-            
+
             # Verify the TOTP code
             if not verify_totp_code(totp_secret, totp_code):
                 flash('Invalid 2FA code. Please try again.', 'error')
-                return render_template('setup_2fa.html', 
+                return render_template('setup_2fa.html',
                                      qr_code=session.get('setup_2fa_qr'),
                                      secret=session.get('setup_2fa_secret'),
                                      username=user.username)
-            
+
             # Generate backup codes
             backup_codes = generate_backup_codes(10)
             backup_codes_hashed = [hash_backup_code(code) for code in backup_codes]
-            
+
             # Update user with backup codes and mark setup as complete
             user.backup_codes_hash = serialize_backup_codes_hash(backup_codes_hashed)
             user.totp_setup_completed = True
             db.session.commit()
-            
+
             # Clear session data
             session.pop('setup_2fa_secret', None)
             session.pop('setup_2fa_qr', None)
-            
+
             log_activity('2FA_SETUP_COMPLETED', 'user', user.id, f'Completed 2FA setup for {user.username}')
-            
+
             flash('2FA has been successfully enabled for your account!', 'success')
             return render_template('setup_2fa_complete.html', backup_codes=backup_codes)
-            
+
         except Exception as e:
             flash(f'Error completing 2FA setup: {str(e)}', 'error')
-            return render_template('setup_2fa.html', 
+            return render_template('setup_2fa.html',
                                  qr_code=session.get('setup_2fa_qr'),
                                  secret=session.get('setup_2fa_secret'),
                                  username=user.username)
@@ -1313,26 +1372,26 @@ def verify_2fa():
     if 'pending_2fa_user_id' not in session:
         flash('No pending 2FA verification.', 'error')
         return redirect(url_for('login'))
-    
+
     user_id = session['pending_2fa_user_id']
     user = User.query.get(user_id)
-    
+
     if not user or not user.is_2fa_enabled:
         flash('Invalid 2FA verification request.', 'error')
         session.pop('pending_2fa_user_id', None)
         return redirect(url_for('login'))
-    
+
     if request.method == 'GET':
         return render_template('verify_2fa.html', username=user.username)
-    
+
     elif request.method == 'POST':
         totp_code = request.form.get('totp_code', '').strip()
         backup_code = request.form.get('backup_code', '').strip()
-        
+
         if not totp_code and not backup_code:
             flash('Please enter either a 2FA code or backup code.', 'error')
             return render_template('verify_2fa.html', username=user.username)
-        
+
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
@@ -1343,7 +1402,7 @@ def verify_2fa():
             parse_backup_codes_hash = fa_utils.parse_backup_codes_hash
             verify_backup_code = fa_utils.verify_backup_code
             remove_used_backup_code = fa_utils.remove_used_backup_code
-            
+
             # Try TOTP code first
             if totp_code:
                 if user.totp_secret:
@@ -1354,46 +1413,46 @@ def verify_2fa():
                         session['username'] = user.username
                         session['role'] = user.role
                         session.pop('pending_2fa_user_id', None)
-                        
+
                         # Reset failed login attempts
                         user.failed_login_attempts = 0
                         db.session.commit()
-                        
+
                         log_activity('LOGIN', 'user', user.id, f'Successful login with 2FA for {user.username}')
-                        
+
                         flash('Login successful!', 'success')
                         return redirect(url_for('dashboard'))
-            
+
             # Try backup code if TOTP failed or not provided
             if backup_code and user.backup_codes_hash:
                 backup_codes_hashed = parse_backup_codes_hash(user.backup_codes_hash)
                 is_valid, used_hash = verify_backup_code(backup_code, backup_codes_hashed)
-                
+
                 if is_valid:
                     # Remove used backup code
                     updated_backup_codes = remove_used_backup_code(user.backup_codes_hash, used_hash)
                     user.backup_codes_hash = updated_backup_codes
                     db.session.commit()
-                    
+
                     # Complete login
                     session['user_id'] = user.id
                     session['username'] = user.username
                     session['role'] = user.role
                     session.pop('pending_2fa_user_id', None)
-                    
+
                     # Reset failed login attempts
                     user.failed_login_attempts = 0
                     db.session.commit()
-                    
+
                     log_activity('LOGIN', 'user', user.id, f'Successful login with backup code for {user.username}')
-                    
+
                     flash('Login successful with backup code!', 'success')
                     return redirect(url_for('dashboard'))
-            
+
             # Both verification methods failed
             flash('Invalid 2FA code or backup code. Please try again.', 'error')
             return render_template('verify_2fa.html', username=user.username)
-            
+
         except Exception as e:
             flash(f'Error during 2FA verification: {str(e)}', 'error')
             return render_template('verify_2fa.html', username=user.username)
@@ -1404,18 +1463,18 @@ def disable_2fa():
     if 'user_id' not in session:
         flash('Please log in to manage 2FA.', 'error')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('login'))
-    
+
     # Verify current password
     current_password = request.form.get('current_password', '')
     if not check_password_hash(user.password_hash, current_password):
         flash('Incorrect password.', 'error')
         return redirect(url_for('profile'))
-    
+
     try:
         # Disable 2FA
         user.totp_secret = None
@@ -1423,12 +1482,12 @@ def disable_2fa():
         user.backup_codes_hash = None
         user.totp_setup_completed = False
         db.session.commit()
-        
+
         log_activity('2FA_DISABLED', 'user', user.id, f'Disabled 2FA for {user.username}')
-        
+
         flash('2FA has been disabled for your account.', 'success')
         return redirect(url_for('profile'))
-        
+
     except Exception as e:
         flash(f'Error disabling 2FA: {str(e)}', 'error')
         return redirect(url_for('profile'))
@@ -1439,22 +1498,22 @@ def regenerate_backup_codes():
     if 'user_id' not in session:
         flash('Please log in to manage 2FA.', 'error')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('profile'))
-    
+
     if not user.is_2fa_enabled:
         flash('2FA is not enabled for your account.', 'error')
         return redirect(url_for('profile'))
-    
+
     # Verify current password
     current_password = request.form.get('current_password', '')
     if not check_password_hash(user.password_hash, current_password):
         flash('Incorrect password.', 'error')
         return redirect(url_for('profile'))
-    
+
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location("fa_utils", "utils/2fa_utils.py")
@@ -1463,42 +1522,100 @@ def regenerate_backup_codes():
         generate_backup_codes = fa_utils.generate_backup_codes
         hash_backup_code = fa_utils.hash_backup_code
         serialize_backup_codes_hash = fa_utils.serialize_backup_codes_hash
-        
+
         # Generate new backup codes
         backup_codes = generate_backup_codes(10)
         backup_codes_hashed = [hash_backup_code(code) for code in backup_codes]
-        
+
         # Update user with new backup codes
         user.backup_codes_hash = serialize_backup_codes_hash(backup_codes_hashed)
         db.session.commit()
-        
+
         log_activity('2FA_BACKUP_CODES_REGENERATED', 'user', user.id, f'Regenerated backup codes for {user.username}')
-        
+
         flash('New backup codes have been generated!', 'success')
         return render_template('regenerate_backup_codes.html', backup_codes=backup_codes)
-        
+
     except Exception as e:
         flash(f'Error regenerating backup codes: {str(e)}', 'error')
         return redirect(url_for('profile'))
+
+# Admin 2FA Management Routes
+@app.route('/admin/enable-2fa/<int:user_id>', methods=['POST'])
+def admin_enable_2fa(user_id):
+    """Admin route to enable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+
+    # Check if user can enable 2FA
+    if not target_user.can_use_2fa:
+        flash('2FA is not available for this user.', 'error')
+        return redirect(url_for('user_management'))
+
+    # Enable 2FA for the user
+    target_user.totp_enabled = True
+    target_user.totp_setup_completed = False  # User needs to complete setup
+    db.session.commit()
+
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_ENABLE', 'user', target_user.id,
+                f'Admin {admin_user.username} enabled 2FA for {target_user.username}')
+
+    flash(f'Two-factor authentication has been enabled for {target_user.full_name}. They will be prompted to complete setup on their next login.', 'success')
+    return redirect(url_for('user_management'))
+
+@app.route('/admin/disable-2fa/<int:user_id>', methods=['POST'])
+def admin_disable_2fa(user_id):
+    """Admin route to disable 2FA for a user"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Admin access required.', 'error')
+        return redirect(url_for('login'))
+
+    target_user = User.query.get(user_id)
+    if not target_user:
+        flash('User not found.', 'error')
+        return redirect(url_for('user_management'))
+
+    # Disable 2FA for the user
+    target_user.totp_enabled = False
+    target_user.totp_setup_completed = False
+    target_user.totp_secret = None
+    target_user.backup_codes_hash = None
+    db.session.commit()
+
+    # Log admin action
+    admin_user = User.query.get(session['user_id'])
+    log_activity('ADMIN_2FA_DISABLE', 'user', target_user.id,
+                f'Admin {admin_user.username} disabled 2FA for {target_user.username}')
+
+    flash(f'Two-factor authentication has been disabled for {target_user.full_name}.', 'success')
+    return redirect(url_for('user_management'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         username = request.form.get('username')
         user = User.query.filter_by(username=username).first()
-        
+
         if not user:
             flash('Username not found.', 'error')
             return render_template('forgot_password.html')
-        
+
         if not user.is_active:
             flash('Account is inactive. Please contact an administrator.', 'error')
             return render_template('forgot_password.html')
-        
+
         # Store username in session for the next step
         session['reset_username'] = username
         return redirect(url_for('reset_password_question'))
-    
+
     return render_template('forgot_password.html')
 
 @app.route('/reset-password-question', methods=['GET', 'POST'])
@@ -1507,22 +1624,22 @@ def reset_password_question():
     if not username:
         flash('Please start the password reset process from the login page.', 'error')
         return redirect(url_for('login'))
-    
+
     user = User.query.filter_by(username=username).first()
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         secret_answer = request.form.get('secret_answer', '')  # Default to empty string if not provided
-        
+
         if validate_secret_answer(user, secret_answer):
             # Store user ID in session for password reset
             session['reset_user_id'] = user.id
             return redirect(url_for('reset_password'))
         else:
             flash('Incorrect answer to security question.', 'error')
-    
+
     return render_template('reset_password_question_simple.html', user=user, title='Reset Password')
 
 @app.route('/reset-password', methods=['GET', 'POST'])
@@ -1531,52 +1648,52 @@ def reset_password():
     if not user_id:
         flash('Please start the password reset process from the login page.', 'error')
         return redirect(url_for('login'))
-    
+
     user = User.query.get(user_id)
     if not user:
         flash('User not found.', 'error')
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
-        
+
         if new_password != confirm_password:
             flash('Passwords do not match.', 'error')
             return render_template('reset_password.html')
-        
+
         # Validate new password
         validation_errors = validate_password(new_password, user.id)
         if validation_errors:
             for error in validation_errors:
                 flash(error, 'error')
             return render_template('reset_password.html')
-        
+
         # Update password
         user.password_hash = generate_password_hash(new_password)
         user.password_changed_at = datetime.utcnow()
         user.force_password_change = False
-        
+
         # Set new password expiry for non-admin users
         if user.role != 'admin':
             user.password_expires_at = datetime.utcnow() + timedelta(days=180)
-        
+
         # Add to password history
         update_password_history(user.id, user.password_hash)
-        
+
         db.session.commit()
-        
+
         # Log the password reset
-        log_activity('PASSWORD_RESET', table_name='user', record_id=user.id, 
+        log_activity('PASSWORD_RESET', table_name='user', record_id=user.id,
                     record_description=f'Password reset for user {user.username}')
-        
+
         # Clear session
         session.pop('reset_username', None)
         session.pop('reset_user_id', None)
-        
+
         flash('Your password has been successfully reset. You can now log in with your new password.', 'success')
         return redirect(url_for('login'))
-    
+
     return render_template('reset_password.html')
 
 # Contact Management Routes
@@ -1584,11 +1701,11 @@ def reset_password():
 def contacts():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get sort parameters
     sort_by = request.args.get('sort', 'created_at')
     order = request.args.get('order', 'desc')
-    
+
     # Define valid sort columns
     valid_sorts = {
         'university_name': UniversityContact.university_name,
@@ -1600,28 +1717,28 @@ def contacts():
         'created_at': UniversityContact.created_at,
         'last_modified': UniversityContact.last_modified
     }
-    
+
     # Default to created_at if invalid sort column
     if sort_by not in valid_sorts:
         sort_by = 'created_at'
-    
+
     # Apply sorting
     if order == 'asc':
         contacts = UniversityContact.query.order_by(valid_sorts[sort_by].asc()).all()
     else:
         contacts = UniversityContact.query.order_by(valid_sorts[sort_by].desc()).all()
-    
+
     return render_template('contacts.html', contacts=contacts, sort_by=sort_by, order=order)
 
 @app.route('/contacts/add', methods=['GET', 'POST'])
 def add_contact():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         # Create backup before adding new contact
         # backup_database("Pre-add contact backup")  # Disabled for Vercel deployment
-        
+
         contact = UniversityContact(
             university_name=request.form['university_name'],
             contact_name=request.form['contact_name'],
@@ -1631,10 +1748,10 @@ def add_contact():
             address=request.form['address'],
             notes=request.form['notes']
         )
-        
+
         db.session.add(contact)
         db.session.commit()
-        
+
         # Log the activity
         log_activity(
             'CREATE',
@@ -1643,23 +1760,23 @@ def add_contact():
             f"Contact: {contact.contact_name} at {contact.university_name}",
             f"Added new university contact"
         )
-        
+
         flash('Contact added successfully!', 'success')
         return redirect(url_for('contacts'))
-    
+
     return render_template('add_contact.html')
 
 @app.route('/contacts/edit/<int:contact_id>', methods=['GET', 'POST'])
 def edit_contact(contact_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     contact = UniversityContact.query.get_or_404(contact_id)
-    
+
     if request.method == 'POST':
         # Store old values for logging
         old_active = contact.is_active
-        
+
         contact.university_name = request.form['university_name']
         contact.contact_name = request.form['contact_name']
         contact.contact_title = request.form['contact_title']
@@ -1668,14 +1785,14 @@ def edit_contact(contact_id):
         contact.address = request.form['address']
         contact.notes = request.form['notes']
         contact.is_active = request.form.get('is_active') == 'on'
-        
+
         db.session.commit()
-        
+
         # Log the activity
         changes = []
         if old_active != contact.is_active:
             changes.append(f"Status: {'Active' if old_active else 'Inactive'} → {'Active' if contact.is_active else 'Inactive'}")
-        
+
         log_activity(
             'UPDATE',
             'university_contact',
@@ -1683,25 +1800,25 @@ def edit_contact(contact_id):
             f"Contact: {contact.contact_name} at {contact.university_name}",
             f"Updated contact. Changes: {', '.join(changes) if changes else 'General update'}"
         )
-        
+
         flash('Contact updated successfully!', 'success')
         return redirect(url_for('contacts'))
-    
+
     return render_template('edit_contact.html', contact=contact)
 
 @app.route('/contacts/delete/<int:contact_id>', methods=['POST'])
 def delete_contact(contact_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     contact = UniversityContact.query.get_or_404(contact_id)
     name = contact.contact_name
     university = contact.university_name
-    
+
     try:
         db.session.delete(contact)
         db.session.commit()
-        
+
         log_activity(
             'DELETE',
             'university_contact',
@@ -1709,33 +1826,33 @@ def delete_contact(contact_id):
             f"Contact: {name} at {university}",
             f"Deleted university contact"
         )
-        
+
         flash('Contact deleted successfully!', 'success')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting contact. Please try again.', 'error')
         print(f"Error deleting contact: {e}")
-    
+
     return redirect(url_for('contacts'))
 
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get counts for dashboard
     recruit_count = PotentialRecruit.query.count()
     cadet_count = Cadet.query.filter_by(status='active').count()
     contact_count = UniversityContact.query.filter_by(is_active=True).count()
     event_count = RecruitmentEvent.query.filter_by(status='scheduled').count()
-    
+
     # Get cadet retention data
     retention_data = get_cadet_retention_data()
-    
+
     # Get recent activities (last 10)
     recent_activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
-    
-    return render_template('dashboard.html', 
+
+    return render_template('dashboard.html',
                          recruit_count=recruit_count,
                          cadet_count=cadet_count,
                          contact_count=contact_count,
@@ -1748,7 +1865,7 @@ def dashboard():
 def calendar():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     try:
         events = RecruitmentEvent.query.order_by(RecruitmentEvent.event_date).all()
         contacts = UniversityContact.query.filter_by(is_active=True).all()
@@ -1762,12 +1879,12 @@ def calendar():
 def add_event():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         try:
             # Create backup before adding new event
             # backup_database("Pre-add event backup")  # Disabled for Vercel deployment
-            
+
             # Handle university_id - convert to int or set to None if "other"
             university_id = request.form.get('university_id')
             if university_id == 'other' or university_id == '':
@@ -1777,7 +1894,7 @@ def add_event():
                     university_id = int(university_id) if university_id else None
                 except (ValueError, TypeError):
                     university_id = None
-            
+
             event = RecruitmentEvent(
                 title=request.form['title'],
                 description=request.form['description'],
@@ -1789,10 +1906,10 @@ def add_event():
                 event_type=request.form['event_type'],
                 notes=request.form['notes']
             )
-            
+
             db.session.add(event)
             db.session.commit()
-            
+
             # Log the activity
             log_activity(
                 'CREATE',
@@ -1801,14 +1918,14 @@ def add_event():
                 f"Event: {event.title} on {event.event_date}",
                 f"Added new recruitment event of type: {event.event_type}"
             )
-            
+
             flash('Event added successfully!', 'success')
             return redirect(url_for('calendar'))
         except Exception as e:
             print(f"Error adding event: {e}")
             flash('Error adding event. Please check your input and try again.', 'error')
             db.session.rollback()
-    
+
     try:
         contacts = UniversityContact.query.filter_by(is_active=True).all()
         return render_template('add_event.html', contacts=contacts)
@@ -1820,15 +1937,15 @@ def add_event():
 def edit_event(event_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     event = RecruitmentEvent.query.get_or_404(event_id)
-    
+
     if request.method == 'POST':
         try:
             # Store old values for logging
             old_date = event.event_date
             old_status = event.status
-            
+
             # Handle university_id - convert to int or set to None if "other"
             university_id = request.form.get('university_id')
             if university_id == 'other' or university_id == '':
@@ -1838,7 +1955,7 @@ def edit_event(event_id):
                     university_id = int(university_id) if university_id else None
                 except (ValueError, TypeError):
                     university_id = None
-            
+
             # Update event
             event.title = request.form['title']
             event.description = request.form['description']
@@ -1850,16 +1967,16 @@ def edit_event(event_id):
             event.event_type = request.form['event_type']
             event.status = request.form['status']
             event.notes = request.form['notes']
-            
+
             db.session.commit()
-            
+
             # Log changes
             changes = []
             if old_date != event.event_date:
                 changes.append(f"Date: {old_date} → {event.event_date}")
             if old_status != event.status:
                 changes.append(f"Status: {old_status} → {event.status}")
-            
+
             log_activity(
                 'UPDATE',
                 'recruitment_event',
@@ -1867,7 +1984,7 @@ def edit_event(event_id):
                 f"Event: {event.title}",
                 f"Updated event. Changes: {', '.join(changes) if changes else 'General update'}"
             )
-            
+
             flash('Event updated successfully!', 'success')
             return redirect(url_for('calendar'))
         except ValueError as e:
@@ -1877,7 +1994,7 @@ def edit_event(event_id):
             db.session.rollback()
             flash('Error updating event. Please try again.', 'error')
             print(f"Error updating event: {e}")
-    
+
     try:
         contacts = UniversityContact.query.filter_by(is_active=True).all()
         return render_template('edit_event.html', event=event, contacts=contacts)
@@ -1889,15 +2006,15 @@ def edit_event(event_id):
 def delete_event(event_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     event = RecruitmentEvent.query.get_or_404(event_id)
     title = event.title
     date = event.event_date
-    
+
     try:
         db.session.delete(event)
         db.session.commit()
-        
+
         log_activity(
             'DELETE',
             'recruitment_event',
@@ -1905,13 +2022,13 @@ def delete_event(event_id):
             f"Event: {title}",
             f"Deleted event scheduled for {date}"
         )
-        
+
         flash('Event deleted successfully!', 'success')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting event. Please try again.', 'error')
         print(f"Error deleting event: {e}")
-    
+
     return redirect(url_for('calendar'))
 
 # Document Management Routes
@@ -1919,73 +2036,73 @@ def delete_event(event_id):
 def materials():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get active external links and documents, sorted by sort_order
     external_links = ExternalLink.query.filter_by(is_active=True).order_by(ExternalLink.sort_order, ExternalLink.title).all()
     documents = RecruitmentDocument.query.filter_by(is_active=True).order_by(RecruitmentDocument.sort_order, RecruitmentDocument.title).all()
-    
+
     return render_template('materials.html', external_links=external_links, documents=documents)
 
 @app.route('/materials/add-document', methods=['GET', 'POST'])
 def add_document():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
         category = request.form.get('category', 'general')
         sort_order = request.form.get('sort_order', 0)
-        
+
         if 'file' not in request.files:
             flash('No file selected.', 'error')
             return render_template('add_document.html')
-        
+
         file = request.files['file']
         if file.filename == '':
             flash('No file selected.', 'error')
             return render_template('add_document.html')
-        
+
         if not title:
             flash('Title is required.', 'error')
             return render_template('add_document.html')
-        
+
         # Check file type
         allowed_extensions = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
         file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-        
+
         if file_extension not in allowed_extensions:
             flash('Invalid file type. Allowed types: PDF, PPT, PPTX, DOC, DOCX, XLS, XLSX, TXT', 'error')
             return render_template('add_document.html')
-        
+
         try:
             sort_order = int(sort_order) if sort_order else 0
-            
+
             # Upload file to Vercel Blob storage
             import uuid
             unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
-            
+
             # Upload to Vercel Blob
             blob_response = put(
                 unique_filename,
                 file.read(),
                 {"addRandomSuffix": False}  # We're already adding our own unique prefix
             )
-            
+
             if not blob_response or 'url' not in blob_response:
                 flash('Error uploading file to storage.', 'error')
                 return render_template('add_document.html')
-            
+
             # Get file size from the original file object
             file.seek(0, 2)  # Seek to end
             file_size = file.tell()
             file.seek(0)  # Reset to beginning
-            
+
             document = RecruitmentDocument(
                 title=title,
                 description=description,
@@ -1996,39 +2113,39 @@ def add_document():
                 category=category,
                 sort_order=sort_order
             )
-            
+
             db.session.add(document)
             db.session.commit()
-            
+
             log_activity('CREATE', 'recruitment_document', document.id, f"Document: {title}")
             flash('Document uploaded successfully to Vercel Blob storage.', 'success')
             return redirect(url_for('materials'))
-            
+
         except Exception as e:
             db.session.rollback()
             flash(f'Error uploading document: {str(e)}', 'error')
-    
+
     return render_template('add_document.html')
 
 @app.route('/materials/edit-document/<int:document_id>', methods=['GET', 'POST'])
 def edit_document(document_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     document = RecruitmentDocument.query.get_or_404(document_id)
-    
+
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
         category = request.form.get('category', 'general')
         sort_order = request.form.get('sort_order', 0)
         is_active = 'is_active' in request.form
-        
+
         if not title:
             flash('Title is required.', 'error')
         else:
@@ -2039,73 +2156,73 @@ def edit_document(document_id):
                 document.category = category
                 document.sort_order = sort_order
                 document.is_active = is_active
-                
+
                 db.session.commit()
-                
+
                 log_activity('UPDATE', 'recruitment_document', document.id, f"Document: {title}")
                 flash('Document updated successfully.', 'success')
                 return redirect(url_for('materials'))
             except Exception as e:
                 db.session.rollback()
                 flash(f'Error updating document: {str(e)}', 'error')
-    
+
     return render_template('edit_document.html', document=document)
 
 @app.route('/materials/delete-document/<int:document_id>', methods=['POST'])
 def delete_document(document_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     document = RecruitmentDocument.query.get_or_404(document_id)
     title = document.title
     filename = document.filename
-    
+
     try:
         # Delete file from Vercel Blob storage
         blob_url = document.filename
         delete(blob_url, {})
-        
+
         # Delete from database
         db.session.delete(document)
         db.session.commit()
-        
+
         log_activity('DELETE', 'recruitment_document', document_id, f"Document: {title}")
         flash('Document deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting document: {str(e)}', 'error')
-    
+
     return redirect(url_for('materials'))
 
 @app.route('/materials/download/<int:document_id>')
 def download_document(document_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     document = RecruitmentDocument.query.get_or_404(document_id)
-    
+
     if not document.is_active:
         flash('Document is not available.', 'error')
         return redirect(url_for('materials'))
-    
+
     try:
         # The filename field now contains the Blob URL
         blob_url = document.filename
-        
+
         # Get blob metadata to ensure file exists
         blob_meta = head(blob_url, {})
-        
+
         if not blob_meta:
             flash('File not found in storage.', 'error')
             return redirect(url_for('materials'))
-        
+
         log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
-        
+
         # Redirect to the blob download URL
         return redirect(blob_meta.get('downloadUrl', blob_url))
     except Exception as e:
@@ -2117,19 +2234,19 @@ def download_document(document_id):
 def add_external_link():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     if request.method == 'POST':
         title = request.form.get('title')
         url = request.form.get('url')
         description = request.form.get('description')
         category = request.form.get('category', 'general')
         sort_order = request.form.get('sort_order', 0)
-        
+
         if not title or not url:
             flash('Title and URL are required.', 'error')
         else:
@@ -2144,28 +2261,28 @@ def add_external_link():
                 )
                 db.session.add(link)
                 db.session.commit()
-                
+
                 log_activity('CREATE', 'external_link', link.id, f"External link: {title}")
                 flash('External link added successfully.', 'success')
                 return redirect(url_for('materials'))
             except Exception as e:
                 db.session.rollback()
                 flash(f'Error adding external link: {str(e)}', 'error')
-    
+
     return render_template('add_external_link.html')
 
 @app.route('/materials/edit-link/<int:link_id>', methods=['GET', 'POST'])
 def edit_external_link(link_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     link = ExternalLink.query.get_or_404(link_id)
-    
+
     if request.method == 'POST':
         title = request.form.get('title')
         url = request.form.get('url')
@@ -2173,7 +2290,7 @@ def edit_external_link(link_id):
         category = request.form.get('category', 'general')
         sort_order = request.form.get('sort_order', 0)
         is_active = 'is_active' in request.form
-        
+
         if not title or not url:
             flash('Title and URL are required.', 'error')
         else:
@@ -2185,41 +2302,41 @@ def edit_external_link(link_id):
                 link.category = category
                 link.sort_order = sort_order
                 link.is_active = is_active
-                
+
                 db.session.commit()
-                
+
                 log_activity('UPDATE', 'external_link', link.id, f"External link: {title}")
                 flash('External link updated successfully.', 'success')
                 return redirect(url_for('materials'))
             except Exception as e:
                 db.session.rollback()
                 flash(f'Error updating external link: {str(e)}', 'error')
-    
+
     return render_template('edit_external_link.html', link=link)
 
 @app.route('/materials/delete-link/<int:link_id>', methods=['POST'])
 def delete_external_link(link_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not check_user_access(user, 'admin'):
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('materials'))
-    
+
     link = ExternalLink.query.get_or_404(link_id)
     title = link.title
-    
+
     try:
         db.session.delete(link)
         db.session.commit()
-        
+
         log_activity('DELETE', 'external_link', link_id, f"External link: {title}")
         flash('External link deleted successfully.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting external link: {str(e)}', 'error')
-    
+
     return redirect(url_for('materials'))
 
 # Activity Log Management Routes
@@ -2228,7 +2345,7 @@ def admin():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     users = User.query.all()
     backup_files = get_backup_files()
     return render_template('admin.html', users=users, backup_files=backup_files)
@@ -2238,13 +2355,13 @@ def activity_log():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Get sort parameters
     sort_by = request.args.get('sort', 'created_at')
     order = request.args.get('order', 'desc')
     page = request.args.get('page', 1, type=int)
     per_page = 50
-    
+
     # Define valid sort columns
     valid_sorts = {
         'username': ActivityLog.username,
@@ -2252,11 +2369,11 @@ def activity_log():
         'table_name': ActivityLog.table_name,
         'created_at': ActivityLog.created_at
     }
-    
+
     # Default to created_at if invalid sort column
     if sort_by not in valid_sorts:
         sort_by = 'created_at'
-    
+
     # Apply sorting and pagination
     if order == 'asc':
         activities = ActivityLog.query.order_by(valid_sorts[sort_by].asc()).paginate(
@@ -2266,7 +2383,7 @@ def activity_log():
         activities = ActivityLog.query.order_by(valid_sorts[sort_by].desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
-    
+
     return render_template('activity_log.html', activities=activities, sort_by=sort_by, order=order)
 
 @app.route('/admin/system-statistics')
@@ -2274,7 +2391,7 @@ def system_statistics():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     try:
         # Gather all statistics
         db_size = get_database_size()
@@ -2282,17 +2399,17 @@ def system_statistics():
         system_performance = get_system_performance()
         user_activity = get_user_activity_stats()
         recruitment_stats = get_recruitment_stats()
-        
+
         # Calculate total records
         total_records = sum(record_counts.values())
-        
+
         # Get backup info
         backup_files = get_backup_files()
         backup_count = len(backup_files) if backup_files else 0
-        
+
         # Get cadet retention data
         retention_data = get_cadet_retention_data()
-        
+
         # Create stats object with the structure expected by the template
         stats = {
             'database_size': db_size,
@@ -2308,7 +2425,7 @@ def system_statistics():
             },
             'retention_data': retention_data
         }
-        
+
         return render_template('system_statistics.html', stats=stats)
     except Exception as e:
         print(f"Error in system statistics: {e}")
@@ -2320,9 +2437,9 @@ def export_activity_log(format):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     activities = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
-    
+
     # Prepare data for export
     data = []
     for activity in activities:
@@ -2338,10 +2455,10 @@ def export_activity_log(format):
             'IP Address': activity.ip_address,
             'User Agent': activity.user_agent
         })
-    
+
     # Log the export activity
     log_activity('EXPORT', 'activity_log', None, 'Activity Log Export', f'Exported {len(activities)} activity logs to {format.upper()}')
-    
+
     return export_data(data, f'activity_log_{datetime.now().strftime("%Y%m%d")}', format, 'Activity Log')
 
 # Database Management Routes
@@ -2350,7 +2467,7 @@ def database_management():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     backup_files = get_backup_files()
     return render_template('database_management.html', backup_files=backup_files)
 
@@ -2359,7 +2476,7 @@ def backup():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
         try:
             backup_filename, backup_url = backup_database("Manual backup from web interface")
@@ -2371,9 +2488,9 @@ def backup():
         except Exception as e:
             print(f"Error during backup: {e}")
             flash('Error creating database backup. Please check logs.', 'error')
-        
+
         return redirect(url_for('database_management'))
-    
+
     return redirect(url_for('database_management'))
 
 @app.route('/admin/download-backup/<filename>')
@@ -2381,26 +2498,26 @@ def download_backup(filename):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     try:
         # The filename field now contains the Blob URL
         blob_url = filename
-        
+
         # Get blob metadata to ensure file exists
         blob_meta = head(blob_url, {})
-        
+
         if not blob_meta:
             flash('Backup file not found.', 'error')
             return redirect(url_for('database_management'))
-        
+
         log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
-        
+
         # Redirect to the blob download URL
         return redirect(blob_meta.get('downloadUrl', blob_url))
     except Exception as e:
         print(f"Error downloading backup: {e}")
         flash('Error downloading backup file.', 'error')
-    
+
     return redirect(url_for('database_management'))
 
 @app.route('/admin/delete-backup/<filename>', methods=['POST'])
@@ -2408,19 +2525,19 @@ def delete_backup(filename):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     try:
         # Delete file from Vercel Blob storage
         blob_url = filename
         delete(blob_url, {})
-        
+
         flash(f'Backup "{filename}" deleted successfully.', 'success')
         log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
     except Exception as e:
         print(f"Error deleting backup: {e}")
         flash('Error deleting backup file.', 'error')
         log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Failed to delete backup: {filename}', f'Error: {e}')
-    
+
     return redirect(url_for('database_management'))
 
 @app.route('/admin/restore', methods=['GET', 'POST'])
@@ -2428,28 +2545,28 @@ def restore():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
         if 'backup_file' not in request.files:
             flash('No file selected for restore.', 'error')
             return redirect(request.url)
-        
+
         backup_file = request.files['backup_file']
         if backup_file.filename == '':
             flash('No selected file', 'error')
             return redirect(request.url)
-        
+
         if backup_file and backup_file.filename.endswith('.json'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
                 temp_backup_path = os.path.join(temp_dir, backup_file.filename)
                 backup_file.save(temp_backup_path)
-                
+
                 # Read the JSON backup
                 with open(temp_backup_path, 'r') as f:
                     backup_data = json.load(f)
-                
+
                 # Begin database restore
                 with app.app_context():
                     # Start a transaction
@@ -2465,12 +2582,12 @@ def restore():
                         PotentialRecruit.query.delete()
                         PasswordHistory.query.delete()
                         User.query.delete()
-                        
+
                         # Restore data from backup
                         for table_name, records in backup_data.items():
                             if table_name == 'timestamp' or table_name == 'description':
                                 continue
-                            
+
                             model_class = {
                                 'users': User,
                                 'potential_recruits': PotentialRecruit,
@@ -2482,7 +2599,7 @@ def restore():
                                 'activity_logs': ActivityLog,
                                 'password_history': PasswordHistory
                             }.get(table_name)
-                            
+
                             if model_class:
                                 for record in records:
                                     # Convert string dates back to datetime objects
@@ -2495,10 +2612,10 @@ def restore():
                                                     record[key] = datetime.strptime(value, '%Y-%m-%d').date()
                                             except (ValueError, TypeError):
                                                 record[key] = None
-                                    
+
                                     obj = model_class(**record)
                                     db.session.add(obj)
-                        
+
                         db.session.commit()
                         flash('Database restored successfully!', 'success')
                         log_activity('RESTORE', 'database', None, 'Database restored', f'Restored from {backup_file.filename}')
@@ -2507,18 +2624,18 @@ def restore():
                         print(f"Error during restore: {e}")
                         flash('Error restoring database. Please check logs.', 'error')
                         log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
-                
+
                 # Clean up the temporary file
                 os.remove(temp_backup_path)
                 shutil.rmtree(temp_dir)
-                
+
             except Exception as e:
                 print(f"Error during restore: {e}")
                 flash('Error restoring database. Please check logs.', 'error')
                 log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
         else:
             flash('Invalid file type. Please select a .json file.', 'error')
-    
+
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
 
@@ -2530,12 +2647,12 @@ def init_database():
             # Check if database exists and has tables
             inspector = db.inspect(db.engine)
             existing_tables = inspector.get_table_names()
-            
+
             if not existing_tables:
                 # Only create tables if database is completely empty
                 print("Creating new database tables...")
                 db.create_all()
-                
+
                 # Reset sequences for PostgreSQL
                 if 'postgresql' in str(db.engine.url):
                     for table in db.metadata.tables.values():
@@ -2545,7 +2662,7 @@ def init_database():
                     db.session.commit()
             else:
                 print(f"Database exists with {len(existing_tables)} tables")
-            
+
             # Create default admin user if it doesn't exist
             if not User.query.filter_by(username='admin').first():
                 admin_user = User(
@@ -2574,7 +2691,7 @@ def user_management():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     users = User.query.all()
     return render_template('user_management.html', users=users)
 
@@ -2583,7 +2700,7 @@ def add_user():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
@@ -2594,31 +2711,31 @@ def add_user():
         password = request.form['password']
         secret_question = request.form['secret_question']
         secret_answer = request.form['secret_answer']
-        
+
         # Validation
         if User.query.filter_by(username=username).first():
             flash('Username already exists.', 'error')
             return render_template('add_user.html')
-        
+
         if User.query.filter_by(email=email).first():
             flash('Email already exists.', 'error')
             return render_template('add_user.html')
-        
+
         if not secret_question.strip():
             flash('Secret question is required.', 'error')
             return render_template('add_user.html')
-        
+
         if not secret_answer.strip():
             flash('Secret answer is required.', 'error')
             return render_template('add_user.html')
-        
+
         # Validate password
         password_errors = validate_password(password)
         if password_errors:
             for error in password_errors:
                 flash(error, 'error')
             return render_template('add_user.html')
-        
+
         # Create user
         password_hash = generate_password_hash(password)
         secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
@@ -2633,14 +2750,14 @@ def add_user():
             secret_question=secret_question,
             secret_answer_hash=secret_answer_hash
         )
-        
+
         try:
             db.session.add(user)
             db.session.commit()
-            
+
             # Add password to history
             update_password_history(user.id, password_hash)
-            
+
             flash('User created successfully!', 'success')
             log_activity('CREATE', 'user', user.id, f'Created user: {user.full_name}')
             return redirect(url_for('user_management'))
@@ -2648,7 +2765,7 @@ def add_user():
             db.session.rollback()
             flash('Error creating user. Please try again.', 'error')
             print(f"Error creating user: {e}")
-    
+
     return render_template('add_user.html')
 
 @app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
@@ -2656,9 +2773,9 @@ def edit_user(user_id):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     user = User.query.get_or_404(user_id)
-    
+
     if request.method == 'POST':
         email = request.form['email']
         first_name = request.form['first_name']
@@ -2670,21 +2787,21 @@ def edit_user(user_id):
         force_password_change = 'force_password_change' in request.form
         secret_question = request.form['secret_question']
         secret_answer = request.form['secret_answer']
-        
+
         # Check if email is already taken by another user
         existing_user = User.query.filter_by(email=email).first()
         if existing_user and existing_user.id != user_id:
             flash('Email already exists.', 'error')
             return render_template('edit_user.html', user=user)
-        
+
         if not secret_question.strip():
             flash('Secret question is required.', 'error')
             return render_template('edit_user.html', user=user)
-        
+
         if not secret_answer.strip():
             flash('Secret answer is required.', 'error')
             return render_template('edit_user.html', user=user)
-        
+
         # Update user
         user.email = email
         user.first_name = first_name
@@ -2696,13 +2813,13 @@ def edit_user(user_id):
         user.force_password_change = force_password_change
         user.secret_question = secret_question
         user.secret_answer_hash = generate_password_hash(secret_answer.lower().strip())
-        
+
         # Update password expiry for non-admin users
         if role != 'admin':
             user.password_expires_at = datetime.utcnow() + timedelta(days=180)
         else:
             user.password_expires_at = None
-        
+
         try:
             db.session.commit()
             flash('User updated successfully!', 'success')
@@ -2712,7 +2829,7 @@ def edit_user(user_id):
             db.session.rollback()
             flash('Error updating user. Please try again.', 'error')
             print(f"Error updating user: {e}")
-    
+
     return render_template('edit_user.html', user=user)
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
@@ -2720,80 +2837,80 @@ def delete_user(user_id):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     user = User.query.get_or_404(user_id)
-    
+
     # Prevent deleting the current user
     if user.id == session['user_id']:
         flash('You cannot delete your own account.', 'error')
         return redirect(url_for('user_management'))
-    
+
     try:
         # Delete password history
         PasswordHistory.query.filter_by(user_id=user_id).delete()
-        
+
         # Delete activity logs
         ActivityLog.query.filter_by(user_id=user_id).delete()
-        
+
         # Delete user
         db.session.delete(user)
         db.session.commit()
-        
+
         flash('User deleted successfully!', 'success')
         log_activity('DELETE', 'user', user_id, f'Deleted user: {user.full_name}')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting user. Please try again.', 'error')
         print(f"Error deleting user: {e}")
-    
+
     return redirect(url_for('user_management'))
 
 @app.route('/change-password', methods=['GET', 'POST'])
 def change_password():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user:
         session.clear()
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
-        
+
         # Verify current password
         if not check_password_hash(user.password_hash, current_password):
             flash('Current password is incorrect.', 'error')
             return render_template('change_password.html')
-        
+
         # Check if new passwords match
         if new_password != confirm_password:
             flash('New passwords do not match.', 'error')
             return render_template('change_password.html')
-        
+
         # Validate new password
         password_errors = validate_password(new_password, user.id)
         if password_errors:
             for error in password_errors:
                 flash(error, 'error')
             return render_template('change_password.html')
-        
+
         # Update password
         new_password_hash = generate_password_hash(new_password)
         user.password_hash = new_password_hash
         user.password_changed_at = datetime.utcnow()
         user.force_password_change = False
-        
+
         # Update password expiry for non-admin users
         if user.role != 'admin':
             user.password_expires_at = datetime.utcnow() + timedelta(days=180)
-        
+
         try:
             # Add to password history
             update_password_history(user.id, new_password_hash)
-            
+
             db.session.commit()
             flash('Password changed successfully!', 'success')
             log_activity('UPDATE', 'user', user.id, 'Password changed')
@@ -2802,37 +2919,37 @@ def change_password():
             db.session.rollback()
             flash('Error changing password. Please try again.', 'error')
             print(f"Error changing password: {e}")
-    
+
     return render_template('change_password.html')
 
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user:
         session.clear()
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         email = request.form['email']
         first_name = request.form['first_name']
         last_name = request.form['last_name']
         phone = request.form['phone']
-        
+
         # Check if email is already taken by another user
         existing_user = User.query.filter_by(email=email).first()
         if existing_user and existing_user.id != user.id:
             flash('Email already exists.', 'error')
             return render_template('profile.html', user=user)
-        
+
         # Update user
         user.email = email
         user.first_name = first_name
         user.last_name = last_name
         user.phone = phone
-        
+
         try:
             db.session.commit()
             flash('Profile updated successfully!', 'success')
@@ -2842,7 +2959,7 @@ def profile():
             db.session.rollback()
             flash('Error updating profile. Please try again.', 'error')
             print(f"Error updating profile: {e}")
-    
+
     return render_template('profile.html', user=user)
 
 # Recruit Management Routes
@@ -2850,11 +2967,11 @@ def profile():
 def recruits():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get sort parameters
     sort_by = request.args.get('sort', 'created_at')
     order = request.args.get('order', 'desc')
-    
+
     # Define valid sort columns
     valid_sorts = {
         'first_name': PotentialRecruit.first_name,
@@ -2866,28 +2983,28 @@ def recruits():
         'created_at': PotentialRecruit.created_at,
         'last_modified': PotentialRecruit.last_modified
     }
-    
+
     # Default to created_at if invalid sort column
     if sort_by not in valid_sorts:
         sort_by = 'created_at'
-    
+
     # Apply sorting
     if order == 'asc':
         recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].asc()).all()
     else:
         recruits = PotentialRecruit.query.order_by(valid_sorts[sort_by].desc()).all()
-    
+
     return render_template('recruits.html', recruits=recruits, sort_by=sort_by, order=order)
 
 @app.route('/recruits/add', methods=['GET', 'POST'])
 def add_recruit():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         # Create backup before adding new recruit
         # backup_database("Pre-add recruit backup")  # Disabled for Vercel deployment
-        
+
         recruit = PotentialRecruit(
             first_name=request.form['first_name'],
             last_name=request.form['last_name'],
@@ -2905,10 +3022,10 @@ def add_recruit():
             notes=request.form['notes'],
             status=request.form['status']
         )
-        
+
         db.session.add(recruit)
         db.session.commit()
-        
+
         # Log the activity
         log_activity(
             'CREATE',
@@ -2917,24 +3034,24 @@ def add_recruit():
             f"Recruit: {recruit.first_name} {recruit.last_name}",
             f"Added new recruit from {recruit.current_school}"
         )
-        
+
         flash('Recruit added successfully!', 'success')
         return redirect(url_for('recruits'))
-    
+
     return render_template('add_recruit.html')
 
 @app.route('/recruits/edit/<int:recruit_id>', methods=['GET', 'POST'])
 def edit_recruit(recruit_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     recruit = PotentialRecruit.query.get_or_404(recruit_id)
-    
+
     if request.method == 'POST':
         # Store old values for logging
         old_status = recruit.status
         old_school = recruit.current_school
-        
+
         # Update recruit
         recruit.first_name = request.form['first_name']
         recruit.last_name = request.form['last_name']
@@ -2951,17 +3068,17 @@ def edit_recruit(recruit_id):
         recruit.interests = request.form['interests']
         recruit.notes = request.form['notes']
         recruit.status = request.form['status']
-        
+
         try:
             db.session.commit()
-            
+
             # Log changes
             changes = []
             if old_status != recruit.status:
                 changes.append(f"Status: {old_status} → {recruit.status}")
             if old_school != recruit.current_school:
                 changes.append(f"School: {old_school} → {recruit.current_school}")
-            
+
             log_activity(
                 'UPDATE',
                 'potential_recruit',
@@ -2969,28 +3086,28 @@ def edit_recruit(recruit_id):
                 f"Recruit: {recruit.first_name} {recruit.last_name}",
                 f"Updated recruit. Changes: {', '.join(changes) if changes else 'General update'}"
             )
-            
+
             flash('Recruit updated successfully!', 'success')
             return redirect(url_for('recruits'))
         except Exception as e:
             db.session.rollback()
             flash('Error updating recruit. Please try again.', 'error')
             print(f"Error updating recruit: {e}")
-    
+
     return render_template('edit_recruit.html', recruit=recruit)
 
 @app.route('/recruits/delete/<int:recruit_id>', methods=['POST'])
 def delete_recruit(recruit_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     recruit = PotentialRecruit.query.get_or_404(recruit_id)
     name = f"{recruit.first_name} {recruit.last_name}"
-    
+
     try:
         db.session.delete(recruit)
         db.session.commit()
-        
+
         log_activity(
             'DELETE',
             'potential_recruit',
@@ -2998,13 +3115,13 @@ def delete_recruit(recruit_id):
             f"Recruit: {name}",
             f"Deleted recruit from {recruit.current_school}"
         )
-        
+
         flash('Recruit deleted successfully!', 'success')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting recruit. Please try again.', 'error')
         print(f"Error deleting recruit: {e}")
-    
+
     return redirect(url_for('recruits'))
 
 # Cadet Management Routes
@@ -3012,11 +3129,11 @@ def delete_recruit(recruit_id):
 def cadet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get sort parameters
     sort_by = request.args.get('sort', 'created_at')
     order = request.args.get('order', 'desc')
-    
+
     # Define valid sort columns
     valid_sorts = {
         'first_name': Cadet.first_name,
@@ -3030,28 +3147,28 @@ def cadet():
         'created_at': Cadet.created_at,
         'last_modified': Cadet.last_modified
     }
-    
+
     # Default to created_at if invalid sort column
     if sort_by not in valid_sorts:
         sort_by = 'created_at'
-    
+
     # Apply sorting
     if order == 'asc':
         cadet_members = Cadet.query.order_by(valid_sorts[sort_by].asc()).all()
     else:
         cadet_members = Cadet.query.order_by(valid_sorts[sort_by].desc()).all()
-    
+
     return render_template('cadet.html', cadet_members=cadet_members, sort_by=sort_by, order=order)
 
 @app.route('/cadet/add', methods=['GET', 'POST'])
 def add_cadet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     if request.method == 'POST':
         # Create backup before adding new cadet
         # backup_database("Pre-add cadet backup")  # Disabled for Vercel deployment
-        
+
         # Handle unenrollment_date parsing
         unenrollment_date = None
         if request.form.get('unenrollment_date'):
@@ -3060,7 +3177,7 @@ def add_cadet():
             except ValueError:
                 flash('Invalid unenrollment date format. Please use YYYY-MM-DD.', 'error')
                 return render_template('add_cadet.html')
-        
+
         cadet = Cadet(
             first_name=request.form['first_name'],
             last_name=request.form['last_name'],
@@ -3076,10 +3193,10 @@ def add_cadet():
             unenrollment_date=unenrollment_date,
             gpa=request.form.get('gpa')
         )
-        
+
         db.session.add(cadet)
         db.session.commit()
-        
+
         # Log the activity
         log_activity(
             'CREATE',
@@ -3088,24 +3205,24 @@ def add_cadet():
             f"Cadet: {cadet.first_name} {cadet.last_name} ({cadet.cadet_rank})",
             f"Added new cadet with status: {cadet.status}"
         )
-        
+
         flash('Cadet added successfully!', 'success')
         return redirect(url_for('cadet'))
-    
+
     return render_template('add_cadet.html')
 
 @app.route('/cadet/edit/<int:cadet_id>', methods=['GET', 'POST'])
 def edit_cadet(cadet_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     cadet = Cadet.query.get_or_404(cadet_id)
-    
+
     if request.method == 'POST':
         # Store old values for logging
         old_status = cadet.status
         old_rank = cadet.cadet_rank
-        
+
         cadet.first_name = request.form['first_name']
         cadet.last_name = request.form['last_name']
         cadet.email = request.form['email']
@@ -3118,7 +3235,7 @@ def edit_cadet(cadet_id):
         cadet.status = request.form['status']
         cadet.unenrollment_reason = request.form['unenrollment_reason']
         cadet.gpa = request.form.get('gpa')
-        
+
         # Handle unenrollment_date parsing
         if request.form.get('unenrollment_date'):
             try:
@@ -3128,16 +3245,16 @@ def edit_cadet(cadet_id):
                 return render_template('edit_cadet.html', cadet=cadet)
         else:
             cadet.unenrollment_date = None
-        
+
         db.session.commit()
-        
+
         # Log the activity
         changes = []
         if old_status != cadet.status:
             changes.append(f"Status: {old_status} → {cadet.status}")
         if old_rank != cadet.cadet_rank:
             changes.append(f"Rank: {old_rank} → {cadet.cadet_rank}")
-        
+
         log_activity(
             'UPDATE',
             'cadet',
@@ -3145,20 +3262,20 @@ def edit_cadet(cadet_id):
             f"Cadet: {cadet.first_name} {cadet.last_name}",
             f"Updated cadet. Changes: {', '.join(changes) if changes else 'General update'}"
         )
-        
+
         flash('Cadet updated successfully!', 'success')
         return redirect(url_for('cadet'))
-    
+
     return render_template('edit_cadet.html', cadet=cadet)
 
 @app.route('/contacts/download/<format>')
 def download_contacts(format):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get all contacts
     contacts = UniversityContact.query.all()
-    
+
     # Prepare data for export
     data = []
     for contact in contacts:
@@ -3173,48 +3290,48 @@ def download_contacts(format):
             'Created At': contact.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'Last Modified': contact.last_modified.strftime('%Y-%m-%d %H:%M:%S')
         })
-    
+
     # Log the export activity
     log_activity('EXPORT', 'university_contacts', None, f'Exported {len(data)} university contacts as {format.upper()}')
-    
+
     if format == 'csv':
         # Create CSV
         df = pd.DataFrame(data)
         output = BytesIO()
         df.to_csv(output, index=False)
         output.seek(0)
-        
+
         return send_file(
             output,
             mimetype='text/csv',
             as_attachment=True,
             download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
         )
-    
+
     elif format == 'excel':
         # Create Excel
         df = pd.DataFrame(data)
         output = BytesIO()
         df.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
-        
+
         return send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
         )
-    
+
     elif format == 'pdf':
         # Create PDF
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
-        
+
         # Create table data
         table_data = [list(data[0].keys())]  # Headers
         for row in data:
             table_data.append(list(row.values()))
-        
+
         # Create table
         table = Table(table_data)
         table.setStyle(TableStyle([
@@ -3228,11 +3345,11 @@ def download_contacts(format):
             ('FONTSIZE', (0, 1), (-1, -1), 6),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        
+
         # Build PDF
         elements = [table]
         doc.build(elements)
-        
+
         buffer.seek(0)
         return send_file(
             buffer,
@@ -3240,7 +3357,7 @@ def download_contacts(format):
             as_attachment=True,
             download_name=f'university_contacts_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
         )
-    
+
     else:
         flash('Invalid export format.', 'error')
         return redirect(url_for('contacts'))
@@ -3249,10 +3366,10 @@ def download_contacts(format):
 def download_recruits(format):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get all recruits
     recruits = PotentialRecruit.query.all()
-    
+
     # Prepare data for export
     data = []
     for recruit in recruits:
@@ -3272,48 +3389,48 @@ def download_recruits(format):
             'Created At': recruit.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'Last Modified': recruit.last_modified.strftime('%Y-%m-%d %H:%M:%S')
         })
-    
+
     # Log the export activity
     log_activity('EXPORT', 'potential_recruits', None, f'Exported {len(data)} potential recruits as {format.upper()}')
-    
+
     if format == 'csv':
         # Create CSV
         df = pd.DataFrame(data)
         output = BytesIO()
         df.to_csv(output, index=False)
         output.seek(0)
-        
+
         return send_file(
             output,
             mimetype='text/csv',
             as_attachment=True,
             download_name=f'potential_recruits_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
         )
-    
+
     elif format == 'excel':
         # Create Excel
         df = pd.DataFrame(data)
         output = BytesIO()
         df.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
-        
+
         return send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name=f'potential_recruits_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
         )
-    
+
     elif format == 'pdf':
         # Create PDF
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
-        
+
         # Create table data
         table_data = [list(data[0].keys())]  # Headers
         for row in data:
             table_data.append(list(row.values()))
-        
+
         # Create table
         table = Table(table_data)
         table.setStyle(TableStyle([
@@ -3327,11 +3444,11 @@ def download_recruits(format):
             ('FONTSIZE', (0, 1), (-1, -1), 6),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        
+
         # Build PDF
         elements = [table]
         doc.build(elements)
-        
+
         buffer.seek(0)
         return send_file(
             buffer,
@@ -3339,7 +3456,7 @@ def download_recruits(format):
             as_attachment=True,
             download_name=f'potential_recruits_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
         )
-    
+
     else:
         flash('Invalid export format.', 'error')
         return redirect(url_for('recruits'))
@@ -3348,10 +3465,10 @@ def download_recruits(format):
 def download_cadet(format):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get all cadets
     cadets = Cadet.query.all()
-    
+
     # Prepare data for export
     data = []
     for cadet in cadets:
@@ -3372,25 +3489,25 @@ def download_cadet(format):
             'Created At': cadet.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'Last Modified': cadet.last_modified.strftime('%Y-%m-%d %H:%M:%S')
         })
-    
+
     # Log the export activity
     log_activity('EXPORT', 'cadet', None, 'Cadet List Export', f'Exported {len(data)} cadets to {format.upper()}')
-    
+
     return export_data(data, f'cadet_list_{datetime.now().strftime("%Y%m%d")}', format, 'Cadet List')
 
 @app.route('/cadet/delete/<int:cadet_id>', methods=['POST'])
 def delete_cadet(cadet_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     cadet = Cadet.query.get_or_404(cadet_id)
     name = f"{cadet.first_name} {cadet.last_name}"
     rank = cadet.cadet_rank
-    
+
     try:
         db.session.delete(cadet)
         db.session.commit()
-        
+
         log_activity(
             'DELETE',
             'cadet',
@@ -3398,13 +3515,13 @@ def delete_cadet(cadet_id):
             f"Cadet: {name} ({rank})",
             f"Deleted cadet"
         )
-        
+
         flash('Cadet deleted successfully!', 'success')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting cadet. Please try again.', 'error')
         print(f"Error deleting cadet: {e}")
-    
+
     return redirect(url_for('cadet'))
 
 @app.route('/api/backup/nightly')
@@ -3415,10 +3532,10 @@ def nightly_backup_cron():
         user_agent = request.headers.get('User-Agent', '')
         if not user_agent.startswith('Vercel'):
             return jsonify({'error': 'Unauthorized'}), 403
-        
+
         # Create backup
         backup_filename, backup_url = backup_database("Nightly automatic backup")
-        
+
         if backup_filename:
             print(f"Nightly backup completed: {backup_filename}")
             return jsonify({
@@ -3430,7 +3547,7 @@ def nightly_backup_cron():
         else:
             print("Nightly backup failed")
             return jsonify({'error': 'Backup failed'}), 500
-            
+
     except Exception as e:
         print(f"Error in nightly backup cron: {e}")
         return jsonify({'error': str(e)}), 500
@@ -3443,12 +3560,12 @@ def backup_cleanup_cron():
         user_agent = request.headers.get('User-Agent', '')
         if not user_agent.startswith('Vercel'):
             return jsonify({'error': 'Unauthorized'}), 403
-        
+
         # Get backup files and clean up old ones
         backup_files = get_backup_files()
         cutoff_date = datetime.now() - timedelta(days=30)
         deleted_count = 0
-        
+
         for backup in backup_files:
             try:
                 # Extract timestamp from filename
@@ -3456,24 +3573,24 @@ def backup_cleanup_cron():
                 if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
                     timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
                     backup_date = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-                    
+
                     if backup_date < cutoff_date:
                         # Delete old backup
                         delete(filename)
                         deleted_count += 1
                         print(f"Deleted old backup: {filename}")
-                        
+
             except Exception as e:
                 print(f"Error processing backup {filename}: {e}")
                 continue
-        
+
         print(f"Cleanup completed: {deleted_count} old backups deleted")
         return jsonify({
             'success': True,
             'deleted_count': deleted_count,
             'timestamp': datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         print(f"Error in backup cleanup cron: {e}")
         return jsonify({'error': str(e)}), 500
@@ -3483,12 +3600,12 @@ def code_coverage():
     """Code coverage analysis page"""
     if not session.get('user_id'):
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user or user.role != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Placeholder for code coverage data
     coverage_data = {
         'total_lines': 0,
@@ -3496,7 +3613,7 @@ def code_coverage():
         'coverage_percentage': 0,
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
-    
+
     return render_template('code_coverage.html', coverage_data=coverage_data)
 
 @app.route('/admin/quality-analysis')
@@ -3504,12 +3621,12 @@ def quality_analysis():
     """Quality analysis page"""
     if not session.get('user_id'):
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user or user.role != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Placeholder for quality analysis data
     quality_data = {
         'code_quality_score': 85,
@@ -3518,7 +3635,7 @@ def quality_analysis():
         'performance_score': 88,
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
-    
+
     return render_template('quality_analysis.html', quality_data=quality_data)
 
 @app.route('/admin/vulnerability-scan')
@@ -3526,12 +3643,12 @@ def vulnerability_scan():
     """Vulnerability scan page"""
     if not session.get('user_id'):
         return redirect(url_for('login'))
-    
+
     user = User.query.get(session['user_id'])
     if not user or user.role != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    
+
     # Placeholder for vulnerability scan data
     scan_data = {
         'total_vulnerabilities': 0,
@@ -3542,11 +3659,11 @@ def vulnerability_scan():
         'last_scan': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'scan_status': 'completed'
     }
-    
+
     return render_template('vulnerability_scan.html', scan_data=scan_data)
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    
+
     app.run(debug=True, host='0.0.0.0', port=5000)

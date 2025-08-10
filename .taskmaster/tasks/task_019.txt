@@ -1,0 +1,28 @@
+# Task ID: 19
+# Title: Diagnose and Resolve Git Commit Hanging Issue in Cursor on Windows
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Investigate and fix the recurring issue where Git commit commands hang in the Cursor terminal on Windows, identifying the root cause and implementing a robust workaround or configuration change.
+# Details:
+1. Collect detailed reports from affected users, including Git version, Windows version, Cursor terminal version, and any relevant logs or error messages. 
+2. Attempt to reproduce the hanging behavior in a controlled environment using the same versions and configurations. 
+3. Systematically test for known causes of Git commit hangs on Windows, including:
+   - Conflicts or misconfiguration with Windows Credential Manager (e.g., credential.helper settings).
+   - Issues with terminal integration (e.g., how Cursor spawns or manages Git processes, environment variables, or stdin/stdout handling).
+   - Git configuration conflicts (e.g., autocrlf, hooks, or editor settings).
+   - Interference from antivirus or security software.
+4. Review similar issues in public trackers (e.g., TortoiseGit, GitHub Desktop) for patterns and potential solutions, such as disabling certain credential helpers, updating Git, or adjusting terminal settings[1][2][3].
+5. If the root cause is identified (e.g., credential manager deadlock, terminal process mismanagement), implement a workaround:
+   - For credential manager issues: switch to a different credential helper or use SSH keys.
+   - For terminal integration: adjust how Cursor launches Git, or use a different shell.
+   - For configuration conflicts: document and enforce recommended Git settings for all users.
+6. Document the findings, root cause, and implemented solution. Provide clear instructions for users to apply the fix or update their environment.
+7. If no single root cause is found, implement and document a set of best practices and mitigations to minimize the issue's occurrence.
+
+# Test Strategy:
+1. Reproduce the commit hanging issue in a test environment using the same versions and configurations as affected users.
+2. Apply the identified fix or workaround and verify that Git commit commands complete promptly in Cursor across multiple projects.
+3. Test with various credential helpers (Windows Credential Manager, cache, SSH) and terminal settings to ensure the solution is robust.
+4. Confirm that the fix does not introduce regressions or new issues in Git workflows (commit, push, pull, etc.).
+5. Provide a step-by-step guide for users to verify the fix on their own systems and collect feedback to ensure the issue is resolved.

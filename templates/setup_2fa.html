@@ -22,11 +22,11 @@
                         <div class="col-md-6">
                             <h5><i class="fas fa-qrcode"></i> Step 1: Scan QR Code</h5>
                             <p class="text-muted">Use your authenticator app to scan this QR code:</p>
-                            
+
                             <div class="text-center mb-3">
                                 <img src="data:image/png;base64,{{ qr_code }}" alt="2FA QR Code" class="img-fluid border" style="max-width: 200px;">
                             </div>
-                            
+
                             <div class="alert alert-warning">
                                 <small>
                                     <i class="fas fa-exclamation-triangle"></i>
@@ -34,11 +34,11 @@
                                 </small>
                             </div>
                         </div>
-                        
+
                         <div class="col-md-6">
                             <h5><i class="fas fa-key"></i> Step 2: Manual Entry (Optional)</h5>
                             <p class="text-muted">If you can't scan the QR code, manually enter this secret key:</p>
-                            
+
                             <div class="input-group mb-3">
                                 <input type="text" class="form-control" value="{{ secret }}" id="secret-key" readonly>
                                 <div class="input-group-append">
@@ -47,7 +47,7 @@
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div class="alert alert-secondary">
                                 <small>
                                     <i class="fas fa-info-circle"></i>
@@ -64,13 +64,14 @@
                     <p class="text-muted">Enter the 6-digit code from your authenticator app to complete the setup:</p>
 
                     <form method="POST">
+    {{ csrf_token() }}
                         <div class="form-group">
                             <label for="totp_code">Authentication Code</label>
-                            <input type="text" class="form-control" id="totp_code" name="totp_code" 
+                            <input type="text" class="form-control" id="totp_code" name="totp_code"
                                    placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}" required>
                             <small class="form-text text-muted">Enter the 6-digit code displayed in your authenticator app.</small>
                         </div>
-                        
+
                         <div class="form-group">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-check"></i> Complete Setup
@@ -86,20 +87,20 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function copySecret() {
     const secretInput = document.getElementById('secret-key');
     secretInput.select();
     secretInput.setSelectionRange(0, 99999); // For mobile devices
     document.execCommand('copy');
-    
+
     // Show feedback
     const button = event.target;
     const originalText = button.innerHTML;
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
     button.classList.remove('btn-outline-secondary');
     button.classList.add('btn-success');
-    
+
     setTimeout(() => {
         button.innerHTML = originalText;
         button.classList.remove('btn-success');

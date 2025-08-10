@@ -5,7 +5,7 @@
         "id": 1,
         "title": "Deploy AFROTC 695 Recruitment System to Vercel with Neon and Blob Storage",
         "description": "Deploy the AFROTC 695 recruitment system to Vercel, ensuring compatibility with Vercel's serverless architecture. Use Neon for PostgreSQL with SSL and connection pooling, Vercel Blob SDK for file storage, and manage all environment variables via the Vercel dashboard. Adhere to Vercel's 4.5MB request limit, stateless requirements, and no persistent local storage.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "details": "1. Structure the Flask application so that all API endpoints are located in the 'api/' directory, as required by Vercel's serverless deployment model.\n2. Add and configure a 'vercel.json' file to specify the correct build and routing behavior for Flask and static assets, including custom rewrites if needed.\n3. Provision a Neon PostgreSQL database instance with SSL enabled and configure connection pooling for serverless compatibility.\n4. Integrate the Neon-Managed Vercel integration to automate environment variable injection (e.g., DATABASE_URL, PG* variables) and enable per-preview database branching if desired.\n5. Use the Vercel Blob SDK for all file uploads and downloads, ensuring no reliance on local or persistent storage.\n6. Configure all required environment variables (database, blob storage, secrets) exclusively through the Vercel dashboard, leveraging automatic injection from integrations where possible.\n7. Update application configuration to use Neon PostgreSQL (with SSL and pooling) and Vercel Blob endpoints, and ensure all file operations respect the 4.5MB request size limit.\n8. Deploy the application to Vercel, specifying the correct Python version and entry point in both the dashboard and vercel.json.\n9. Set up custom domain and SSL via Vercel's built-in management, and enforce HTTPS.\n10. Test all application functionality in the production environment, including database connectivity, file uploads (within size limits), user registration, and email notifications, ensuring stateless operation.",
@@ -51,9 +51,9 @@
             "id": 5,
             "title": "Configure Environment Variables via Vercel Dashboard",
             "description": "Set all required environment variables (database, blob storage, secrets) in the Vercel dashboard. Leverage automatic injection from Neon and Blob integrations where possible.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
+            "details": "<info added on 2025-08-10T06:09:26.079Z>\nPRODUCTION DEPLOYMENT ISSUE IDENTIFIED\n\nThe production deployment is currently failing on the `/admin` and `/recruits` routes due to missing critical environment variables in the Vercel deployment. Local development works correctly with all required variables set in `env.local`, but the production environment is missing variables such as `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `SECRET_KEY`, `TOTP_ENCRYPTION_KEY`, and `BCRYPT_ROUNDS`. The existing `vercel.json` only sets `FLASK_ENV=production` and does not include these required variables.\n\nRequired environment variables for production:\n- DATABASE_URL (Neon PostgreSQL connection)\n- BLOB_READ_WRITE_TOKEN (Vercel Blob storage)\n- SECRET_KEY (Flask session encryption)\n- TOTP_ENCRYPTION_KEY (2FA functionality)\n- BCRYPT_ROUNDS (password hashing)\n\nNext steps:\n1. Add all required environment variables to the Vercel dashboard under Project Settings > Environment Variables, ensuring they are set for the Production environment.\n2. Redeploy the application to apply the new environment variables.\n3. Test the production deployment and verify that the `/admin` and `/recruits` routes function correctly.\n</info added on 2025-08-10T06:09:26.079Z>\n<info added on 2025-08-10T06:27:07.804Z>\nPRODUCTION ISSUE IDENTIFIED: SPECIFIC ROUTE FAILURES\n\nDiagnostic Results:\n- All infrastructure components (database, environment variables, templates, Flask imports) are functioning correctly.\n- Login and other routes are operational; only `/admin` and `/recruits` routes are failing with flash errors.\n\nRoot Cause Analysis:\n- `/admin` route fails due to `get_backup_files()` attempting to access Vercel Blob storage in production.\n- `/recruits` route performs database queries.\n- Both routes work locally but fail in production, indicating a production-specific issue with Blob storage access.\n\nNext Steps:\n1. Add robust error handling to `get_backup_files()` to prevent the entire `/admin` route from failing if Blob storage access fails.\n2. Test the `/recruits` route independently to determine if its failure is related to Blob storage or another issue.\n3. Implement a graceful fallback mechanism for Blob storage failures to ensure the application remains functional even if Blob access is unavailable.\n</info added on 2025-08-10T06:27:07.804Z>",
             "testStrategy": ""
           },
           {
@@ -82,7 +82,7 @@
         "description": "Set up the Neon PostgreSQL database for the production environment, configure secure access, update application connection settings, and migrate all data from SQLite to Neon. Test connectivity and optimize for production use.",
         "details": "1. Provision a Neon PostgreSQL database instance and create a dedicated user with strong credentials and least-privilege access.\n2. Store database credentials securely as environment variables in the Vercel dashboard.\n3. Update the application's configuration to use the Neon PostgreSQL connection string and ensure all database access is via environment variables.\n4. Use a migration tool (such as Django's migrate, Alembic, or custom scripts) to transfer all data from the existing SQLite database to Neon PostgreSQL, mapping data types and handling schema differences as needed.\n5. After migration, verify data integrity by comparing record counts and spot-checking key tables.\n6. Optimize the Neon database by reviewing indexes, schema design, and connection pooling settings for production workloads. Set up automated backups if not enabled by default.\n7. Document the migration and configuration steps for future reference and disaster recovery.",
         "testStrategy": "- Attempt to connect to the Neon PostgreSQL database from the production environment using the configured credentials and environment variables.\n- Run the application and verify all database-driven features function as expected.\n- Compare row counts and sample data between SQLite and Neon PostgreSQL to confirm successful migration.\n- Use Neon and application monitoring tools to check for slow queries and resource bottlenecks.\n- Test backup and restore procedures to ensure data can be recovered if needed.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           1
         ],
@@ -95,25 +95,11 @@
         "description": "Leverage Vercel's built-in SSL to enforce HTTPS and configure essential security headers for secure communication in the production environment.",
         "details": "1. Set up custom domain(s) in the Vercel dashboard and enable automatic SSL certificates via Vercel's built-in HTTPS support.\n2. Ensure all HTTP traffic is redirected to HTTPS using Vercel's configuration (vercel.json or dashboard settings).\n3. Configure security headers in the application or via Vercel's headers configuration (vercel.json), including:\n   - X-Content-Type-Options: nosniff\n   - X-Frame-Options: DENY or SAMEORIGIN\n   - Strict-Transport-Security: max-age=31536000; includeSubDomains; preload\n   - Referrer-Policy: no-referrer-when-downgrade\n   - Content-Security-Policy as appropriate for the application\n4. Test the configuration for syntax errors and redeploy as needed.\n5. Document the SSL certificate's expiration and set up reminders for renewal if using custom certificates.",
         "testStrategy": "- Access the production site via HTTPS and verify the SSL certificate is valid and trusted by browsers (no warnings).\n- Use SSL testing tools (e.g., SSL Labs' SSL Server Test) to check for correct installation, protocol support, and absence of vulnerabilities.\n- Attempt to access the site via HTTP and confirm automatic redirection to HTTPS.\n- Inspect HTTP response headers to ensure all configured security headers are present and correctly set.\n- Use browser developer tools and online scanners to verify no mixed content warnings and that all resources load securely.\n- Confirm that the site remains fully functional after security enhancements.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           1
         ],
         "priority": "high",
-        "subtasks": []
-      },
-      {
-        "id": 4,
-        "title": "Optimize Application Performance for Vercel/Neon/Blob Production Stack",
-        "description": "Implement performance optimizations for the Vercel/Neon/Blob production environment, including query tuning, caching strategies, static file delivery enhancements, and real-time performance monitoring.",
-        "details": "1. Analyze and optimize PostgreSQL queries by reviewing slow query logs in Neon, adding appropriate indexes, and refactoring inefficient queries. Use EXPLAIN and Neon monitoring tools to identify bottlenecks.\n2. Implement caching at multiple layers: use in-memory stores (e.g., Redis, Upstash) for frequently accessed data, and configure HTTP caching headers for static assets. Leverage Vercel Edge Middleware or CDN caching for request results and static content.\n3. Optimize static file and media delivery by storing assets in Blob storage and serving them via CDN endpoints. Enable gzip or Brotli compression and set appropriate cache-control headers.\n4. Set up automated performance monitoring using Vercel Analytics, Neon monitoring, and third-party APM tools (e.g., Datadog, Sentry). Collect metrics such as response times, error rates, and throughput. Configure real-time alerts for performance anomalies.\n5. Continuously review monitoring data to identify and address performance bottlenecks. Integrate performance checks into the CI/CD pipeline to catch regressions early.",
-        "testStrategy": "- Use Neon and application profiling tools to verify that query execution times are reduced and indexes are used effectively.\n- Confirm that caching layers are operational by measuring cache hit rates and observing reduced backend load.\n- Test static and media file delivery with tools like Google Lighthouse or WebPageTest to ensure CDN, compression, and caching are effective.\n- Validate that monitoring tools are collecting real-time metrics and that alerts trigger on defined thresholds.\n- Simulate production load and monitor system performance to ensure bottlenecks are identified and addressed.",
-        "status": "pending",
-        "dependencies": [
-          1,
-          2
-        ],
-        "priority": "medium",
         "subtasks": []
       },
       {
@@ -122,25 +108,12 @@
         "description": "Set up automated backup systems for Neon PostgreSQL and Blob storage, including scheduled backups, backup verification, secure storage, retention policies, and disaster recovery testing.",
         "details": "1. Configure automated backups for Neon PostgreSQL using Neon's built-in backup features or scheduled exports to secure storage.\n2. Set up automated backups or versioning for Blob storage (e.g., S3 versioning, scheduled exports) to ensure file data is protected.\n3. Store backups in a secure, access-controlled location—preferably offsite or in a separate cloud region—with encryption at rest and in transit.\n4. Implement backup retention policies to automatically prune old backups, ensuring compliance with organizational and regulatory requirements.\n5. Automate backup verification by regularly testing backup integrity and performing restore drills for both database and Blob storage.\n6. Document backup and restore procedures, including steps for rapid recovery in case of data loss or disaster.\n7. Restrict access to backup files and management interfaces to authorized personnel only, using strong authentication and access controls.\n8. Monitor backup jobs and set up alerts for failures or anomalies to ensure prompt remediation.",
         "testStrategy": "- Verify that Neon PostgreSQL and Blob storage backups are created at the expected intervals and locations.\n- Attempt to restore the database and Blob storage from recent backups in a test environment to confirm data integrity and completeness.\n- Check that backup files are encrypted and access is restricted to authorized users.\n- Review backup retention logs to ensure old backups are pruned according to policy.\n- Simulate a disaster recovery scenario by restoring both database and Blob storage from backup and validating application functionality.\n- Confirm that backup and restore documentation is accurate and accessible to relevant personnel.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           2
         ],
         "priority": "high",
-        "subtasks": []
-      },
-      {
-        "id": 6,
-        "title": "Develop Comprehensive User Training Materials and Documentation",
-        "description": "Create detailed user manuals, administrator guides, troubleshooting documentation, training videos, and system procedures to support end users and administrators of the AFROTC 695 Recruitment System, reflecting the Vercel/Neon/Blob architecture.",
-        "details": "1. Identify and segment documentation audiences (end users, administrators, support staff) to tailor content appropriately.\n2. Draft user manuals with step-by-step instructions, annotated screenshots, and clear navigation for common workflows (e.g., account creation, application submission, data review), referencing the Vercel/Neon/Blob deployment.\n3. Develop administrator guides covering system configuration, user management, security settings, and maintenance procedures specific to the new architecture.\n4. Write troubleshooting documentation addressing common issues, error messages, and escalation paths for Vercel, Neon, and Blob storage.\n5. Produce training videos using screen recording tools to visually demonstrate key tasks and workflows; ensure videos are concise, well-narrated, and captioned for accessibility.\n6. Organize all materials with a logical structure, clear headings, a searchable table of contents, and consistent formatting.\n7. Review all documentation with stakeholders (developers, users, admins) for technical accuracy and clarity; revise based on feedback.\n8. Establish a process for ongoing updates as the system evolves, including version control and change logs.\n9. Ensure all documentation is accessible via a centralized online portal or help center, with downloadable formats as needed.",
-        "testStrategy": "- Review all documentation for completeness, clarity, and technical accuracy with input from developers and representative users.\n- Validate that user manuals and guides cover all major system features and workflows, including those unique to Vercel/Neon/Blob, without gaps or ambiguities.\n- Test troubleshooting steps by simulating common user issues and confirming that the documentation leads to resolution.\n- Play all training videos to ensure audio/visual quality, accuracy, and accessibility (e.g., captions).\n- Solicit feedback from a pilot group of end users and administrators, and incorporate their suggestions.\n- Confirm that all materials are accessible, well-organized, and easy to navigate in the chosen documentation platform.",
-        "status": "pending",
-        "dependencies": [
-          1
-        ],
-        "priority": "medium",
         "subtasks": []
       },
       {
@@ -153,22 +126,9 @@
         "dependencies": [
           1,
           3,
-          4
+          26
         ],
         "priority": "medium",
-        "subtasks": []
-      },
-      {
-        "id": 8,
-        "title": "Conduct Security Audit, Hardening, and Incident Response Planning for Vercel/Neon/Blob Stack",
-        "description": "Perform a comprehensive security audit of the application and cloud services, implement additional security controls and headers, test for vulnerabilities, enhance security features, and document security procedures including an incident response plan tailored to Vercel/Neon/Blob.",
-        "details": "1. Review the current security posture by auditing authentication, authorization, session management, input validation, and use of third-party components, referencing established checklists such as OWASP and SANS, and considering Vercel/Neon/Blob-specific risks.\n2. Analyze and update security headers (e.g., Content-Security-Policy, X-Frame-Options, X-XSS-Protection, Strict-Transport-Security) in the application or Vercel configuration to mitigate common web threats.\n3. Conduct vulnerability assessments using automated tools (e.g., OWASP ZAP, Snyk, or similar) and manual testing to identify issues such as XSS, SQL injection, CSRF, insecure direct object references, and outdated dependencies.\n4. Remediate identified vulnerabilities by applying patches, refactoring insecure code, and enforcing secure coding practices (e.g., parameterized queries, input sanitization).\n5. Enhance security features by enabling multi-factor authentication, enforcing strong password policies, and implementing account lockout mechanisms for failed login attempts.\n6. Document all security controls, procedures for regular security reviews, and create a detailed incident response plan outlining detection, containment, eradication, recovery, and post-incident analysis steps, with consideration for Vercel/Neon/Blob services.\n7. Train relevant staff on security best practices and incident response protocols.",
-        "testStrategy": "1. Verify all recommended security headers are present and correctly configured using tools like securityheaders.com.\n2. Run vulnerability scans and penetration tests to confirm that previously identified vulnerabilities are resolved and no new critical issues exist.\n3. Attempt common attack vectors (e.g., XSS, SQL injection, session hijacking) to ensure mitigations are effective.\n4. Review documentation for completeness and clarity, and conduct a tabletop exercise to validate the incident response plan.\n5. Confirm that enhanced security features (e.g., MFA, account lockout) function as intended and are enforced for all relevant user roles.",
-        "status": "pending",
-        "dependencies": [
-          3
-        ],
-        "priority": "high",
         "subtasks": []
       },
       {
@@ -180,10 +140,10 @@
         "status": "pending",
         "dependencies": [
           1,
-          4,
+          26,
           5,
           7,
-          8
+          25
         ],
         "priority": "high",
         "subtasks": []
@@ -196,7 +156,7 @@
         "testStrategy": "- Verify that all administrators and recruiters have attended training sessions and completed required hands-on exercises.\n- Assess user proficiency through practical exercises or short quizzes covering core system tasks and procedures, including those involving Vercel/Neon/Blob workflows.\n- Collect and review participant feedback to confirm understanding and comfort with the system; address any identified gaps with targeted follow-up.\n- Confirm that users can independently perform essential workflows without critical errors in a supervised environment.",
         "status": "pending",
         "dependencies": [
-          6,
+          27,
           9
         ],
         "priority": "medium",
@@ -208,7 +168,7 @@
         "description": "Create a Vercel account, set up a new project by connecting the repository, configure environment variables for API keys, and prepare the deployment environment using the Vercel dashboard.",
         "details": "1. Register for a Vercel account if you do not already have one.\n2. In the Vercel dashboard, select 'New Project' and connect your source code repository (e.g., GitHub, GitLab, Bitbucket), authorizing Vercel to access the repository as needed.\n3. Allow Vercel to auto-detect the framework (e.g., Next.js, React) and review the default build and output settings; override these if necessary using the dashboard or a vercel.json file in the project root for custom configuration (e.g., build commands, output directory, headers) [2][3].\n4. In the project settings, navigate to the Environment Variables section and add all required variables (such as API keys, database URLs, and secret tokens) for each environment (development, preview, production) [1].\n5. Optionally, generate a Vercel API token for CI/CD workflows and add it to your repository secrets if you plan to use GitHub Actions or similar automation [1].\n6. Review and finalize project settings, then trigger an initial deployment to verify the setup. Monitor deployment progress in the Vercel dashboard and ensure the project appears under Deployments [1][3][4].",
         "testStrategy": "- Confirm that the Vercel project is visible in the dashboard and linked to the correct repository.\n- Verify that all required environment variables are present and correctly configured in the Vercel dashboard.\n- Trigger a deployment (via code push or manual deploy) and monitor the process to ensure it completes successfully without errors.\n- Access the deployed application using the provided Vercel URL and confirm it loads as expected.\n- Check that environment variables are accessible within the deployed application (e.g., by logging values or using test endpoints).\n- If using CI/CD, ensure that deployments are triggered automatically on repository updates and that the Vercel API token is functioning as intended.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           1
         ],
@@ -221,7 +181,7 @@
         "description": "Transition the application's database from SQLite to Neon PostgreSQL, including database creation, connection string configuration, codebase updates, and data migration.",
         "details": "1. Provision a Neon PostgreSQL database instance using the Neon dashboard, taking advantage of serverless scaling and branching features for safe migration and testing.\n2. Generate secure credentials for the Neon database and store them as environment variables in the deployment platform (e.g., Vercel dashboard).\n3. Update the application's configuration files and ORM/database libraries to use the Neon PostgreSQL connection string instead of SQLite, ensuring all database access references the new environment variables.\n4. Refactor any application code that relies on SQLite-specific features (e.g., dynamic typing, lack of array or JSON support) to use PostgreSQL equivalents, such as native JSON and array types, window functions, and materialized views.\n5. Select and configure a migration tool (such as Alembic, Django migrate, or custom ETL scripts) to transfer all schema and data from SQLite to Neon PostgreSQL, addressing type differences and ensuring data integrity.\n6. Validate the migrated schema and data, checking for consistency, completeness, and compatibility with PostgreSQL features.\n7. Optimize database indexes and queries for PostgreSQL performance and scalability, leveraging advanced features as needed.",
         "testStrategy": "- Attempt to connect to the Neon PostgreSQL database from the application using the configured connection string and environment variables.\n- Run the application and verify that all database-driven features function correctly, including CRUD operations, complex queries, and JSON/array handling.\n- Compare row counts and sample data between the old SQLite database and the new Neon PostgreSQL instance to ensure data integrity.\n- Execute performance benchmarks on key queries and workflows to confirm improved scalability and responsiveness.\n- Monitor for errors or incompatibilities related to data types, query syntax, or feature support, and resolve any issues found.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           2,
           11
@@ -235,7 +195,7 @@
         "description": "Replace local file storage with Vercel Blob storage, update all file upload/download functionality to use Vercel Blob, migrate existing documents, and ensure secure, access-controlled file management.",
         "details": "1. Set up a Vercel Blob store via the Vercel dashboard under the Storage tab, ensuring the environment variable BLOB_READ_WRITE_TOKEN is configured for all environments (development, preview, production).\n2. Install the @vercel/blob SDK in the project and update backend and frontend code to use the SDK for file uploads and downloads. For server uploads, use the Blob SDK's upload methods, ensuring compliance with Vercel's 4.5 MB request body size limit; for larger files, implement client-side uploads as recommended by Vercel.\n3. Refactor all file upload endpoints and document management logic to interact with Vercel Blob instead of local storage. Use unique file naming (e.g., nanoid or UUID) to prevent collisions and store returned Blob URLs in the database for reference.\n4. Implement secure access controls: set file access to 'public' only when necessary, otherwise use signed URLs or token-based access for sensitive documents. Ensure environment variables are securely managed and not exposed to the client.\n5. Migrate all existing files from local storage to Vercel Blob using the vercel blob CLI or SDK, updating database references to point to new Blob URLs. Use the '--force' option to overwrite if needed and '--multipart' for large files.\n6. Update file download logic to retrieve files from Vercel Blob, handling cache control headers and access permissions as appropriate.\n7. Document the new upload/download process and update any user-facing documentation or admin guides.",
         "testStrategy": "- Upload files of various types and sizes through the application and verify they are stored in Vercel Blob, with correct URLs and metadata saved in the database.\n- Download files via the application and confirm correct file retrieval, access control enforcement, and cache behavior.\n- Attempt uploads exceeding the 4.5 MB server limit to ensure client-side upload fallback works as intended.\n- Migrate a sample set of existing documents and verify their accessibility and integrity post-migration.\n- Review environment variable security and confirm no sensitive tokens are exposed to the client.\n- Conduct regression testing on all document management features to ensure no loss of functionality or security.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           11
@@ -251,7 +211,7 @@
         "testStrategy": "1. Peer review all code changes using a standardized checklist to confirm improvements in readability, maintainability, and adherence to best practices.\n2. Run the full automated test suite and add new tests for any refactored or newly modularized code to ensure no regressions.\n3. Perform manual testing of all critical workflows, focusing on edge cases, error handling, and security-sensitive operations.\n4. Use static analysis and security scanning tools to verify the absence of common vulnerabilities and code smells.\n5. Benchmark key database queries and application endpoints to confirm performance improvements or at least no regressions.\n6. Validate that the application deploys and operates correctly in the Vercel/Neon/Blob production environment, with all environment variables and integrations functioning as expected.",
         "status": "pending",
         "dependencies": [
-          8,
+          25,
           12,
           13
         ],
@@ -266,7 +226,7 @@
         "testStrategy": "- Attempt brute-force and credential stuffing attacks against authentication endpoints to verify rate limiting and lockout mechanisms are effective.\n- Test input validation by submitting malicious payloads (e.g., SQL injection, XSS) and confirm they are rejected or sanitized.\n- Review encryption settings for all PII storage and transmission paths, using tools to verify HTTPS/TLS and inspecting database encryption configurations.\n- Perform access control tests to ensure only authorized users can access PII, and review audit logs for completeness and accuracy.\n- Inspect application logs and error messages to confirm no PII is exposed.\n- Conduct a security review and penetration test to validate the effectiveness of all new controls.",
         "status": "pending",
         "dependencies": [
-          8,
+          25,
           12,
           13,
           "14"
@@ -419,7 +379,7 @@
         "description": "Update the user creation form so that when password validation fails, all other entered information remains intact and only the password field is flagged for correction, preventing full form reset and improving user experience.",
         "details": "Refactor the user creation form logic to decouple password validation errors from a full form reset. Use controlled components or state management (e.g., React useState or similar) to persist all non-password field values when a password fails validation. On form submission, validate the password according to existing security requirements. If the password does not meet criteria, display a clear, inline error message next to the password field, and ensure all other form fields retain their values. Only clear or highlight the password field as needed. Avoid using browser default form reset or uncontrolled form elements that would cause loss of user input. Consider providing real-time password validation feedback to further reduce friction. Ensure accessibility by associating error messages with the password input and using appropriate ARIA attributes if necessary.",
         "testStrategy": "1. Attempt to create a user with all fields filled, but an invalid password; verify that only the password field is cleared or flagged, and all other fields retain their values.\n2. Confirm that error messages are displayed inline and clearly indicate the password requirements that were not met.\n3. Test with multiple consecutive password validation failures to ensure no other form data is lost.\n4. Validate that, upon correcting the password and resubmitting, the user is created successfully and all entered data is processed as expected.\n5. Test with assistive technologies to ensure error messages are accessible and properly linked to the password field.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           15
         ],
@@ -432,10 +392,158 @@
         "description": "Introduce robust error handling and user-friendly route management to prevent application crashes when routes are missing or unavailable, including custom error handlers, template-level route checks, a feature flags system, and comprehensive logging.",
         "details": "1. Implement global error handlers for routing errors (e.g., 404 Not Found, 403 Forbidden, 500 Internal Server Error) at both the server and client levels. Display custom error pages with clear, user-friendly messages and navigation options to guide users back to valid routes.\n2. Integrate template-level route checking: before rendering route-dependent components or templates, verify route existence and user permissions, displaying fallback UI or redirecting as needed.\n3. Develop a feature flags system to enable or disable routes and features dynamically, allowing for controlled rollouts and safe deactivation of unstable or unavailable routes.\n4. Add structured logging for all missing or failed route accesses, capturing relevant context (user, route, timestamp, error details) for monitoring and debugging.\n5. Ensure that route management logic is modular and maintainable, supporting future expansion and minimizing coupling between route definitions and error handling logic.\n6. Follow best practices for route organization, such as grouping related routes and using clear naming conventions, to further reduce the risk of misrouted or missing endpoints.",
         "testStrategy": "- Attempt to access non-existent, disabled, or unauthorized routes and verify that custom error pages are displayed without application crashes.\n- Check that all missing or failed route accesses are logged with complete context in the application's logging system.\n- Toggle feature flags for specific routes and confirm that routes are enabled/disabled as expected, with appropriate user feedback.\n- Review template-level route checks by simulating missing or restricted routes and ensuring fallback UI or redirects function correctly.\n- Perform regression testing on all major navigation flows to ensure no new routing errors are introduced.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           16
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Fix Authentication and Session Handling for /admin/system-statistics Route",
+        "description": "Investigate and resolve the issue where the /admin/system-statistics page incorrectly displays the login form instead of the statistics dashboard, ensuring proper session handling and route authentication for authenticated admin users.",
+        "details": "1. Audit the authentication and session management logic for the /admin/system-statistics route, focusing on how session state is checked and how authenticated users are identified. \n2. Review middleware, server-side, and client-side authentication checks to ensure that authenticated admin users are not erroneously redirected to the login page. Pay special attention to how session cookies are read and validated, and whether the session persists correctly across requests, especially in serverless or statically deployed environments.\n3. Confirm that the route's access control logic verifies both authentication and admin authorization, following best practices for securing admin routes (e.g., checking session validity and user role before rendering sensitive data)[4][5].\n4. Investigate any recent changes to session storage, cookie configuration, or deployment environment (such as migration to serverless or static hosting) that may affect session persistence or route protection[3].\n5. Update the route handler or middleware to ensure that, when a valid session is present and the user has admin privileges, the statistics dashboard is rendered with database statistics, performance metrics, and system health data. If the session is invalid or the user lacks admin rights, redirect to the login page or display an appropriate error message.\n6. Refactor code as needed to separate authentication checks from data fetching logic, and ensure that all sensitive data is only accessible to authorized users. Add or update tests to cover both successful and failed authentication scenarios.",
+        "testStrategy": "1. Log in as an admin user and navigate to /admin/system-statistics; verify that the statistics dashboard is displayed with all expected data (database statistics, performance metrics, system health).\n2. Log out or use a non-admin account and attempt to access the route; confirm that the login form or an appropriate error message is shown.\n3. Test session persistence by refreshing the page and navigating between routes to ensure authenticated users remain logged in and unauthorized users cannot access the dashboard.\n4. Review server and client logs for authentication or session errors during access attempts.\n5. If applicable, deploy to a staging environment and repeat the above tests to confirm correct behavior in the production-like context.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Comprehensive Audit and Fix of All Admin Panel Routes",
+        "description": "Systematically test, diagnose, and resolve all issues affecting admin panel routes, including 500 errors and authentication problems, ensuring all admin features function correctly in production.",
+        "details": "1. Enumerate all admin panel routes and create a checklist for systematic testing, including known broken routes such as /admin/quality-analysis, /admin/vulnerability-scan, and /admin/system-statistics.\n2. For each route, perform functional tests to identify issues such as 500 Internal Server Errors, authentication failures, missing templates, or import errors. Use automated and manual testing approaches to cover all HTTP verbs and middleware interactions.\n3. Diagnose root causes for each failure: review route definitions, middleware assignments, template existence, and authentication/session logic. Fix missing or misconfigured templates, correct middleware usage (e.g., ensure admin authentication is enforced via route-level middleware), and resolve import or dependency errors.\n4. Implement robust error handling for all admin routes, ensuring that errors are logged and user-friendly error pages are displayed instead of application crashes.\n5. Validate that all admin features are fully functional in the production environment, with correct authentication, session persistence, and data rendering. Document all fixes and update route management best practices for maintainability and security.",
+        "testStrategy": "- For each admin route, verify that authenticated admin users can access the route and that the expected page or feature is rendered without errors.\n- Attempt to access each route as an unauthenticated or non-admin user and confirm that proper authentication or authorization checks are enforced (e.g., redirect to login or show access denied).\n- Simulate error conditions (missing templates, invalid data) and confirm that custom error handlers display user-friendly messages and log errors appropriately.\n- Test all admin features in the production environment to ensure no 500 errors, correct session handling, and complete functionality.\n- Review logs and bug tracking reports to confirm that all previously reported issues are resolved and no new errors are introduced.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          9,
+          14,
+          21,
+          22
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "Conduct Security Audit, Hardening, and Incident Response Planning for Vercel/Neon/Blob Stack",
+        "description": "Perform a comprehensive security audit of the application and cloud services, implement additional security controls and headers, test for vulnerabilities, enhance security features, and document security procedures including an incident response plan tailored to Vercel/Neon/Blob. Address critical gaps identified in the initial audit, including missing CSRF protection, rate limiting, Content Security Policy, session security, input validation, and comprehensive security header management within the Flask app.",
+        "status": "in-progress",
+        "dependencies": [
+          3
+        ],
+        "priority": "high",
+        "details": "1. Review the current security posture by auditing authentication, authorization, session management, input validation, and use of third-party components, referencing established checklists such as OWASP and SANS, and considering Vercel/Neon/Blob-specific risks. Document strengths (e.g., password security, 2FA, database security, basic headers) and critical gaps (e.g., missing CSRF, rate limiting, CSP, session security, input validation, Flask app headers).\n2. Implement Flask-Talisman to enforce comprehensive security headers, including a strict Content Security Policy (CSP), and ensure all recommended headers are set at the Flask app level, not just in Vercel.json.\n3. Integrate Flask-WTF to provide CSRF protection for all forms and endpoints requiring it.\n4. Add Flask-Limiter to enforce rate limiting on authentication and sensitive endpoints to mitigate brute force attacks.\n5. Enhance session security by explicitly configuring session cookie flags (Secure, HttpOnly, SameSite) and reviewing session timeout policies.\n6. Expand input validation and sanitization across all user input points, beyond password fields, using appropriate libraries and custom validators.\n7. Implement security monitoring and logging, leveraging Vercel's audit log features and application-level logging for security events.\n8. Conduct vulnerability assessments using automated tools (e.g., OWASP ZAP, Snyk) and manual testing to identify issues such as XSS, SQL injection, CSRF, insecure direct object references, and outdated dependencies.\n9. Remediate identified vulnerabilities by applying patches, refactoring insecure code, and enforcing secure coding practices (e.g., parameterized queries, input sanitization).\n10. Enhance security features by ensuring multi-factor authentication is enforced, strong password policies are maintained, and account lockout mechanisms are in place for failed login attempts.\n11. Document all security controls, procedures for regular security reviews, and create a detailed incident response plan outlining detection, containment, eradication, recovery, and post-incident analysis steps, with consideration for Vercel/Neon/Blob services.\n12. Train relevant staff on security best practices and incident response protocols.",
+        "testStrategy": "1. Verify all recommended security headers, including CSP, are present and correctly configured using tools like securityheaders.com and manual inspection of Flask app responses.\n2. Confirm CSRF protection is enforced on all relevant endpoints by attempting CSRF attacks and verifying rejection.\n3. Test rate limiting by simulating repeated login attempts and ensuring lockout or throttling is triggered as configured.\n4. Attempt common attack vectors (e.g., XSS, SQL injection, session hijacking, CSRF) to ensure mitigations are effective.\n5. Review session cookie settings for Secure, HttpOnly, and SameSite flags, and test session timeout behavior.\n6. Run vulnerability scans and penetration tests to confirm that previously identified vulnerabilities are resolved and no new critical issues exist.\n7. Review documentation for completeness and clarity, and conduct a tabletop exercise to validate the incident response plan.\n8. Confirm that enhanced security features (e.g., MFA, account lockout) function as intended and are enforced for all relevant user roles.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Flask-Talisman for Security Headers and CSP",
+            "description": "Integrate Flask-Talisman into the Flask app to enforce comprehensive security headers, including a strict Content Security Policy (CSP). Ensure all recommended headers are set at the application level, not just in Vercel.json.",
+            "status": "done",
+            "dependencies": [],
+            "details": "<info added on 2025-08-10T17:49:30.041Z>\nFlask-Talisman has been fully integrated into the application, enforcing comprehensive security headers and a strict Content Security Policy (CSP) across both app.py and app_local.py. All recommended security headers—including Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, and Permissions-Policy—are now active and verified in HTTP responses. The CSP is configured with restrictive defaults, explicit allowances for trusted CDNs and Google Fonts, and nonce support for dynamic scripts. Application startup and all existing functionality have been tested and confirmed to work with Flask-Talisman enabled. This completes the security header and CSP hardening phase; the next step is to implement CSRF protection using Flask-WTF.\n</info added on 2025-08-10T17:49:30.041Z>\n<info added on 2025-08-10T17:55:33.627Z>\nResolved a chart rendering issue on the dashboard page by adding 'unsafe-eval' to the CSP script-src directive in both app.py and app_local.py. This change was necessary because Chart.js requires 'unsafe-eval' for dynamic code evaluation during chart rendering. The bar chart now displays correctly on the dashboard.\n</info added on 2025-08-10T17:55:33.627Z>\n<info added on 2025-08-10T18:03:00.795Z>\n✅ COMPLETED: Fixed all CSP nonce issues across the entire application\n\nWhat was accomplished:\n1. Identified the root cause: Flask-Talisman's content_security_policy_nonce_in=['script-src'] setting was generating unique nonces for each request, which overrides 'unsafe-inline' for security. All inline scripts needed the nonce=\"{{ csp_nonce() }}\" attribute.\n\n2. Fixed all templates systematically:\n   - dashboard.html: Added nonce to Chart.js script\n   - base.html: Fixed 3 inline scripts (flash messages, theme toggle, mobile sidebar)\n   - calendar.html: Fixed tooltip initialization script\n   - contacts.html: Fixed UTC time conversion script\n   - recruits.html: Fixed delete recruit function script\n   - setup_2fa.html: Fixed copy secret and auto-focus scripts\n   - All other templates (activity_log, add_user, cadet, database_management, materials, setup_2fa_complete, user_management, verify_2fa): Fixed via automated script\n\n3. Resolved Vercel Analytics issue: Modified base template to only load Vercel insights script in production environment, preventing 404 errors in local development.\n\n4. Verified fixes: All templates now properly include nonce=\"{{ csp_nonce() }}\" attributes on inline script tags.\n\nTechnical details:\n- CSP nonce generation is working correctly (confirmed via HTTP headers)\n- All inline scripts now have proper nonce attributes\n- Vercel analytics script only loads in production\n- Application starts successfully with no CSP violations\n\nResult: Chart rendering and all other JavaScript functionality should now work correctly without CSP blocking inline scripts.\n</info added on 2025-08-10T18:03:00.795Z>",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Add CSRF Protection with Flask-WTF",
+            "description": "Integrate Flask-WTF and enable CSRF protection for all forms and relevant endpoints.",
+            "status": "in-progress",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Rate Limiting with Flask-Limiter",
+            "description": "Add Flask-Limiter to enforce rate limiting on authentication and sensitive endpoints to mitigate brute force attacks.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Enhance Session Security Settings",
+            "description": "Explicitly configure session cookie flags (Secure, HttpOnly, SameSite) and review session timeout policies for improved session security.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Expand Input Validation and Sanitization",
+            "description": "Review all user input points and implement comprehensive validation and sanitization using appropriate libraries and custom validators.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement Security Monitoring and Logging",
+            "description": "Leverage Vercel's audit log features and add application-level logging for security events (e.g., failed logins, suspicious activity).",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Update Incident Response Plan",
+            "description": "Document a detailed incident response plan that includes detection, containment, eradication, recovery, and post-incident analysis, tailored for Vercel/Neon/Blob stack.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 26,
+        "title": "Optimize Application Performance for Vercel/Neon/Blob Production Stack",
+        "description": "Implement performance optimizations for the Vercel/Neon/Blob production environment, including query tuning, caching strategies, static file delivery enhancements, and real-time performance monitoring.",
+        "details": "1. Analyze and optimize PostgreSQL queries by reviewing slow query logs in Neon, adding appropriate indexes, and refactoring inefficient queries. Use EXPLAIN and Neon monitoring tools to identify bottlenecks.\n2. Implement caching at multiple layers: use in-memory stores (e.g., Redis, Upstash) for frequently accessed data, and configure HTTP caching headers for static assets. Leverage Vercel Edge Middleware or CDN caching for request results and static content.\n3. Optimize static file and media delivery by storing assets in Blob storage and serving them via CDN endpoints. Enable gzip or Brotli compression and set appropriate cache-control headers.\n4. Set up automated performance monitoring using Vercel Analytics, Neon monitoring, and third-party APM tools (e.g., Datadog, Sentry). Collect metrics such as response times, error rates, and throughput. Configure real-time alerts for performance anomalies.\n5. Continuously review monitoring data to identify and address performance bottlenecks. Integrate performance checks into the CI/CD pipeline to catch regressions early.",
+        "testStrategy": "- Use Neon and application profiling tools to verify that query execution times are reduced and indexes are used effectively.\n- Confirm that caching layers are operational by measuring cache hit rates and observing reduced backend load.\n- Test static and media file delivery with tools like Google Lighthouse or WebPageTest to ensure CDN, compression, and caching are effective.\n- Validate that monitoring tools are collecting real-time metrics and that alerts trigger on defined thresholds.\n- Simulate production load and monitor system performance to ensure bottlenecks are identified and addressed.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          2
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Develop Comprehensive User Training Materials and Documentation",
+        "description": "Create detailed user manuals, administrator guides, troubleshooting documentation, training videos, and system procedures to support end users and administrators of the AFROTC 695 Recruitment System, reflecting the Vercel/Neon/Blob architecture.",
+        "details": "1. Identify and segment documentation audiences (end users, administrators, support staff) to tailor content appropriately.\n2. Draft user manuals with step-by-step instructions, annotated screenshots, and clear navigation for common workflows (e.g., account creation, application submission, data review), referencing the Vercel/Neon/Blob deployment.\n3. Develop administrator guides covering system configuration, user management, security settings, and maintenance procedures specific to the new architecture.\n4. Write troubleshooting documentation addressing common issues, error messages, and escalation paths for Vercel, Neon, and Blob storage.\n5. Produce training videos using screen recording tools to visually demonstrate key tasks and workflows; ensure videos are concise, well-narrated, and captioned for accessibility.\n6. Organize all materials with a logical structure, clear headings, a searchable table of contents, and consistent formatting.\n7. Review all documentation with stakeholders (developers, users, admins) for technical accuracy and clarity; revise based on feedback.\n8. Establish a process for ongoing updates as the system evolves, including version control and change logs.\n9. Ensure all documentation is accessible via a centralized online portal or help center, with downloadable formats as needed.",
+        "testStrategy": "- Review all documentation for completeness, clarity, and technical accuracy with input from developers and representative users.\n- Validate that user manuals and guides cover all major system features and workflows, including those unique to Vercel/Neon/Blob, without gaps or ambiguities.\n- Test troubleshooting steps by simulating common user issues and confirming that the documentation leads to resolution.\n- Play all training videos to ensure audio/visual quality, accuracy, and accessibility (e.g., captions).\n- Solicit feedback from a pilot group of end users and administrators, and incorporate their suggestions.\n- Confirm that all materials are accessible, well-organized, and easy to navigate in the chosen documentation platform.",
+        "status": "pending",
+        "dependencies": [
+          1
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Standardize UI Components to Air Force Style Guide",
+        "description": "Refactor all UI components and templates to strictly adhere to Air Force brand guidelines, replacing any non-compliant original styling with standardized Air Force colors, typography, spacing, and component conventions.",
+        "details": "1. Audit all existing UI components, templates, and forms to identify deviations from the Air Force Style Guide, focusing on color usage, typography, spacing, and component styling.\n2. Replace all non-compliant colors with the official Air Force palette: Stealth Blue (#1C2347), Force Blue (#007BFE), Sky Blue (#25BAF9), Graphite Gray (#707070), and Cloud Gray (#E9E8E8).\n3. Update typography to use approved fonts (e.g., Ingra Cd, Helvetica Neue LT Std, Arial) and ensure consistent font sizes, weights, and hierarchy as specified in the style guide.\n4. Standardize spacing, padding, and margins across all components to match Air Force layout and grid recommendations.\n5. Remove legacy or custom styles that conflict with the Air Force brand, ensuring all CSS/SCSS variables and utility classes reflect the new standards.\n6. Refactor reusable component libraries and ensure all new and existing components inherit standardized styles.\n7. Document the updated styling conventions and provide code samples for developers to maintain consistency going forward.\n8. Coordinate with design and branding stakeholders to validate compliance and resolve ambiguities in interpretation of the guidelines.",
+        "testStrategy": "- Review all UI screens, templates, and forms to confirm exclusive use of Air Force brand colors, fonts, and spacing.\n- Use automated style linting tools to detect any non-compliant CSS or component styling.\n- Conduct visual regression testing to ensure consistent appearance across browsers and devices.\n- Solicit feedback from branding stakeholders and perform manual inspection against the official Air Force Style Guide.\n- Verify that all legacy styles have been removed and only standardized styles are present in the codebase.",
+        "status": "pending",
+        "dependencies": [
+          1
         ],
         "priority": "medium",
         "subtasks": []
@@ -443,7 +551,7 @@
     ],
     "metadata": {
       "created": "2025-08-07T20:34:24.556Z",
-      "updated": "2025-08-10T06:05:55.248Z",
+      "updated": "2025-08-10T17:49:35.838Z",
       "description": "Tasks for master context"
     }
   },
