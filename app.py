@@ -1597,10 +1597,10 @@ def code_coverage():
             "test_data/code_coverage_mock_report.json",
             ".coverage"
         ]
-        
+
         coverage_data = None
         last_updated = None
-        
+
         for summary_path in possible_paths:
             if os.path.exists(summary_path):
                 if summary_path.endswith('.json'):
@@ -1617,7 +1617,7 @@ def code_coverage():
                     }
                     last_updated = datetime.now().isoformat()
                 break
-        
+
         # If no coverage data found, use placeholder
         if not coverage_data:
             coverage_data = {
@@ -1627,7 +1627,7 @@ def code_coverage():
                 'generated_at': datetime.now().isoformat()
             }
             last_updated = datetime.now().isoformat()
-            
+
     except Exception as e:
         print(f'Error loading coverage data: {e}')
         # Use fallback data
@@ -1690,17 +1690,17 @@ def quality_analysis():
             "quality_reports/summary.json",
             "test_data/quality_analysis_mock_report.json"
         ]
-        
+
         quality_data = None
         last_updated = None
-        
+
         for summary_path in possible_paths:
             if os.path.exists(summary_path):
                 with open(summary_path, 'r') as f:
                     quality_data = json.load(f)
                     last_updated = quality_data.get('generated_at', datetime.now().isoformat())
                 break
-        
+
         # If no quality data found, use placeholder
         if not quality_data:
             quality_data = {
@@ -1711,7 +1711,7 @@ def quality_analysis():
                 'generated_at': datetime.now().isoformat()
             }
             last_updated = datetime.now().isoformat()
-            
+
     except Exception as e:
         print(f'Error loading quality data: {e}')
         # Use fallback data
@@ -1775,17 +1775,17 @@ def vulnerability_scan():
             "vulnerability_reports/summary.json",
             "test_data/vulnerability_scan_mock_report.json"
         ]
-        
+
         vuln_data = None
         last_updated = None
-        
+
         for summary_path in possible_paths:
             if os.path.exists(summary_path):
                 with open(summary_path, 'r') as f:
                     vuln_data = json.load(f)
                     last_updated = vuln_data.get('generated_at', datetime.now().isoformat())
                 break
-        
+
         # If no vulnerability data found, use placeholder
         if not vuln_data:
             vuln_data = {
@@ -1798,7 +1798,7 @@ def vulnerability_scan():
                 'scan_status': 'completed'
             }
             last_updated = datetime.now().isoformat()
-            
+
     except Exception as e:
         print(f'Error loading vulnerability data: {e}')
         # Use fallback data

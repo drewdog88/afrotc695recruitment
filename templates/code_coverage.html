@@ -10,9 +10,14 @@
                 <h1 class="h3 mb-0">
                     <i class="fas fa-code"></i> Code Coverage Analysis
                 </h1>
-                <a href="{{ url_for('admin') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Admin
-                </a>
+                <div>
+                    <a href="{{ url_for('generate_coverage_report') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-sync-alt"></i> Generate New Report
+                    </a>
+                    <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Admin
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -41,6 +46,24 @@
                             <small class="text-muted">Total Lines</small>
                         </div>
                     </div>
+                    {% if coverage_data.total_branches and coverage_data.total_branches > 0 %}
+                    <hr class="my-3">
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-success">{{ coverage_data.branches_covered or 0 }}</h6>
+                            <small class="text-muted">Branches Covered</small>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-info">{{ coverage_data.total_branches or 0 }}</h6>
+                            <small class="text-muted">Total Branches</small>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            Branch Coverage: {{ coverage_data.branch_coverage_percentage or 0 }}%
+                        </small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -56,6 +79,21 @@
                     <div class="row">
                         <div class="col-12 mb-3">
                             <strong>Last Updated:</strong> {{ coverage_data.last_updated }}
+                        </div>
+                        <div class="col-12 mb-3">
+                            {% if data_source == 'blob' %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-cloud"></i>
+                                    <strong>Data Source:</strong> Vercel Blob Storage<br>
+                                    <strong>File:</strong> {{ blob_filename }}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>Data Source:</strong> Fallback Data (No recent report found)<br>
+                                    <strong>File:</strong> {{ blob_filename }}
+                                </div>
+                            {% endif %}
                         </div>
                         <div class="col-12">
                             <div class="alert alert-info">
@@ -78,10 +116,100 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Code coverage analysis is not yet implemented. This feature will be available in a future update.
-                    </div>
+                    {% if coverage_data.files %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>File</th>
+                                        <th>Lines</th>
+                                        <th>Coverage %</th>
+                                        {% if coverage_data.total_branches > 0 %}
+                                        <th>Branches</th>
+                                        <th>Branch %</th>
+                                        {% endif %}
+                                        <th>Missing</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for filename, file_data in coverage_data.files.items() %}
+                                        <tr>
+                                            <td>
+                                                <code>{{ filename }}</code>
+                                            </td>
+                                            <td>
+                                                <small>{{ file_data.covered }}/{{ file_data.total }}</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="progress me-2" style="width: 60px; height: 6px;">
+                                                        {% if file_data.percentage >= 80 %}
+                                                            <div class="progress-bar bg-success" style="width: {{ file_data.percentage }}%"></div>
+                                                        {% elif file_data.percentage >= 60 %}
+                                                            <div class="progress-bar bg-warning" style="width: {{ file_data.percentage }}%"></div>
+                                                        {% else %}
+                                                            <div class="progress-bar bg-danger" style="width: {{ file_data.percentage }}%"></div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <span class="small">{{ "%.1f"|format(file_data.percentage) }}%</span>
+                                                </div>
+                                            </td>
+                                            {% if coverage_data.total_branches > 0 %}
+                                            <td>
+                                                {% if file_data.branches > 0 %}
+                                                    <small>{{ file_data.branches_covered }}/{{ file_data.branches }}</small>
+                                                {% else %}
+                                                    <small class="text-muted">-</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if file_data.branches > 0 %}
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="progress me-2" style="width: 60px; height: 6px;">
+                                                            {% if file_data.branch_percentage >= 80 %}
+                                                                <div class="progress-bar bg-success" style="width: {{ file_data.branch_percentage }}%"></div>
+                                                            {% elif file_data.branch_percentage >= 60 %}
+                                                                <div class="progress-bar bg-warning" style="width: {{ file_data.branch_percentage }}%"></div>
+                                                            {% else %}
+                                                                <div class="progress-bar bg-danger" style="width: {{ file_data.branch_percentage }}%"></div>
+                                                            {% endif %}
+                                                        </div>
+                                                        <span class="small">{{ "%.1f"|format(file_data.branch_percentage) }}%</span>
+                                                    </div>
+                                                {% else %}
+                                                    <small class="text-muted">-</small>
+                                                {% endif %}
+                                            </td>
+                                            {% endif %}
+                                            <td>
+                                                <small class="text-muted">
+                                                    {{ file_data.missing_lines }} lines
+                                                    {% if file_data.missing_branches > 0 %}
+                                                        <br>{{ file_data.missing_branches }} branches
+                                                    {% endif %}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                {% if file_data.percentage >= 80 %}
+                                                    <span class="badge bg-success">Excellent</span>
+                                                {% elif file_data.percentage >= 60 %}
+                                                    <span class="badge bg-warning">Good</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Needs Work</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            No file-level coverage data available.
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -125,11 +253,3 @@
 }
 </style>
 {% endblock %}
-
-
-
-
-
-
-
-
