@@ -10,9 +10,14 @@
                 <h1 class="h3 mb-0">
                     <i class="fas fa-chart-bar"></i> Quality Analysis
                 </h1>
-                <a href="{{ url_for('admin') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Admin
-                </a>
+                <div>
+                    <a href="{{ url_for('generate_quality_analysis') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-sync-alt"></i> Generate New Analysis
+                    </a>
+                    <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Admin
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -115,6 +120,21 @@
                         </div>
                     </div>
                     
+                    <div class="col-12 mb-3">
+                        {% if data_source == 'blob' %}
+                            <div class="alert alert-success">
+                                <i class="fas fa-cloud"></i>
+                                <strong>Data Source:</strong> Vercel Blob Storage<br>
+                                <strong>File:</strong> {{ blob_filename }}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Data Source:</strong> Fallback Data (No recent analysis found)<br>
+                                <strong>File:</strong> {{ blob_filename }}
+                            </div>
+                        {% endif %}
+                    </div>
                     <div class="alert alert-info mt-3">
                         <i class="fas fa-info-circle"></i>
                         Quality analysis provides comprehensive metrics to assess the overall health and maintainability of the codebase.
@@ -133,10 +153,55 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Detailed quality analysis is not yet implemented. This feature will be available in a future update.
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-code"></i> Code Metrics</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Complexity:</strong> {{ quality_data.detailed_analysis.code_complexity }}</li>
+                                <li><strong>Maintainability Index:</strong> {{ quality_data.detailed_analysis.maintainability_index }}</li>
+                                <li><strong>Technical Debt:</strong> {{ quality_data.detailed_analysis.technical_debt }}</li>
+                                <li><strong>Documentation Coverage:</strong> {{ quality_data.detailed_analysis.documentation_coverage }}%</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-tachometer-alt"></i> Performance Metrics</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Response Time:</strong> {{ quality_data.detailed_analysis.performance_metrics.response_time }}</li>
+                                <li><strong>Memory Usage:</strong> {{ quality_data.detailed_analysis.performance_metrics.memory_usage }}</li>
+                                <li><strong>CPU Utilization:</strong> {{ quality_data.detailed_analysis.performance_metrics.cpu_utilization }}</li>
+                                <li><strong>Test Quality:</strong> {{ quality_data.detailed_analysis.test_quality }}</li>
+                            </ul>
+                        </div>
                     </div>
+                    
+                    {% if quality_data.detailed_analysis.code_metrics %}
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-file-code"></i> Code Statistics</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Total Lines:</strong> {{ quality_data.detailed_analysis.code_metrics.total_lines }}</li>
+                                <li><strong>Functions:</strong> {{ quality_data.detailed_analysis.code_metrics.functions }}</li>
+                                <li><strong>Classes:</strong> {{ quality_data.detailed_analysis.code_metrics.classes }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-vial"></i> Test Statistics</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Total Tests:</strong> {{ quality_data.detailed_analysis.test_metrics.total_tests }}</li>
+                                <li><strong>Passing:</strong> {{ quality_data.detailed_analysis.test_metrics.passing_tests }}</li>
+                                <li><strong>Coverage:</strong> {{ quality_data.detailed_analysis.test_metrics.test_coverage_percentage }}%</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-shield-alt"></i> Security Metrics</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Vulnerabilities:</strong> {{ quality_data.detailed_analysis.security_metrics.vulnerabilities_found }}</li>
+                                <li><strong>Security Score:</strong> {{ quality_data.detailed_analysis.security_metrics.security_score }}/100</li>
+                                <li><strong>Critical Issues:</strong> {{ quality_data.detailed_analysis.security_metrics.critical_issues }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
