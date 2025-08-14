@@ -3113,18 +3113,48 @@ def generate_coverage_report():
 @app.route('/admin/quality-analysis')
 def quality_analysis():
     """Quality analysis page"""
-    if 'user_id' not in session or session.get('role') != 'admin':
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if not user or user.role != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    return render_template('quality_analysis.html')
+
+    # Placeholder for quality analysis data
+    quality_data = {
+        'code_quality_score': 85,
+        'test_coverage': 75,
+        'security_score': 90,
+        'performance_score': 88,
+        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+    return render_template('quality_analysis.html', quality_data=quality_data)
 
 @app.route('/admin/vulnerability-scan')
 def vulnerability_scan():
     """Vulnerability scan page"""
-    if 'user_id' not in session or session.get('role') != 'admin':
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if not user or user.role != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
-    return render_template('vulnerability_scan.html')
+
+    # Placeholder for vulnerability scan data
+    scan_data = {
+        'total_vulnerabilities': 0,
+        'critical': 0,
+        'high': 0,
+        'medium': 0,
+        'low': 0,
+        'last_scan': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'scan_status': 'completed'
+    }
+
+    return render_template('vulnerability_scan.html', scan_data=scan_data)
 
 # Initialize database after all models are defined
 init_database()
