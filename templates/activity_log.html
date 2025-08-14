@@ -11,13 +11,13 @@
                 <i class="fas fa-download"></i> Download
             </button>
             <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='csv') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='csv') }}">
                     <i class="fas fa-file-csv"></i> CSV
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='excel') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='excel') }}">
                     <i class="fas fa-file-excel"></i> Excel
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='pdf') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='pdf') }}">
                     <i class="fas fa-file-pdf"></i> PDF
                 </a></li>
             </ul>
@@ -152,7 +152,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         <!-- Pagination -->
         {% if activities.pages > 1 %}
         <nav aria-label="Activity log pagination">
@@ -164,7 +164,7 @@
                         </a>
                     </li>
                 {% endif %}
-                
+
                 {% for page_num in activities.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
                     {% if page_num %}
                         {% if page_num != activities.page %}
@@ -182,7 +182,7 @@
                         </li>
                     {% endif %}
                 {% endfor %}
-                
+
                 {% if activities.has_next %}
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for('activity_log', page=activities.next_num, sort=sort_by, order=order) }}">
@@ -193,7 +193,7 @@
             </ul>
         </nav>
         {% endif %}
-        
+
         <!-- Summary -->
         <div class="text-center mt-3">
             <small class="text-muted">
@@ -203,7 +203,7 @@
                 {% endif %}
             </small>
         </div>
-        
+
         {% else %}
         <div class="text-center py-5">
             <i class="fas fa-history fa-3x text-muted mb-3"></i>
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const localDate = new Date(utcDate);
         element.textContent = localDate.toLocaleDateString();
     });
-    
+
     // Convert time elements
     document.querySelectorAll('[data-utc-time]').forEach(function(element) {
         const utcTime = element.getAttribute('data-utc-time');
@@ -272,6 +272,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %} 
-
-
+{% endblock %}
