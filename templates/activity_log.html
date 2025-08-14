@@ -11,13 +11,13 @@
                 <i class="fas fa-download"></i> Download
             </button>
             <ul class="dropdown-menu" aria-labelledby="downloadDropdown">
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='csv') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='csv') }}">
                     <i class="fas fa-file-csv"></i> CSV
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='excel') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='excel') }}">
                     <i class="fas fa-file-excel"></i> Excel
                 </a></li>
-                <li><a class="dropdown-item" href="{{ url_for('download_activity_log_standard', format='pdf') }}">
+                <li><a class="dropdown-item" href="{{ url_for('download_activity_log', format='pdf') }}">
                     <i class="fas fa-file-pdf"></i> PDF
                 </a></li>
             </ul>
