@@ -10,24 +10,39 @@
 
 <!-- Backup Section -->
 <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-save"></i> Create Backup</h5>
+                <h5 class="mb-0"><i class="fas fa-save"></i> Create Daily Backup</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Create a manual backup of the current database state.</p>
+                <p class="text-muted">Create a manual daily backup of the current database state.</p>
                 <form action="{{ url_for('backup') }}" method="POST" class="d-inline">
-    
-                    <button type="submit" class="btn btn-primary" onclick="return confirm('Create a new database backup?')">
-                        <i class="fas fa-download"></i> Create Backup
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('Create a new daily database backup?')">
+                        <i class="fas fa-download"></i> Create Daily Backup
                     </button>
                 </form>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-archive"></i> Create Full Backup</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Create a full backup including database and all blob contents (ZIP format).</p>
+                <form action="{{ url_for('full_backup') }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Create a full backup including database and all blob contents? This may take several minutes.')">
+                        <i class="fas fa-archive"></i> Create Full Backup
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-upload"></i> Restore Database</h5>
@@ -54,6 +69,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Backup File</th>
+                        <th>Type</th>
                         <th>Created</th>
                         <th>Size</th>
                         <th>Description</th>
@@ -65,18 +81,47 @@
                     {% for backup in backup_files %}
                     <tr>
                         <td><code>{{ backup.filename }}</code></td>
-                        <td>{{ backup.created.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                        <td>{{ "%.1f"|format(backup.size / 1024) }} KB</td>
-                        <td>{{ backup.description }}</td>
-                        <td><span class="badge bg-primary">{{ backup.user }}</span></td>
+                        <td>
+                            {% if backup.backup_type == 'full_zip' %}
+                                <span class="badge bg-success">Full ZIP</span>
+                            {% elif backup.backup_type == 'full' %}
+                                <span class="badge bg-info">Full JSON</span>
+                            {% elif backup.backup_type == 'daily' %}
+                                <span class="badge bg-primary">Daily</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ backup.backup_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if backup.created %}
+                                {{ backup.created.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if backup.size %}
+                                {% if backup.size > 1048576 %}
+                                    {{ "%.1f"|format(backup.size / 1048576) }} MB
+                                {% else %}
+                                    {{ "%.1f"|format(backup.size / 1024) }} KB
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ backup.description or "System backup" }}</td>
+                        <td><span class="badge bg-primary">{{ backup.user or "System" }}</span></td>
                         <td>
                             <div class="btn-group btn-group-sm">
                                 <a href="{{ url_for('download_backup', filename=backup.filename) }}" class="btn btn-outline-primary" title="Download">
                                     <i class="fas fa-download"></i>
                                 </a>
+                                {% if backup.backup_type != 'full_zip' %}
                                 <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup.filename }}')">
                                     <i class="fas fa-undo"></i>
                                 </button>
+                                {% endif %}
                                 <button class="btn btn-outline-danger" title="Delete" onclick="confirmDelete('{{ backup.filename }}')">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -112,7 +157,7 @@
                     </div>
                     <div class="col-6">
                         <strong>Backup Format:</strong><br>
-                        <span class="text-muted">JSON Export (.json)</span>
+                        <span class="text-muted">JSON Export (.json) & ZIP (.zip)</span>
                     </div>
                 </div>
                 <hr>
@@ -126,10 +171,21 @@
                         <span class="text-muted">{{ backup_files|length }}</span>
                     </div>
                 </div>
+                <hr>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Daily Backups:</strong><br>
+                        <span class="text-muted">{{ backup_files|selectattr('backup_type', 'equalto', 'daily')|list|length }}</span>
+                    </div>
+                    <div class="col-6">
+                        <strong>Full Backups:</strong><br>
+                        <span class="text-muted">{{ backup_files|selectattr('backup_type', 'in', ['full', 'full_zip'])|list|length }}</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
@@ -138,15 +194,19 @@
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    <strong>PostgreSQL Backups:</strong> Backups are created using JSON export and stored in Vercel Blob storage for secure cloud access.
+                    <strong>Backup Types:</strong> Daily backups contain database only. Full backups include database + all blob contents in ZIP format.
                 </div>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Cloud Storage:</strong> Backups are automatically uploaded to Vercel Blob storage and accessible from anywhere.
+                    <strong>Cloud Storage:</strong> Backups are automatically uploaded to Vercel Blob storage with proper folder structure.
                 </div>
                 <div class="alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Restore Warning:</strong> Restoring a database will overwrite all current data. Make sure to backup first.
+                </div>
+                <div class="alert alert-success">
+                    <i class="fas fa-clock"></i>
+                    <strong>Auto Cleanup:</strong> Daily backups kept for 30 days, full backups kept for 90 days.
                 </div>
             </div>
         </div>
@@ -172,6 +232,4 @@ function confirmDelete(filename) {
     }
 }
 </script>
-{% endblock %} 
-
-
+{% endblock %}

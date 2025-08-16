@@ -17,9 +17,9 @@
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="backup_file" class="form-label">Select Backup File (.sql)</label>
-                        <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".sql" required>
-                        <div class="form-text">Select a MySQL database backup file (.sql) to restore from.</div>
+                        <label for="backup_file" class="form-label">Select Backup File (.json)</label>
+                        <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".json" required>
+                        <div class="form-text">Select a PostgreSQL database backup file (.json) to restore from.</div>
                     </div>
                     <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to restore the database? This will overwrite all current data!')">
                         <i class="fas fa-undo"></i> Restore Database
@@ -27,7 +27,7 @@
                 </form>
             </div>
         </div>
-        
+
         <div class="card mt-3">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Important Warning</h5>
@@ -45,7 +45,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
@@ -58,6 +58,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Backup File</th>
+                                <th>Type</th>
                                 <th>Created</th>
                                 <th>Size</th>
                                 <th>Action</th>
@@ -67,8 +68,35 @@
                             {% for backup in backup_files %}
                             <tr>
                                 <td><code>{{ backup.filename }}</code></td>
-                                <td>{{ backup.created.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>{{ "%.1f"|format(backup.size / 1024) }} KB</td>
+                                <td>
+                                    {% if backup.backup_type == 'full_zip' %}
+                                        <span class="badge bg-success">Full ZIP</span>
+                                    {% elif backup.backup_type == 'full' %}
+                                        <span class="badge bg-info">Full JSON</span>
+                                    {% elif backup.backup_type == 'daily' %}
+                                        <span class="badge bg-primary">Daily</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ backup.backup_type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if backup.created %}
+                                        {{ backup.created.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if backup.size %}
+                                        {% if backup.size > 1048576 %}
+                                            {{ "%.1f"|format(backup.size / 1048576) }} MB
+                                        {% else %}
+                                            {{ "%.1f"|format(backup.size / 1024) }} KB
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <a href="{{ url_for('download_backup', filename=backup.filename) }}" class="btn btn-sm btn-outline-primary" title="Download">
                                         <i class="fas fa-download"></i>
@@ -87,14 +115,14 @@
                 {% endif %}
             </div>
         </div>
-        
+
         <div class="card mt-3">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-info-circle"></i> Restore Instructions</h5>
             </div>
             <div class="card-body">
                 <ol>
-                    <li>Ensure you have a valid MySQL backup file (.sql format)</li>
+                    <li>Ensure you have a valid PostgreSQL backup file (.json format)</li>
                     <li>Upload the backup file using the form on the left</li>
                     <li>Confirm the restoration when prompted</li>
                     <li>Wait for the restoration to complete</li>
@@ -104,9 +132,12 @@
                     <i class="fas fa-info-circle"></i>
                     <strong>Note:</strong> If you don't have a backup file, you can download one from the available backups list.
                 </div>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Important:</strong> Only JSON backup files can be restored. ZIP files contain full backups but cannot be restored directly.
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %} 
-
+{% endblock %}

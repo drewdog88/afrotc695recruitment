@@ -50,9 +50,19 @@ def backup_database(description="Manual backup"):
     try:
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import backup_database_neon
-        return backup_database_neon(description)
+        return backup_database_neon(description, "daily")
     except Exception as e:
         print(f"Error creating backup: {e}")
+        return None, None
+
+def create_full_backup(description="Manual full backup"):
+    """Create a full backup including database and all blob contents"""
+    try:
+        # Import the full backup function from neon_backup_scheduler
+        from neon_backup_scheduler import create_full_backup_zip
+        return create_full_backup_zip(description)
+    except Exception as e:
+        print(f"Error creating full backup: {e}")
         return None, None
 
 def restore_database(backup_file_path):
@@ -76,6 +86,16 @@ def get_backup_files():
     except Exception as e:
         print(f"Error getting backup files: {e}")
         return []
+
+def download_backup_content(filename):
+    """Download backup file content from Vercel Blob storage"""
+    try:
+        # Import the download function from neon_backup_scheduler
+        from neon_backup_scheduler import download_backup_file
+        return download_backup_file(filename)
+    except Exception as e:
+        print(f"Error downloading backup file: {e}")
+        return None
 
 # Activity Log Model for tracking all user actions
 class ActivityLog(db.Model):
@@ -246,6 +266,60 @@ class Cadet(db.Model):
                     return None
             return None
         except (ValueError, TypeError, AttributeError):
+            return None
+
+    @property
+    def last_modified_display(self):
+        """Safe property to get last_modified for display, falls back to created_at if NULL"""
+        try:
+            if self.last_modified:
+                if hasattr(self.last_modified, 'strftime'):
+                    return self.last_modified.strftime('%m/%d/%Y %H:%M')
+                elif isinstance(self.last_modified, str):
+                    # Try to parse and format
+                    parsed_date = datetime.strptime(self.last_modified, '%Y-%m-%d %H:%M:%S')
+                    return parsed_date.strftime('%m/%d/%Y %H:%M')
+                else:
+                    return None
+            # Fall back to created_at if last_modified is NULL
+            elif self.created_at:
+                if hasattr(self.created_at, 'strftime'):
+                    return self.created_at.strftime('%m/%d/%Y %H:%M')
+                else:
+                    return None
+            return None
+        except (ValueError, TypeError, AttributeError):
+            # Final fallback to created_at
+            try:
+                if self.created_at and hasattr(self.created_at, 'strftime'):
+                    return self.created_at.strftime('%m/%d/%Y %H:%M')
+            except:
+                pass
+            return None
+
+    @property
+    def last_modified_iso(self):
+        """Safe property to get last_modified in ISO format for data attributes, falls back to created_at if NULL"""
+        try:
+            if self.last_modified:
+                if hasattr(self.last_modified, 'isoformat'):
+                    return self.last_modified.isoformat()
+                else:
+                    return None
+            # Fall back to created_at if last_modified is NULL
+            elif self.created_at:
+                if hasattr(self.created_at, 'isoformat'):
+                    return self.created_at.isoformat()
+                else:
+                    return None
+            return None
+        except (ValueError, TypeError, AttributeError):
+            # Final fallback to created_at
+            try:
+                if self.created_at and hasattr(self.created_at, 'isoformat'):
+                    return self.created_at.isoformat()
+            except:
+                pass
             return None
 
 class UniversityContact(db.Model):
@@ -1434,17 +1508,45 @@ def backup():
 
     if request.method == 'POST':
         try:
-            backup_filename, backup_path = backup_database()
+            # Create daily backup
+            backup_filename, backup_url = backup_database("Manual daily backup")
+
             if backup_filename:
-                flash(f'Database backed up successfully to {backup_filename}', 'success')
-                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_path}')
+                flash('Daily backup created successfully!', 'success')
+                log_activity('BACKUP', 'database', None, 'Manual daily backup created', f'Backup file: {backup_filename}')
             else:
-                flash('Failed to create database backup.', 'error')
+                flash('Failed to create daily backup. Please check logs.', 'error')
+                log_activity('BACKUP_FAILED', 'database', None, 'Manual daily backup failed')
         except Exception as e:
-            print(f"Error during backup: {e}")
-            flash('Error creating database backup. Please check logs.', 'error')
+            print(f"Error creating daily backup: {e}")
+            flash('Error creating daily backup. Please check logs.', 'error')
+            log_activity('BACKUP_FAILED', 'database', None, 'Manual daily backup failed', f'Error: {e}')
 
         return redirect(url_for('database_management'))
+
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/full-backup', methods=['POST'])
+def full_backup():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+
+    try:
+        # Create full backup
+        backup_filename, backup_url = create_full_backup("Manual full backup")
+
+        if backup_filename:
+            flash('Full backup created successfully! This may take a few minutes to complete.', 'success')
+            log_activity('FULL_BACKUP', 'database', None, 'Manual full backup created', f'Backup file: {backup_filename}')
+        else:
+            flash('Failed to create full backup. Please check logs.', 'error')
+            log_activity('FULL_BACKUP_FAILED', 'database', None, 'Manual full backup failed')
+
+    except Exception as e:
+        print(f"Error creating full backup: {e}")
+        flash('Error creating full backup. Please check logs.', 'error')
+        log_activity('FULL_BACKUP_FAILED', 'database', None, 'Manual full backup failed', f'Error: {e}')
 
     return redirect(url_for('database_management'))
 
@@ -1455,13 +1557,41 @@ def download_backup(filename):
         return redirect(url_for('dashboard'))
 
     try:
-        # For now, return error as download functionality needs to be implemented
-        # for the Neon backup system
-        flash('Download functionality for Neon backups not yet implemented.', 'error')
-        log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download attempted for: {filename}')
+        # Download backup content from blob storage
+        backup_content = download_backup_content(filename)
+
+        if backup_content:
+            # Determine file extension and MIME type
+            if filename.endswith('.zip'):
+                mime_type = 'application/zip'
+                file_extension = '.zip'
+            elif filename.endswith('.json'):
+                mime_type = 'application/json'
+                file_extension = '.json'
+            else:
+                mime_type = 'application/octet-stream'
+                file_extension = ''
+
+            # Create response with proper headers
+            response = send_file(
+                io.BytesIO(backup_content),
+                mimetype=mime_type,
+                as_attachment=True,
+                download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
+            )
+
+            # Log the download
+            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+
+            return response
+        else:
+            flash('Backup file not found or could not be downloaded.', 'error')
+            log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download failed for: {filename}')
+
     except Exception as e:
         print(f"Error downloading backup: {e}")
         flash('Error downloading backup file.', 'error')
+        log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download error for: {filename}', f'Error: {e}')
 
     return redirect(url_for('database_management'))
 
@@ -1472,10 +1602,16 @@ def delete_backup(filename):
         return redirect(url_for('dashboard'))
 
     try:
-        # For now, return error as delete functionality needs to be implemented
-        # for the Neon backup system
-        flash('Delete functionality for Neon backups not yet implemented.', 'error')
-        log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Delete attempted for: {filename}')
+        # Import the delete function from neon_backup_scheduler
+        from neon_backup_scheduler import delete_backup_file
+
+        if delete_backup_file(filename):
+            flash('Backup file deleted successfully.', 'success')
+            log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
+        else:
+            flash('Failed to delete backup file.', 'error')
+            log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Failed to delete backup: {filename}')
+
     except Exception as e:
         print(f"Error deleting backup: {e}")
         flash('Error deleting backup file.', 'error')
@@ -1499,7 +1635,8 @@ def restore():
             flash('No selected file', 'error')
             return redirect(request.url)
 
-        if backup_file and backup_file.filename.endswith('.sql'):
+        # Check for JSON backup files (our new format)
+        if backup_file and backup_file.filename.endswith('.json'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
@@ -1522,7 +1659,7 @@ def restore():
                 flash('Error restoring database. Please check logs.', 'error')
                 log_activity('RESTORE_FAILED', 'database', None, 'Database restore failed', f'Error: {e}')
         else:
-            flash('Invalid file type. Please select a .sql file.', 'error')
+            flash('Invalid file type. Please select a .json backup file.', 'error')
 
     backup_files = get_backup_files()
     return render_template('restore.html', backup_files=backup_files)
@@ -2652,21 +2789,28 @@ def download_document(document_id):
         return redirect(url_for('materials'))
 
     try:
-        documents_dir = os.path.join(app.root_path, 'documents')
-        file_path = os.path.join(documents_dir, document.filename)
+        # Check if document has a blob URL
+        if document.blob_url:
+            # Redirect to blob URL for direct download
+            log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+            return redirect(document.blob_url)
+        else:
+            # Fallback to local file (for backward compatibility)
+            documents_dir = os.path.join(app.root_path, 'documents')
+            file_path = os.path.join(documents_dir, document.filename)
 
-        if not os.path.exists(file_path):
-            flash('File not found.', 'error')
-            return redirect(url_for('materials'))
+            if not os.path.exists(file_path):
+                flash('File not found.', 'error')
+                return redirect(url_for('materials'))
 
-        log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+            log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
 
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=document.original_filename,
-            mimetype='application/octet-stream'
-        )
+            return send_file(
+                file_path,
+                as_attachment=True,
+                download_name=document.original_filename,
+                mimetype='application/octet-stream'
+            )
     except Exception as e:
         flash(f'Error downloading document: {str(e)}', 'error')
         return redirect(url_for('materials'))
