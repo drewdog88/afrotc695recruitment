@@ -258,7 +258,7 @@ def list_backup_files():
                             timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
                         except:
                             pass
-                    
+
                     # Try to read description from the JSON backup file
                     try:
                         backup_content = download_backup_file(filename)
@@ -268,7 +268,7 @@ def list_backup_files():
                                 description = backup_data['description']
                     except Exception as e:
                         print(f"Could not read description from {filename}: {e}")
-                        
+
                 elif filename.endswith('.zip'):
                     # Extract timestamp from filename: afrotc695_full_backup_YYYYMMDD_HHMMSS.zip
                     if 'afrotc695_full_backup_' in filename:
@@ -277,7 +277,7 @@ def list_backup_files():
                             timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
                         except:
                             pass
-                    
+
                     # Try to read description from the ZIP metadata
                     try:
                         backup_content = download_backup_file(filename)
