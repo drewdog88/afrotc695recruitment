@@ -1910,7 +1910,7 @@ def full_backup():
 
     return redirect(url_for('database_management'))
 
-@app.route('/admin/download-backup/<filename>')
+@app.route('/admin/download-backup/<path:filename>')
 def download_backup(filename):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
@@ -1955,7 +1955,7 @@ def download_backup(filename):
 
     return redirect(url_for('database_management'))
 
-@app.route('/admin/delete-backup/<filename>', methods=['POST'])
+@app.route('/admin/delete-backup/<path:filename>', methods=['POST'])
 def delete_backup(filename):
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
