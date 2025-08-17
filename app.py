@@ -48,6 +48,11 @@ db = SQLAlchemy(app)
 def backup_database(description="Manual backup"):
     """Create a database backup using Neon PostgreSQL and Vercel Blob storage"""
     try:
+        # Check if required environment variables are set
+        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
+            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+            return None, None
+            
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import backup_database_neon
         return backup_database_neon(description, "daily")
@@ -58,6 +63,11 @@ def backup_database(description="Manual backup"):
 def create_full_backup(description="Manual full backup"):
     """Create a full backup including database and all blob contents"""
     try:
+        # Check if required environment variables are set
+        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
+            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+            return None, None
+            
         # Import the full backup function from neon_backup_scheduler
         from neon_backup_scheduler import create_full_backup_zip
         return create_full_backup_zip(description)
@@ -80,6 +90,11 @@ def restore_database(backup_file_path):
 def get_backup_files():
     """Get list of available backup files from Vercel Blob storage"""
     try:
+        # Check if required environment variables are set
+        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
+            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+            return []
+            
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import list_backup_files
         return list_backup_files()
@@ -1470,13 +1485,21 @@ def database_management():
 
     try:
         backup_files = get_backup_files()
-        return render_template('database_management.html', backup_files=backup_files)
+        
+        # Check if backup system is available
+        backup_system_available = bool(os.getenv('BLOB_READ_WRITE_TOKEN'))
+        
+        return render_template('database_management.html', 
+                             backup_files=backup_files, 
+                             backup_system_available=backup_system_available)
     except Exception as e:
         print(f"Error in database management route: {e}")
         import traceback
         traceback.print_exc()
         flash('Error loading backup files. Please check logs.', 'error')
-        return render_template('database_management.html', backup_files=[])
+        return render_template('database_management.html', 
+                             backup_files=[], 
+                             backup_system_available=False)
 
 @app.route('/admin/activity-log')
 def activity_log():

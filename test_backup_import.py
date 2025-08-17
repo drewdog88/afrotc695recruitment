@@ -14,16 +14,16 @@ print("Testing backup system imports...")
 try:
     # Test importing the backup functions
     from neon_backup_scheduler import list_backup_files, backup_database_neon, create_full_backup_zip
-    
+
     print("✅ Successfully imported backup functions")
-    
+
     # Test getting backup files
     print("Testing list_backup_files()...")
     backup_files = list_backup_files()
     print(f"✅ Found {len(backup_files)} backup files")
-    
+
     print("✅ All backup functions working correctly!")
-    
+
 except Exception as e:
     print(f"❌ Error importing backup functions: {e}")
     import traceback

@@ -8,6 +8,17 @@
     </div>
 </div>
 
+<!-- Backup System Status -->
+{% if not backup_system_available %}
+<div class="alert alert-warning" role="alert">
+    <h5><i class="fas fa-exclamation-triangle"></i> Backup System Unavailable</h5>
+    <p class="mb-0">
+        The backup system is currently unavailable. This may be due to missing environment variables or configuration issues. 
+        Please contact the system administrator to resolve this issue.
+    </p>
+</div>
+{% endif %}
+
 <!-- Backup Section -->
 <div class="row mb-4">
     <div class="col-md-4">
@@ -18,7 +29,7 @@
             <div class="card-body">
                 <p class="text-muted">Create a manual daily backup of the current database state.</p>
                 <form action="{{ url_for('backup') }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-primary" onclick="return confirm('Create a new daily database backup?')">
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('Create a new daily database backup?')" {% if not backup_system_available %}disabled{% endif %}>
                         <i class="fas fa-download"></i> Create Daily Backup
                     </button>
                 </form>
@@ -34,7 +45,7 @@
             <div class="card-body">
                 <p class="text-muted">Create a full backup including database and all blob contents (ZIP format).</p>
                 <form action="{{ url_for('full_backup') }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-success" onclick="return confirm('Create a full backup including database and all blob contents? This may take several minutes.')">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Create a full backup including database and all blob contents? This may take several minutes.')" {% if not backup_system_available %}disabled{% endif %}>
                         <i class="fas fa-archive"></i> Create Full Backup
                     </button>
                 </form>
