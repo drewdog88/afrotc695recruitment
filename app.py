@@ -1595,7 +1595,7 @@ def download_backup(filename):
 
     try:
         print(f"Download request for filename: {filename}")
-        
+
         # Download backup content from blob storage
         backup_content = download_backup_content(filename)
         print(f"Backup content received: {len(backup_content) if backup_content else 'None'} bytes")
@@ -1616,7 +1616,7 @@ def download_backup(filename):
 
             # Create response with proper headers
             response = send_file(
-                io.BytesIO(backup_content),
+                BytesIO(backup_content),
                 mimetype=mime_type,
                 as_attachment=True,
                 download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"

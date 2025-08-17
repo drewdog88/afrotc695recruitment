@@ -1934,7 +1934,7 @@ def download_backup(filename):
 
             # Create response with proper headers
             response = send_file(
-                io.BytesIO(backup_content),
+                BytesIO(backup_content),
                 mimetype=mime_type,
                 as_attachment=True,
                 download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
