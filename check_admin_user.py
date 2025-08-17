@@ -17,11 +17,11 @@ def get_database_connection():
     if not database_url:
         print("Error: DATABASE_URL not found in environment variables")
         sys.exit(1)
-    
+
     # Convert postgres:// to postgresql:// for psycopg2
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
+
     try:
         conn = psycopg2.connect(database_url)
         return conn
@@ -32,14 +32,14 @@ def get_database_connection():
 def main():
     """Check admin user details"""
     print("=== Admin User Details Check ===")
-    
+
     conn = get_database_connection()
     cursor = conn.cursor()
-    
+
     # Check admin user
     cursor.execute('SELECT id, username, email, first_name, last_name, role, is_active, is_locked FROM "user" WHERE username = %s', ('admin',))
     user = cursor.fetchone()
-    
+
     if user:
         print(f"✓ Admin user found:")
         print(f"  ID: {user[0]}")
@@ -50,28 +50,28 @@ def main():
         print(f"  Role: {user[5]}")
         print(f"  Is Active: {user[6]}")
         print(f"  Is Locked: {user[7]}")
-        
+
         # Check if user is locked
         if user[7]:
             print("⚠ WARNING: Admin user is LOCKED!")
             print("   This would prevent login.")
         else:
             print("✓ Admin user is not locked")
-            
+
         # Check if user is active
         if user[6]:
             print("✓ Admin user is active")
         else:
             print("⚠ WARNING: Admin user is INACTIVE!")
             print("   This would prevent login.")
-            
+
     else:
         print("❌ Admin user not found!")
         print("   This would prevent login.")
-    
+
     cursor.close()
     conn.close()
-    
+
     print("\n=== Login Credentials ===")
     print("Username: admin")
     print("Password: admin123")

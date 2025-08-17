@@ -445,6 +445,60 @@ class Cadet(db.Model):
         except (ValueError, TypeError, AttributeError):
             return None
 
+    @property
+    def last_modified_display(self):
+        """Safe property to get last_modified for display, falls back to created_at if NULL"""
+        try:
+            if self.last_modified:
+                if hasattr(self.last_modified, 'strftime'):
+                    return self.last_modified.strftime('%m/%d/%Y %H:%M')
+                elif isinstance(self.last_modified, str):
+                    # Try to parse and format
+                    parsed_date = datetime.strptime(self.last_modified, '%Y-%m-%d %H:%M:%S')
+                    return parsed_date.strftime('%m/%d/%Y %H:%M')
+                else:
+                    return None
+            # Fall back to created_at if last_modified is NULL
+            elif self.created_at:
+                if hasattr(self.created_at, 'strftime'):
+                    return self.created_at.strftime('%m/%d/%Y %H:%M')
+                else:
+                    return None
+            return None
+        except (ValueError, TypeError, AttributeError):
+            # Final fallback to created_at
+            try:
+                if self.created_at and hasattr(self.created_at, 'strftime'):
+                    return self.created_at.strftime('%m/%d/%Y %H:%M')
+            except:
+                pass
+            return None
+
+    @property
+    def last_modified_iso(self):
+        """Safe property to get last_modified in ISO format for data attributes, falls back to created_at if NULL"""
+        try:
+            if self.last_modified:
+                if hasattr(self.last_modified, 'isoformat'):
+                    return self.last_modified.isoformat()
+                else:
+                    return None
+            # Fall back to created_at if last_modified is NULL
+            elif self.created_at:
+                if hasattr(self.created_at, 'isoformat'):
+                    return self.created_at.isoformat()
+                else:
+                    return None
+            return None
+        except (ValueError, TypeError, AttributeError):
+            # Final fallback to created_at
+            try:
+                if self.created_at and hasattr(self.created_at, 'isoformat'):
+                    return self.created_at.isoformat()
+            except:
+                pass
+            return None
+
 class UniversityContact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     university_name = db.Column(db.String(100), nullable=False)
@@ -2761,20 +2815,28 @@ def download_document(document_id):
         return redirect(url_for('materials'))
 
     try:
-        # The filename field now contains the Blob URL
-        blob_url = document.filename
+        # Check if document has a blob URL
+        if document.blob_url:
+            # Redirect to blob URL for direct download
+            log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+            return redirect(document.blob_url)
+        else:
+            # Fallback to local file (for backward compatibility)
+            documents_dir = os.path.join(app.root_path, 'documents')
+            file_path = os.path.join(documents_dir, document.filename)
 
-        # Get blob metadata to ensure file exists
-        blob_meta = head(blob_url)
+            if not os.path.exists(file_path):
+                flash('File not found.', 'error')
+                return redirect(url_for('materials'))
 
-        if not blob_meta:
-            flash('File not found in storage.', 'error')
-            return redirect(url_for('materials'))
+            log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
 
-        log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
-
-        # Redirect to the blob download URL
-        return redirect(blob_meta.get('downloadUrl', blob_url))
+            return send_file(
+                file_path,
+                as_attachment=True,
+                download_name=document.original_filename,
+                mimetype='application/octet-stream'
+            )
     except Exception as e:
         flash(f'Error downloading document: {str(e)}', 'error')
         return redirect(url_for('materials'))
@@ -2923,13 +2985,13 @@ def test_database():
     try:
         # Initialize database
         init_database()
-        
+
         # Check if admin user exists
         admin_user = User.query.filter_by(username='admin').first()
-        
+
         # Get basic database info
         record_counts = get_record_counts()
-        
+
         return jsonify({
             'status': 'success',
             'database_connected': True,
@@ -3036,7 +3098,7 @@ def code_coverage():
             coverage_data['branches_covered'] = 0
         if 'branch_coverage_percentage' not in coverage_data:
             coverage_data['branch_coverage_percentage'] = 0.0
-            
+
         # Add file coverage data if not present in blob data
         if 'files' not in coverage_data:
             coverage_data['files'] = {

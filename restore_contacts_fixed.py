@@ -18,11 +18,11 @@ def get_database_connection():
     if not database_url:
         print("Error: DATABASE_URL not found in environment variables")
         sys.exit(1)
-    
+
     # Convert postgres:// to postgresql:// for psycopg2
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
+
     try:
         conn = psycopg2.connect(database_url)
         return conn
@@ -33,11 +33,11 @@ def get_database_connection():
 def load_backup_data():
     """Load the latest backup data"""
     backup_file = "backups/neon_backup_20250807_145537.json"
-    
+
     if not os.path.exists(backup_file):
         print(f"Error: Backup file {backup_file} not found")
         sys.exit(1)
-    
+
     try:
         with open(backup_file, 'r') as f:
             data = json.load(f)
@@ -49,9 +49,9 @@ def load_backup_data():
 def restore_contacts(conn, contacts_data):
     """Restore contacts from backup to university_contact table"""
     cursor = conn.cursor()
-    
+
     print(f"\nRestoring {len(contacts_data)} contacts...")
-    
+
     for contact in contacts_data:
         try:
             # Map backup contact fields to university_contact table schema
@@ -68,7 +68,7 @@ def restore_contacts(conn, contacts_data):
                 'created_at': contact.get('created_at'),
                 'last_modified': contact.get('updated_at')  # Map 'updated_at' to 'last_modified'
             }
-            
+
             cursor.execute("""
                 INSERT INTO university_contact (
                     id, university_name, contact_name, contact_title, email, phone,
@@ -91,31 +91,31 @@ def restore_contacts(conn, contacts_data):
             print(f"✓ Restored contact {contact['name']} from {contact.get('organization', 'Unknown')}")
         except Exception as e:
             print(f"⚠ Error restoring contact {contact.get('name', 'unknown')}: {e}")
-    
+
     conn.commit()
     cursor.close()
 
 def main():
     """Main restoration function"""
     print("=== Contact Data Restoration (Fixed Schema) ===")
-    
+
     # Load backup data
     print("Loading backup data...")
     backup_data = load_backup_data()
-    
+
     # Connect to database
     conn = get_database_connection()
-    
+
     # Get contacts data from backup
     contacts_data = backup_data.get('tables', {}).get('contact', {}).get('data', [])
-    
+
     if contacts_data:
         restore_contacts(conn, contacts_data)
     else:
         print("No contact data found in backup")
-    
+
     conn.close()
-    
+
     print("\n=== Contact restoration complete ===")
 
 if __name__ == "__main__":

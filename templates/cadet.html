@@ -134,7 +134,7 @@
                         </td>
                         <td>{{ member.gpa or 'N/A' }}</td>
                         <td>{{ member.unenrollment_date_display or 'N/A' }}</td>
-                        <td data-utc-time="{{ member.last_modified.isoformat() }}">{{ member.last_modified.strftime('%m/%d/%Y %H:%M') }}</td>
+                        <td data-utc-time="{{ member.last_modified_iso or '' }}">{{ member.last_modified_display or 'N/A' }}</td>
                         <td>
                             <a href="{{ url_for('edit_cadet', cadet_id=member.id) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-edit"></i>
@@ -170,7 +170,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-
- 
-
-

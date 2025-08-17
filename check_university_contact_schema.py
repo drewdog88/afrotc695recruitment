@@ -17,11 +17,11 @@ def get_database_connection():
     if not database_url:
         print("Error: DATABASE_URL not found in environment variables")
         sys.exit(1)
-    
+
     # Convert postgres:// to postgresql:// for psycopg2
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
+
     try:
         conn = psycopg2.connect(database_url)
         return conn
@@ -33,7 +33,7 @@ def main():
     """Check university_contact table schema"""
     conn = get_database_connection()
     cursor = conn.cursor()
-    
+
     # Get university_contact table columns
     cursor.execute("""
         SELECT column_name, data_type, is_nullable
@@ -41,13 +41,13 @@ def main():
         WHERE table_name = 'university_contact'
         ORDER BY ordinal_position
     """)
-    
+
     columns = cursor.fetchall()
-    
+
     print("PostgreSQL University_Contact table columns:")
     for column in columns:
         print(f"  {column[0]} - {column[1]} - nullable: {column[2]}")
-    
+
     cursor.close()
     conn.close()
 

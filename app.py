@@ -83,8 +83,15 @@ def get_backup_files():
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import list_backup_files
         return list_backup_files()
+    except ImportError as e:
+        print(f"Import error getting backup files: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
     except Exception as e:
         print(f"Error getting backup files: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def download_backup_content(filename):
@@ -1461,8 +1468,15 @@ def database_management():
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
 
-    backup_files = get_backup_files()
-    return render_template('database_management.html', backup_files=backup_files)
+    try:
+        backup_files = get_backup_files()
+        return render_template('database_management.html', backup_files=backup_files)
+    except Exception as e:
+        print(f"Error in database management route: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error loading backup files. Please check logs.', 'error')
+        return render_template('database_management.html', backup_files=[])
 
 @app.route('/admin/activity-log')
 def activity_log():
