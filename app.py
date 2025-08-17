@@ -52,7 +52,7 @@ def backup_database(description="Manual backup"):
         if not os.getenv('BLOB_READ_WRITE_TOKEN'):
             print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
             return None, None
-            
+
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import backup_database_neon
         return backup_database_neon(description, "daily")
@@ -67,7 +67,7 @@ def create_full_backup(description="Manual full backup"):
         if not os.getenv('BLOB_READ_WRITE_TOKEN'):
             print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
             return None, None
-            
+
         # Import the full backup function from neon_backup_scheduler
         from neon_backup_scheduler import create_full_backup_zip
         return create_full_backup_zip(description)
@@ -94,7 +94,7 @@ def get_backup_files():
         if not os.getenv('BLOB_READ_WRITE_TOKEN'):
             print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
             return []
-            
+
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import list_backup_files
         return list_backup_files()
@@ -1485,20 +1485,20 @@ def database_management():
 
     try:
         backup_files = get_backup_files()
-        
+
         # Check if backup system is available
         backup_system_available = bool(os.getenv('BLOB_READ_WRITE_TOKEN'))
-        
-        return render_template('database_management.html', 
-                             backup_files=backup_files, 
+
+        return render_template('database_management.html',
+                             backup_files=backup_files,
                              backup_system_available=backup_system_available)
     except Exception as e:
         print(f"Error in database management route: {e}")
         import traceback
         traceback.print_exc()
         flash('Error loading backup files. Please check logs.', 'error')
-        return render_template('database_management.html', 
-                             backup_files=[], 
+        return render_template('database_management.html',
+                             backup_files=[],
                              backup_system_available=False)
 
 @app.route('/admin/activity-log')

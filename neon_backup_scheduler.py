@@ -216,6 +216,9 @@ def list_backup_files():
         # Handle different response types from vercel_blob
         if isinstance(blob_files, list):
             files = blob_files
+        elif isinstance(blob_files, dict) and 'blobs' in blob_files:
+            # If it's a dictionary with a blobs key
+            files = blob_files['blobs']
         elif hasattr(blob_files, '__iter__') and not isinstance(blob_files, str):
             # It's some kind of iterable (list, tuple, etc.)
             files = list(blob_files)
