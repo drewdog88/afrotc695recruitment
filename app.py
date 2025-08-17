@@ -1594,8 +1594,11 @@ def download_backup(filename):
         return redirect(url_for('dashboard'))
 
     try:
+        print(f"Download request for filename: {filename}")
+        
         # Download backup content from blob storage
         backup_content = download_backup_content(filename)
+        print(f"Backup content received: {len(backup_content) if backup_content else 'None'} bytes")
 
         if backup_content:
             # Determine file extension and MIME type
@@ -1609,6 +1612,8 @@ def download_backup(filename):
                 mime_type = 'application/octet-stream'
                 file_extension = ''
 
+            print(f"Using MIME type: {mime_type}, extension: {file_extension}")
+
             # Create response with proper headers
             response = send_file(
                 io.BytesIO(backup_content),
@@ -1617,16 +1622,21 @@ def download_backup(filename):
                 download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
             )
 
+            print("Response created successfully")
+
             # Log the download
             log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
 
             return response
         else:
+            print("Backup content is None or empty")
             flash('Backup file not found or could not be downloaded.', 'error')
             log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download failed for: {filename}')
 
     except Exception as e:
         print(f"Error downloading backup: {e}")
+        import traceback
+        traceback.print_exc()
         flash('Error downloading backup file.', 'error')
         log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download error for: {filename}', f'Error: {e}')
 
