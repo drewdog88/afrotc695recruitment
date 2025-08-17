@@ -204,79 +204,46 @@ def restore_database(backup_url):
         return False
 
 def get_backup_files():
-    """Get list of available backup files with metadata"""
+    """Get list of available backup files from Vercel Blob storage"""
     try:
-        # Check if blob storage is configured
+        # Check if required environment variables are set
         if not os.getenv('BLOB_READ_WRITE_TOKEN'):
-            print("Warning: BLOB_READ_WRITE_TOKEN not found, returning empty backup list")
+            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
             return []
 
-        # Add more robust error handling for blob operations
-        try:
-            blob_files = blob_list()
-        except Exception as blob_error:
-            print(f"Error accessing blob storage: {blob_error}")
-            return []
-
-        if not blob_files:
-            return []
-
-        # Handle different response types from vercel_blob
-        if isinstance(blob_files, list):
-            files = blob_files
-        elif isinstance(blob_files, dict):
-            # If it's a dict, it might have a 'blobs' key or be the response structure
-            if 'blobs' in blob_files:
-                files = blob_files['blobs']
-            else:
-                # If it's a single file response, wrap it in a list
-                files = [blob_files]
-        elif hasattr(blob_files, 'blobs'):
-            files = blob_files.blobs
-        else:
-            print(f"Unexpected response type from blob.list(): {type(blob_files)}")
-            print(f"Response content: {blob_files}")
-            return []
-
-        # Convert blob files to our expected format
-        backup_files = []
-        for file_info in files:
-            try:
-                if isinstance(file_info, dict):
-                    filename = file_info.get('pathname', '')
-                else:
-                    filename = str(file_info)
-
-                # Only include backup files
-                if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
-                    # Extract timestamp from filename
-                    try:
-                        timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
-                        created = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-
-                        backup_files.append({
-                            'filename': filename,
-                            'url': file_info.get('url', ''),
-                            'size': file_info.get('size', 0),
-                            'created': created,
-                            'description': 'Automatic backup',
-                            'user': 'System'
-                        })
-                    except Exception as e:
-                        print(f"Error parsing backup filename {filename}: {e}")
-                        continue
-            except Exception as file_error:
-                print(f"Error processing file info: {file_error}")
-                continue
-
-        # Sort by creation date (newest first)
-        backup_files.sort(key=lambda x: x['created'], reverse=True)
-        return backup_files
-
+        # Import the Neon backup function from neon_backup_scheduler
+        from neon_backup_scheduler import list_backup_files
+        return list_backup_files()
+    except ImportError as e:
+        print(f"Import error getting backup files: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
     except Exception as e:
         print(f"Error getting backup files: {e}")
-        # Return empty list instead of crashing
+        import traceback
+        traceback.print_exc()
         return []
+
+def download_backup_content(filename):
+    """Download backup file content from Vercel Blob storage"""
+    try:
+        # Import the download function from neon_backup_scheduler
+        from neon_backup_scheduler import download_backup_file
+        return download_backup_file(filename)
+    except Exception as e:
+        print(f"Error downloading backup file: {e}")
+        return None
+
+def create_full_backup(description="Manual full backup"):
+    """Create a full backup including database and all blob contents"""
+    try:
+        # Import the full backup function from neon_backup_scheduler
+        from neon_backup_scheduler import create_full_backup_zip
+        return create_full_backup_zip(description)
+    except Exception as e:
+        print(f"Error creating full backup: {e}")
+        return None, None
 
 
 # Activity Log Model for tracking all user actions
@@ -1783,8 +1750,14 @@ def database_management():
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
 
-    backup_files = get_backup_files()
-    return render_template('database_management.html', backup_files=backup_files)
+    try:
+        backup_files = get_backup_files()
+        backup_system_available = bool(os.getenv('BLOB_READ_WRITE_TOKEN'))
+        return render_template('database_management.html', backup_files=backup_files, backup_system_available=backup_system_available)
+    except Exception as e:
+        print(f"Error in database management: {e}")
+        flash('Error loading database management page. Please try again.', 'error')
+        return render_template('database_management.html', backup_files=[], backup_system_available=False)
 
 @app.route('/admin/activity-log')
 def activity_log():
@@ -1892,17 +1865,48 @@ def backup():
 
     if request.method == 'POST':
         try:
-            backup_filename, backup_url = backup_database("Manual backup from web interface")
+            # Import the backup function from neon_backup_scheduler
+            from neon_backup_scheduler import backup_database_neon
+
+            # Create daily backup
+            backup_filename = backup_database_neon("Manual daily backup", backup_type="daily")
+
             if backup_filename:
-                flash(f'Database backed up successfully to {backup_filename}', 'success')
-                log_activity('BACKUP', 'database', None, f'Database backed up to {backup_filename}', f'Backup created at {backup_url}')
+                flash('Daily backup created successfully!', 'success')
+                log_activity('BACKUP', 'database', None, 'Manual daily backup created', f'Backup file: {backup_filename}')
             else:
-                flash('Failed to create database backup.', 'error')
+                flash('Failed to create daily backup. Please check logs.', 'error')
+                log_activity('BACKUP_FAILED', 'database', None, 'Manual daily backup failed')
         except Exception as e:
-            print(f"Error during backup: {e}")
-            flash('Error creating database backup. Please check logs.', 'error')
+            print(f"Error creating daily backup: {e}")
+            flash('Error creating daily backup. Please check logs.', 'error')
+            log_activity('BACKUP_FAILED', 'database', None, 'Manual daily backup failed', f'Error: {e}')
 
         return redirect(url_for('database_management'))
+
+    return redirect(url_for('database_management'))
+
+@app.route('/admin/full-backup', methods=['POST'])
+def full_backup():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+
+    try:
+        # Create full backup
+        backup_filename, backup_url = create_full_backup("Manual full backup")
+
+        if backup_filename:
+            flash('Full backup created successfully! This may take a few minutes to complete.', 'success')
+            log_activity('FULL_BACKUP', 'database', None, 'Manual full backup created', f'Backup file: {backup_filename}')
+        else:
+            flash('Failed to create full backup. Please check logs.', 'error')
+            log_activity('FULL_BACKUP_FAILED', 'database', None, 'Manual full backup failed')
+
+    except Exception as e:
+        print(f"Error creating full backup: {e}")
+        flash('Error creating full backup. Please check logs.', 'error')
+        log_activity('FULL_BACKUP_FAILED', 'database', None, 'Manual full backup failed', f'Error: {e}')
 
     return redirect(url_for('database_management'))
 
@@ -1913,31 +1917,41 @@ def download_backup(filename):
         return redirect(url_for('dashboard'))
 
     try:
-        # Get backup files from blob storage
-        backup_files = get_backup_files()
-        backup_file = None
+        # Download backup content from blob storage
+        backup_content = download_backup_content(filename)
 
-        for bf in backup_files:
-            if bf['filename'] == filename:
-                backup_file = bf
-                break
-
-        if backup_file:
-            # Download from blob and serve
-            response = requests.get(backup_file['url'])
-            if response.status_code == 200:
-                log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
-                return response.content, 200, {
-                    'Content-Type': 'application/json',
-                    'Content-Disposition': f'attachment; filename="{filename}"'
-                }
+        if backup_content:
+            # Determine file extension and MIME type
+            if filename.endswith('.zip'):
+                mime_type = 'application/zip'
+                file_extension = '.zip'
+            elif filename.endswith('.json'):
+                mime_type = 'application/json'
+                file_extension = '.json'
             else:
-                flash('Error downloading backup from storage.', 'error')
+                mime_type = 'application/octet-stream'
+                file_extension = ''
+
+            # Create response with proper headers
+            response = send_file(
+                io.BytesIO(backup_content),
+                mimetype=mime_type,
+                as_attachment=True,
+                download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
+            )
+
+            # Log the download
+            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+
+            return response
         else:
-            flash('Backup file not found.', 'error')
+            flash('Backup file not found or could not be downloaded.', 'error')
+            log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download failed for: {filename}')
+
     except Exception as e:
         print(f"Error downloading backup: {e}")
         flash('Error downloading backup file.', 'error')
+        log_activity('DOWNLOAD_BACKUP_FAILED', 'database', None, f'Download error for: {filename}', f'Error: {e}')
 
     return redirect(url_for('database_management'))
 
@@ -1948,22 +1962,16 @@ def delete_backup(filename):
         return redirect(url_for('dashboard'))
 
     try:
-        # Get backup files from blob storage
-        backup_files = get_backup_files()
-        backup_file = None
+        # Import the delete function from neon_backup_scheduler
+        from neon_backup_scheduler import delete_backup_file
 
-        for bf in backup_files:
-            if bf['filename'] == filename:
-                backup_file = bf
-                break
-
-        if backup_file:
-            # Delete from blob storage
-            delete(backup_file['url'], {})
-            flash(f'Backup "{filename}" deleted successfully.', 'success')
+        if delete_backup_file(filename):
+            flash('Backup file deleted successfully.', 'success')
             log_activity('DELETE_BACKUP', 'database', None, f'Deleted backup: {filename}')
         else:
-            flash('Backup file not found.', 'error')
+            flash('Failed to delete backup file.', 'error')
+            log_activity('DELETE_BACKUP_FAILED', 'database', None, f'Failed to delete backup: {filename}')
+
     except Exception as e:
         print(f"Error deleting backup: {e}")
         flash('Error deleting backup file.', 'error')
