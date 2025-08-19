@@ -158,12 +158,15 @@ app = Flask(__name__,
            static_url_path='/static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-super-secret-key-change-this-in-production')
 
-# Configure database for local development with Neon PostgreSQL
+# Configure database for Neon PostgreSQL (production only)
 database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
+if not database_url:
+    raise ValueError("DATABASE_URL environment variable is required for Neon PostgreSQL connection")
+
+if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///afrotc695.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure connection pooling for Neon PostgreSQL
@@ -3341,8 +3344,7 @@ def code_coverage():
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'files': {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         }
         app.logger.info("Using fallback coverage data")
@@ -3361,8 +3363,7 @@ def code_coverage():
         if 'files' not in coverage_data:
             coverage_data['files'] = {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         else:
             # Ensure all file data has the required fields
@@ -3405,8 +3406,7 @@ def generate_coverage_report():
             'last_updated': datetime.now().isoformat(),
             'files': {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         }
 

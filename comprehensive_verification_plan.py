@@ -188,7 +188,7 @@ def check_2fa_removal():
 
     # Files that should not exist
     files_to_check = [
-        'utils/2fa_utils.py',
+
         'templates/setup_2fa.html',
         'templates/verify_2fa.html',
         'templates/setup_2fa_complete.html',

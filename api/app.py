@@ -39,12 +39,15 @@ static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
-# Configure database for Vercel/Neon PostgreSQL
+# Configure database for Neon PostgreSQL (production only)
 database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
+if not database_url:
+    raise ValueError("DATABASE_URL environment variable is required for Neon PostgreSQL connection")
+
+if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///afrotc695.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure connection pooling for serverless environment
@@ -2768,22 +2771,9 @@ def download_document(document_id):
             log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
             return redirect(document.blob_url)
         else:
-            # Fallback to local file (for backward compatibility)
-            documents_dir = os.path.join(app.root_path, 'documents')
-            file_path = os.path.join(documents_dir, document.filename)
-
-            if not os.path.exists(file_path):
-                flash('File not found.', 'error')
-                return redirect(url_for('materials'))
-
-            log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
-
-            return send_file(
-                file_path,
-                as_attachment=True,
-                download_name=document.original_filename,
-                mimetype='application/octet-stream'
-            )
+            # Document not found in blob storage
+            flash('Document not available in cloud storage.', 'error')
+            return redirect(url_for('materials'))
     except Exception as e:
         flash(f'Error downloading document: {str(e)}', 'error')
         return redirect(url_for('materials'))
@@ -3066,8 +3056,7 @@ def code_coverage():
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'files': {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         }
         app.logger.info("Using fallback coverage data")
@@ -3086,8 +3075,7 @@ def code_coverage():
         if 'files' not in coverage_data:
             coverage_data['files'] = {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         else:
             # Ensure all file data has the required fields
@@ -3130,8 +3118,7 @@ def generate_coverage_report():
             'last_updated': datetime.now().isoformat(),
             'files': {
                 'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'utils/2fa_utils.py': {'total': 180, 'covered': 135, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
+                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
             }
         }
 

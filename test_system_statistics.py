@@ -18,25 +18,26 @@ from api.app import User, PotentialRecruit, Cadet, UniversityContact, Recruitmen
 
 class TestSystemStatistics(unittest.TestCase):
     """Test cases for system statistics functionality"""
-    
+
     def setUp(self):
         """Set up test environment"""
         app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+        # Use test database configuration - no in-memory SQLite
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://test:test@localhost/test_db'
         self.app = app.test_client()
-        
+
         with app.app_context():
             db.create_all()
-            
+
             # Create test data
             self.create_test_data()
-    
+
     def tearDown(self):
         """Clean up after tests"""
         with app.app_context():
             db.session.remove()
             db.drop_all()
-    
+
     def create_test_data(self):
         """Create test data for statistics"""
         # Create test users
@@ -62,7 +63,7 @@ class TestSystemStatistics(unittest.TestCase):
         )
         db.session.add_all([user1, user2])
         db.session.commit()
-        
+
         # Create test recruits
         recruit1 = PotentialRecruit(
             first_name='John',
@@ -82,7 +83,7 @@ class TestSystemStatistics(unittest.TestCase):
         )
         db.session.add_all([recruit1, recruit2])
         db.session.commit()
-        
+
         # Create test cadets
         cadet1 = Cadet(
             first_name='Bob',
@@ -104,7 +105,7 @@ class TestSystemStatistics(unittest.TestCase):
         )
         db.session.add_all([cadet1, cadet2])
         db.session.commit()
-        
+
         # Create test activity logs
         log1 = ActivityLog(
             user_id=user1.id,
@@ -126,12 +127,12 @@ class TestSystemStatistics(unittest.TestCase):
         )
         db.session.add_all([log1, log2])
         db.session.commit()
-    
+
     def test_get_database_size(self):
         """Test database size calculation"""
         with app.app_context():
             result = get_database_size()
-            
+
             # Should return a dictionary with expected keys
             self.assertIsInstance(result, dict)
             self.assertIn('database', result)
@@ -139,43 +140,43 @@ class TestSystemStatistics(unittest.TestCase):
             self.assertIn('data_size_mb', result)
             self.assertIn('index_size_mb', result)
             self.assertIn('table_count', result)
-            
+
             # Values should be numeric
             self.assertIsInstance(result['total_size_mb'], (int, float))
             self.assertIsInstance(result['data_size_mb'], (int, float))
             self.assertIsInstance(result['index_size_mb'], (int, float))
             self.assertIsInstance(result['table_count'], int)
-            
+
             # Should be non-negative
             self.assertGreaterEqual(result['total_size_mb'], 0)
             self.assertGreaterEqual(result['data_size_mb'], 0)
             self.assertGreaterEqual(result['index_size_mb'], 0)
             self.assertGreaterEqual(result['table_count'], 0)
-    
+
     def test_get_record_counts(self):
         """Test record counting functionality"""
         with app.app_context():
             result = get_record_counts()
-            
+
             # Should return a dictionary
             self.assertIsInstance(result, dict)
-            
+
             # Should have counts for all expected tables
-            expected_tables = ['user', 'potential_recruit', 'cadet', 'university_contact', 
-                             'recruitment_event', 'external_link', 'recruitment_document', 
+            expected_tables = ['user', 'potential_recruit', 'cadet', 'university_contact',
+                             'recruitment_event', 'external_link', 'recruitment_document',
                              'activity_log', 'password_history']
-            
+
             for table in expected_tables:
                 self.assertIn(table, result)
                 self.assertIsInstance(result[table], int)
                 self.assertGreaterEqual(result[table], 0)
-            
+
             # Should have correct counts for our test data
             self.assertEqual(result['user'], 2)  # 2 test users
             self.assertEqual(result['potential_recruit'], 2)  # 2 test recruits
             self.assertEqual(result['cadet'], 2)  # 2 test cadets
             self.assertEqual(result['activity_log'], 2)  # 2 test logs
-    
+
     @patch('psutil.cpu_percent')
     @patch('psutil.virtual_memory')
     @patch('psutil.disk_usage')
@@ -193,20 +194,20 @@ class TestSystemStatistics(unittest.TestCase):
             used=50 * 1024 * 1024 * 1024,  # 50GB
             total=100 * 1024 * 1024 * 1024  # 100GB
         )
-        
+
         with app.app_context():
             result = get_system_performance()
-            
+
             # Should return a dictionary with expected keys
             self.assertIsInstance(result, dict)
-            expected_keys = ['cpu_percent', 'memory_percent', 'memory_used_mb', 
+            expected_keys = ['cpu_percent', 'memory_percent', 'memory_used_mb',
                            'memory_total_mb', 'disk_percent', 'disk_used_mb', 'disk_total_mb']
-            
+
             for key in expected_keys:
                 self.assertIn(key, result)
                 self.assertIsInstance(result[key], (int, float))
                 self.assertGreaterEqual(result[key], 0)
-            
+
             # Should have correct values from mocked psutil
             self.assertEqual(result['cpu_percent'], 25.5)
             self.assertEqual(result['memory_percent'], 60.0)
@@ -215,67 +216,67 @@ class TestSystemStatistics(unittest.TestCase):
             self.assertEqual(result['disk_percent'], 45.0)
             self.assertEqual(result['disk_used_mb'], 51200.0)
             self.assertEqual(result['disk_total_mb'], 102400.0)
-    
+
     def test_get_user_activity_stats(self):
         """Test user activity statistics"""
         with app.app_context():
             result = get_user_activity_stats()
-            
+
             # Should return a dictionary with expected keys
             self.assertIsInstance(result, dict)
-            expected_keys = ['recent_logins', 'active_users', 'total_users', 
+            expected_keys = ['recent_logins', 'active_users', 'total_users',
                            'recent_activity', 'most_active_users']
-            
+
             for key in expected_keys:
                 self.assertIn(key, result)
-            
+
             # Should have correct counts
             self.assertEqual(result['total_users'], 2)  # 2 test users
             self.assertGreaterEqual(result['recent_logins'], 1)  # At least 1 login in last 30 days
             self.assertGreaterEqual(result['recent_activity'], 1)  # At least 1 activity in last 24 hours
-            
+
             # Most active users should be a list
             self.assertIsInstance(result['most_active_users'], list)
-    
+
     def test_get_recruitment_stats(self):
         """Test recruitment statistics"""
         with app.app_context():
             result = get_recruitment_stats()
-            
+
             # Should return a dictionary with expected keys
             self.assertIsInstance(result, dict)
-            expected_keys = ['recruit_status_counts', 'cadet_status_counts', 
+            expected_keys = ['recruit_status_counts', 'cadet_status_counts',
                            'recent_recruits', 'recent_cadets', 'upcoming_events']
-            
+
             for key in expected_keys:
                 self.assertIn(key, result)
-            
+
             # Should have correct counts
             self.assertEqual(result['recent_recruits'], 2)  # 2 recruits created recently
             self.assertEqual(result['recent_cadets'], 2)  # 2 cadets created recently
-            
+
             # Status counts should be lists
             self.assertIsInstance(result['recruit_status_counts'], list)
             self.assertIsInstance(result['cadet_status_counts'], list)
-            
+
             # Should have status counts for our test data
             recruit_statuses = [s['status'] for s in result['recruit_status_counts']]
             self.assertIn('prospective', recruit_statuses)
             self.assertIn('enrolled', recruit_statuses)
-            
+
             cadet_statuses = [s['status'] for s in result['cadet_status_counts']]
             self.assertIn('active', cadet_statuses)
             self.assertIn('graduated', cadet_statuses)
-    
+
     def test_system_statistics_route_unauthorized(self):
         """Test system statistics route without admin access"""
         # Test without login
         response = self.app.get('/admin/system-statistics')
         self.assertEqual(response.status_code, 302)  # Should redirect to login
-        
+
         # Test with non-admin user (would need to implement session mocking)
         # This is a basic test - in a real scenario you'd mock the session
-    
+
     def test_system_statistics_route_structure(self):
         """Test that system statistics route returns proper structure"""
         # This would require mocking the session to simulate admin login
@@ -287,14 +288,14 @@ class TestSystemStatistics(unittest.TestCase):
             system_performance = get_system_performance()
             user_activity = get_user_activity_stats()
             recruitment_stats = get_recruitment_stats()
-            
+
             # All should return dictionaries
             self.assertIsInstance(db_size, dict)
             self.assertIsInstance(record_counts, dict)
             self.assertIsInstance(system_performance, dict)
             self.assertIsInstance(user_activity, dict)
             self.assertIsInstance(recruitment_stats, dict)
-            
+
             # Calculate total records
             total_records = sum(record_counts.values())
             self.assertIsInstance(total_records, int)

@@ -38,8 +38,10 @@ BACKUP_FOLDERS = {
     'full': 'backups/full'
 }
 
-# Use environment variable for blob store configuration
-BLOB_STORE_HOST = os.getenv('BLOB_STORE_HOST')  # Optional: can be None to allow any store
+# Get blob store configuration from environment
+BLOB_READ_WRITE_TOKEN = os.getenv('BLOB_READ_WRITE_TOKEN')
+if not BLOB_READ_WRITE_TOKEN:
+    print("Warning: BLOB_READ_WRITE_TOKEN not set - backup system unavailable")
 
 def get_database_engine():
     """Get database engine for backup operations"""
