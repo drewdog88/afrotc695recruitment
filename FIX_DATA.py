@@ -6,11 +6,14 @@ Usage: python FIX_DATA.py
 """
 
 import json
+import os
 import psycopg2
 from pathlib import Path
 
 # Direct database URL
-DATABASE_URL = "postgresql://neondb_owner:npg_5qC7jUoluvOY@ep-crimson-hall-admf1mo5-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise RuntimeError('DATABASE_URL environment variable not set')
 
 def fix_data():
     """Fix data in one command"""

@@ -65,10 +65,10 @@ FLASK_DEBUG=True
 SECRET_KEY=your-super-secret-key-change-this-in-production
 
 # Neon PostgreSQL Database (same as production)
-DATABASE_URL=postgres://neondb_owner:npg_5qC7jUoluvOY@ep-crimson-hall-admf1mo5-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://username:password@your-neon-instance.neon.tech/database?sslmode=require
 
 # Vercel Blob Storage (same as production)
-BLOB_READ_WRITE_TOKEN=vercel_blob_rw_kRe9XoIvjggJ03oF_JLbmM2kbj59CKUV5yrdsU1aa7lDTKt
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_your_token_here
 
 # Additional configuration...
 ```
