@@ -17,17 +17,10 @@ import zipfile
 
 
 
-# 2FA Authentication imports (commented out - separate feature)
-# import pyotp
-# import qrcode
-# import json
-# import secrets
-# from cryptography.fernet import Fernet
-# from PIL import Image
-# import base64
 
-# Load environment variables
-load_dotenv()
+
+# Load environment variables from env.local
+load_dotenv('env.local')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -164,12 +157,7 @@ class User(db.Model):
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(255), nullable=False)
 
-    # 2FA Authentication Fields
-    totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
-    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Whether 2FA is enabled
-    backup_codes_hash = db.Column(db.Text, nullable=True)  # Encrypted backup codes
-    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)  # Setup completion status
-    can_enable_2fa = db.Column(db.Boolean, default=True, nullable=False)  # Admin control flag
+
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -201,24 +189,7 @@ class User(db.Model):
         days_left = (self.password_expires_at - datetime.utcnow()).days
         return max(0, days_left)
 
-    # 2FA Authentication Methods
-    @property
-    def is_2fa_enabled(self):
-        """Check if 2FA is fully enabled for this user"""
-        return self.totp_enabled and self.totp_setup_completed
 
-    @property
-    def can_use_2fa(self):
-        """Check if user can enable/use 2FA"""
-        return self.can_enable_2fa and self.is_active
-
-    def has_2fa_setup(self):
-        """Check if user has started 2FA setup process"""
-        return self.totp_secret is not None
-
-    def needs_2fa_setup(self):
-        """Check if user needs to complete 2FA setup"""
-        return self.totp_enabled and not self.totp_setup_completed
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -580,34 +551,21 @@ def login():
                 user.is_locked = False
                 db.session.commit()
 
-                # Check if 2FA is enabled for this user
-                if user.is_2fa_enabled:
-                    # Store user info in session for 2FA verification
-                    session['pending_2fa_user_id'] = user.id
-                    session['pending_2fa_username'] = user.username
-                    session['pending_2fa_role'] = user.role
+                # Complete login
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['role'] = user.role
 
-                    # Log 2FA verification required
-                    log_activity('LOGIN_2FA_REQUIRED', 'user', user.id, f'2FA verification required for {username}')
+                # Log successful login
+                log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
 
-                    flash('Please complete two-factor authentication to continue.', 'info')
-                    return redirect(url_for('verify_2fa'))
-                else:
-                    # Complete login for users without 2FA
-                    session['user_id'] = user.id
-                    session['username'] = user.username
-                    session['role'] = user.role
+                # Check if password change is required
+                if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                    flash('Your password will expire soon. Please change it.', 'warning')
+                    return redirect(url_for('change_password'))
 
-                    # Log successful login
-                    log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
-
-                    # Check if password change is required
-                    if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                        flash('Your password will expire soon. Please change it.', 'warning')
-                        return redirect(url_for('change_password'))
-
-                    flash('Login successful!', 'success')
-                    return redirect(url_for('dashboard'))
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
             else:
                 # Increment failed login attempts
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
@@ -627,311 +585,11 @@ def login():
 
     return render_template('login.html')
 
-# 2FA Authentication Routes
-@app.route('/setup-2fa', methods=['GET', 'POST'])
-def setup_2fa():
-    """Setup 2FA for the current user"""
-    if 'user_id' not in session:
-        flash('Please log in to set up 2FA.', 'error')
-        return redirect(url_for('login'))
 
-    user = User.query.get(session['user_id'])
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('login'))
 
-    # Check if user can enable 2FA
-    if not user.can_use_2fa:
-        flash('2FA is not available for your account.', 'error')
-        return redirect(url_for('dashboard'))
 
-    # Check if 2FA is already set up
-    if user.has_2fa_setup():
-        flash('2FA is already set up for your account.', 'error')
-        return redirect(url_for('dashboard'))
 
-    if request.method == 'GET':
-        # Generate TOTP secret and QR code
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
-        twofa_utils = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(twofa_utils)
 
-        secret = twofa_utils.generate_totp_secret()
-        qr_code = twofa_utils.generate_qr_code(secret, user.username, 'AFROTC 695 Recruitment')
-
-        # Store secret temporarily in session
-        session['temp_2fa_secret'] = secret
-
-        return render_template('setup_2fa.html',
-                             qr_code=qr_code,
-                             secret=secret,
-                             username=user.username)
-
-    elif request.method == 'POST':
-        totp_code = request.form.get('totp_code')
-        if not totp_code:
-            flash('Please enter the verification code.', 'error')
-            return redirect(url_for('setup_2fa'))
-
-        # Get the secret from session
-        secret = session.get('temp_2fa_secret')
-        if not secret:
-            flash('Setup session expired. Please try again.', 'error')
-            return redirect(url_for('setup_2fa'))
-
-        # Import 2FA utils
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
-        twofa_utils = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(twofa_utils)
-
-        # Verify the TOTP code
-        if twofa_utils.verify_totp_code(secret, totp_code):
-            # Generate backup codes
-            backup_codes = twofa_utils.generate_backup_codes()
-            backup_hashes = [twofa_utils.hash_backup_code(code) for code in backup_codes]
-
-            # Encrypt and store the secret
-            encrypted_secret = twofa_utils.encrypt_totp_secret(secret)
-
-            # Update user
-            user.totp_secret = encrypted_secret
-            user.totp_enabled = True
-            user.totp_setup_completed = True
-            user.backup_codes_hash = twofa_utils.serialize_backup_codes_hash(backup_hashes)
-
-            db.session.commit()
-
-            # Clear temporary session data
-            session.pop('temp_2fa_secret', None)
-
-            # Log 2FA setup
-            log_activity('2FA_SETUP', 'user', user.id, f'2FA setup completed for {user.username}')
-
-            flash('Two-factor authentication has been set up successfully!', 'success')
-            return render_template('setup_2fa_complete.html', backup_codes=backup_codes)
-        else:
-            flash('Invalid verification code. Please try again.', 'error')
-            return redirect(url_for('setup_2fa'))
-
-@app.route('/verify-2fa', methods=['GET', 'POST'])
-def verify_2fa():
-    """Verify 2FA during login"""
-    # Check if there's a pending 2FA verification
-    pending_user_id = session.get('pending_2fa_user_id')
-    if not pending_user_id:
-        flash('No pending 2FA verification.', 'error')
-        return redirect(url_for('login'))
-
-    user = User.query.get(pending_user_id)
-    if not user or not user.is_2fa_enabled:
-        flash('Invalid 2FA verification request.', 'error')
-        session.pop('pending_2fa_user_id', None)
-        session.pop('pending_2fa_username', None)
-        session.pop('pending_2fa_role', None)
-        return redirect(url_for('login'))
-
-    if request.method == 'GET':
-        return render_template('verify_2fa.html', username=user.username)
-
-    elif request.method == 'POST':
-        totp_code = request.form.get('totp_code')
-        backup_code = request.form.get('backup_code')
-
-        if not totp_code and not backup_code:
-            flash('Please enter either a TOTP code or backup code.', 'error')
-            return render_template('verify_2fa.html', username=user.username)
-
-        # Import 2FA utils
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
-        twofa_utils = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(twofa_utils)
-
-        # Verify TOTP code
-        if totp_code:
-            try:
-                decrypted_secret = twofa_utils.decrypt_totp_secret(user.totp_secret)
-                if twofa_utils.verify_totp_code(decrypted_secret, totp_code):
-                    # Complete login
-                    session['user_id'] = user.id
-                    session['username'] = user.username
-                    session['role'] = user.role
-
-                    # Clear pending 2FA session data
-                    session.pop('pending_2fa_user_id', None)
-                    session.pop('pending_2fa_username', None)
-                    session.pop('pending_2fa_role', None)
-
-                    # Log successful 2FA verification
-                    log_activity('LOGIN_2FA_SUCCESS', 'user', user.id, f'2FA verification successful for {user.username}')
-
-                    flash('Login successful!', 'success')
-                    return redirect(url_for('dashboard'))
-                else:
-                    flash('Invalid TOTP code. Please try again.', 'error')
-                    return render_template('verify_2fa.html', username=user.username)
-            except Exception as e:
-                flash('Error verifying TOTP code. Please try again.', 'error')
-                return render_template('verify_2fa.html', username=user.username)
-
-        # Verify backup code
-        elif backup_code:
-            try:
-                stored_hashes = twofa_utils.parse_backup_codes_hash(user.backup_codes_hash)
-                is_valid, used_hash = twofa_utils.verify_backup_code(backup_code, stored_hashes)
-
-                if is_valid:
-                    # Remove used backup code
-                    user.backup_codes_hash = twofa_utils.remove_used_backup_code(user.backup_codes_hash, used_hash)
-                    db.session.commit()
-
-                    # Complete login
-                    session['user_id'] = user.id
-                    session['username'] = user.username
-                    session['role'] = user.role
-
-                    # Clear pending 2FA session data
-                    session.pop('pending_2fa_user_id', None)
-                    session.pop('pending_2fa_username', None)
-                    session.pop('pending_2fa_role', None)
-
-                    # Log successful backup code usage
-                    log_activity('LOGIN_2FA_BACKUP', 'user', user.id, f'Backup code used for {user.username}')
-
-                    flash('Login successful using backup code!', 'success')
-                    return redirect(url_for('dashboard'))
-                else:
-                    flash('Invalid backup code. Please try again.', 'error')
-                    return render_template('verify_2fa.html', username=user.username)
-            except Exception as e:
-                flash('Error verifying backup code. Please try again.', 'error')
-                return render_template('verify_2fa.html', username=user.username)
-
-@app.route('/disable-2fa', methods=['POST'])
-def disable_2fa():
-    """Disable 2FA for the current user"""
-    if 'user_id' not in session:
-        flash('Please log in to manage 2FA.', 'error')
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('login'))
-
-    if not user.is_2fa_enabled:
-        flash('2FA is not enabled for your account.', 'error')
-        return redirect(url_for('profile'))
-
-    # Disable 2FA
-    user.totp_enabled = False
-    user.totp_setup_completed = False
-    user.totp_secret = None
-    user.backup_codes_hash = None
-
-    db.session.commit()
-
-    # Log 2FA disable
-    log_activity('2FA_DISABLE', 'user', user.id, f'2FA disabled for {user.username}')
-
-    flash('Two-factor authentication has been disabled.', 'success')
-    return redirect(url_for('profile'))
-
-@app.route('/regenerate-backup-codes', methods=['POST'])
-def regenerate_backup_codes():
-    """Regenerate backup codes for the current user"""
-    if 'user_id' not in session:
-        flash('Please log in to manage 2FA.', 'error')
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('login'))
-
-    if not user.is_2fa_enabled:
-        flash('2FA is not enabled for your account.', 'error')
-        return redirect(url_for('profile'))
-
-    # Import 2FA utils
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("twofa_utils", "utils/2fa_utils.py")
-    twofa_utils = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(twofa_utils)
-
-    # Generate new backup codes
-    backup_codes = twofa_utils.generate_backup_codes()
-    backup_hashes = [twofa_utils.hash_backup_code(code) for code in backup_codes]
-
-    # Update user
-    user.backup_codes_hash = twofa_utils.serialize_backup_codes_hash(backup_hashes)
-    db.session.commit()
-
-    # Log backup code regeneration
-    log_activity('2FA_BACKUP_REGENERATE', 'user', user.id, f'Backup codes regenerated for {user.username}')
-
-    flash('Backup codes have been regenerated. Please save them securely.', 'success')
-    return render_template('setup_2fa_complete.html', backup_codes=backup_codes)
-
-# Admin 2FA Management Routes
-@app.route('/admin/enable-2fa/<int:user_id>', methods=['POST'])
-def admin_enable_2fa(user_id):
-    """Admin route to enable 2FA for a user"""
-    if 'user_id' not in session or session.get('role') != 'admin':
-        flash('Admin access required.', 'error')
-        return redirect(url_for('login'))
-
-    target_user = User.query.get(user_id)
-    if not target_user:
-        flash('User not found.', 'error')
-        return redirect(url_for('user_management'))
-
-    # Check if user can enable 2FA
-    if not target_user.can_use_2fa:
-        flash('2FA is not available for this user.', 'error')
-        return redirect(url_for('user_management'))
-
-    # Enable 2FA for the user
-    target_user.totp_enabled = True
-    target_user.totp_setup_completed = False  # User needs to complete setup
-    db.session.commit()
-
-    # Log admin action
-    admin_user = User.query.get(session['user_id'])
-    log_activity('ADMIN_2FA_ENABLE', 'user', target_user.id,
-                f'Admin {admin_user.username} enabled 2FA for {target_user.username}')
-
-    flash(f'Two-factor authentication has been enabled for {target_user.full_name}. They will be prompted to complete setup on their next login.', 'success')
-    return redirect(url_for('user_management'))
-
-@app.route('/admin/disable-2fa/<int:user_id>', methods=['POST'])
-def admin_disable_2fa(user_id):
-    """Admin route to disable 2FA for a user"""
-    if 'user_id' not in session or session.get('role') != 'admin':
-        flash('Admin access required.', 'error')
-        return redirect(url_for('login'))
-
-    target_user = User.query.get(user_id)
-    if not target_user:
-        flash('User not found.', 'error')
-        return redirect(url_for('user_management'))
-
-    # Disable 2FA for the user
-    target_user.totp_enabled = False
-    target_user.totp_setup_completed = False
-    target_user.totp_secret = None
-    target_user.backup_codes_hash = None
-    db.session.commit()
-
-    # Log admin action
-    admin_user = User.query.get(session['user_id'])
-    log_activity('ADMIN_2FA_DISABLE', 'user', target_user.id,
-                f'Admin {admin_user.username} disabled 2FA for {target_user.username}')
-
-    flash(f'Two-factor authentication has been disabled for {target_user.full_name}.', 'success')
-    return redirect(url_for('user_management'))
 
 @app.route('/logout')
 def logout():

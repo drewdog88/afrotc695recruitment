@@ -24,8 +24,8 @@ from vercel_blob import put, list as blob_list, delete, head
 
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from env.local
+load_dotenv('env.local')
 
 # Configure Vercel Blob storage (token handled by vercel_storage internally if needed)
 if not os.getenv('BLOB_READ_WRITE_TOKEN'):
@@ -291,12 +291,7 @@ class User(db.Model):
     secret_question = db.Column(db.String(200), nullable=False)
     secret_answer_hash = db.Column(db.String(255), nullable=False)
 
-    # 2FA Authentication Fields
-    totp_secret = db.Column(db.String(255), nullable=True)  # Encrypted TOTP secret key
-    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Whether 2FA is enabled
-    backup_codes_hash = db.Column(db.Text, nullable=True)  # Encrypted backup codes
-    totp_setup_completed = db.Column(db.Boolean, default=False, nullable=False)  # Setup completion status
-    can_enable_2fa = db.Column(db.Boolean, default=True, nullable=False)  # Admin control flag
+
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_modified = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -328,19 +323,7 @@ class User(db.Model):
         days_left = (self.password_expires_at - datetime.utcnow()).days
         return max(0, days_left)
 
-    @property
-    def is_2fa_enabled(self):
-        return self.totp_enabled and self.totp_setup_completed
 
-    @property
-    def can_use_2fa(self):
-        return self.can_enable_2fa and self.is_active
-
-    def has_2fa_setup(self):
-        return bool(self.totp_secret and self.totp_setup_completed)
-
-    def needs_2fa_setup(self):
-        return self.can_use_2fa and not self.has_2fa_setup()
 
 class PotentialRecruit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -949,34 +932,21 @@ def login():
                 user.is_locked = False
                 db.session.commit()
 
-                # Check if 2FA is enabled for this user
-                if user.is_2fa_enabled:
-                    # Store user info in session for 2FA verification
-                    session['pending_2fa_user_id'] = user.id
-                    session['pending_2fa_username'] = user.username
-                    session['pending_2fa_role'] = user.role
+                # Complete login
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['role'] = user.role
 
-                    # Log 2FA verification required
-                    log_activity('LOGIN_2FA_REQUIRED', 'user', user.id, f'2FA verification required for {username}')
+                # Log successful login
+                log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
 
-                    flash('Please complete two-factor authentication to continue.', 'info')
-                    return redirect(url_for('verify_2fa'))
-                else:
-                    # Complete login for users without 2FA
-                    session['user_id'] = user.id
-                    session['username'] = user.username
-                    session['role'] = user.role
+                # Check if password change is required
+                if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
+                    flash('Your password will expire soon. Please change it.', 'warning')
+                    return redirect(url_for('change_password'))
 
-                    # Log successful login
-                    log_activity('LOGIN', 'user', user.id, f'User {username} logged in successfully')
-
-                    # Check if password change is required
-                    if user.force_password_change or (user.days_until_password_expiry is not None and user.days_until_password_expiry <= 7):
-                        flash('Your password will expire soon. Please change it.', 'warning')
-                        return redirect(url_for('change_password'))
-
-                    flash('Login successful!', 'success')
-                    return redirect(url_for('dashboard'))
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
             else:
                 # Increment failed login attempts
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
@@ -996,38 +966,7 @@ def login():
 
     return render_template('login.html')
 
-# 2FA Authentication Routes (simplified for production - 2FA disabled by default)
-@app.route('/verify-2fa', methods=['GET', 'POST'])
-def verify_2fa():
-    """Verify 2FA code - simplified version for production"""
-    if 'pending_2fa_user_id' not in session:
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
 
-    user = User.query.get(session['pending_2fa_user_id'])
-    if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        # For now, skip 2FA verification in production
-        # Complete login without 2FA verification
-        session['user_id'] = user.id
-        session['username'] = user.username
-        session['role'] = user.role
-
-        # Clear pending 2FA session data
-        session.pop('pending_2fa_user_id', None)
-        session.pop('pending_2fa_username', None)
-        session.pop('pending_2fa_role', None)
-
-        # Log successful login
-        log_activity('LOGIN', 'user', user.id, f'User {user.username} logged in successfully (2FA skipped)')
-
-        flash('Login successful!', 'success')
-        return redirect(url_for('dashboard'))
-
-    return render_template('verify_2fa.html')
 
 @app.route('/logout')
 def logout():
