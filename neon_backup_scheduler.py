@@ -13,11 +13,14 @@ from datetime import datetime, timedelta
 import json
 import requests
 import zipfile
+import tarfile
+import gzip
 import io
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from vercel_blob import put, list as blob_list, delete, head
+from urllib.parse import urlparse
 
 # Add the project directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -34,6 +37,9 @@ BACKUP_FOLDERS = {
     'daily': 'backups',
     'full': 'backups/full'
 }
+
+# Enforce correct Vercel Blob store host to avoid mixing stores
+ALLOWED_BLOB_HOST = 'kre9xoivjggj03of.public.blob.vercel-storage.com'
 
 def get_database_engine():
     """Get database engine for backup operations"""
@@ -55,12 +61,14 @@ def get_database_engine():
 def backup_database_neon(description="Nightly automatic backup", backup_type="daily"):
     """Create a PostgreSQL database backup with timestamp and description"""
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # Use organized date folder structure like the existing system
+        date_folder = datetime.now().strftime('%Y-%m-%d')
+        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S-%f')[:-3] + 'Z'
 
         if backup_type == "full":
-            backup_filename = f"{BACKUP_FOLDERS['full']}/afrotc695_full_backup_{timestamp}.json"
+            backup_filename = f"{BACKUP_FOLDERS['full']}/{date_folder}/blob-backup-{timestamp}"
         else:
-            backup_filename = f"{BACKUP_FOLDERS['daily']}/afrotc695_backup_{timestamp}.json"
+            backup_filename = f"{BACKUP_FOLDERS['daily']}/{date_folder}/db-backup-{timestamp}"
 
         # Export all data to JSON format
         backup_data = {
@@ -114,61 +122,105 @@ def backup_database_neon(description="Nightly automatic backup", backup_type="da
         print(f"Error creating backup: {e}")
         return None, None
 
-def create_full_backup_zip(description="Weekly full backup"):
-    """Create a full backup that includes database and all blob contents"""
+def create_full_backup_tgz(description="Weekly full backup"):
+    """Create a full backup that includes database and all blob contents using tar.gz format"""
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        zip_filename = f"{BACKUP_FOLDERS['full']}/afrotc695_full_backup_{timestamp}.zip"
+        # Use organized date folder structure like the existing system
+        date_folder = datetime.now().strftime('%Y-%m-%d')
+        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S-%f')[:-3] + 'Z'
+        tgz_filename = f"{BACKUP_FOLDERS['full']}/{date_folder}/blob-backup-{timestamp}.tar.gz"
 
-        # Create a ZIP file in memory
-        zip_buffer = io.BytesIO()
+        # Create a tar.gz file in memory
+        tgz_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with tarfile.open(fileobj=tgz_buffer, mode='w:gz') as tar_file:
             # 1. Add database backup
             print("Creating database backup for full backup...")
             backup_filename, backup_url = backup_database_neon(description, "full")
 
-            if backup_filename:
-                # Get the database backup content and add to ZIP
+            if backup_filename and backup_url:
+                # Get the database backup content and add to tar.gz
                 try:
-                    db_backup_content = download_backup_file(backup_filename)
+                    db_backup_content = download_backup_file_by_url(backup_url)
                     if db_backup_content:
-                        zip_file.writestr('database_backup.json', db_backup_content)
-                        print(f"Added database backup to ZIP: {backup_filename}")
+                        # Create a TarInfo object for the database backup
+                        db_info = tarfile.TarInfo(name='database_backup.json')
+                        db_info.size = len(db_backup_content)
+                        tar_file.addfile(db_info, io.BytesIO(db_backup_content))
+                        print(f"Added database backup to tar.gz: {backup_filename}")
+                    else:
+                        print(f"Failed to download database backup content from {backup_url}")
                 except Exception as e:
-                    print(f"Error adding database backup to ZIP: {e}")
+                    print(f"Error adding database backup to tar.gz: {e}")
 
             # 2. Add all blob contents
             print("Adding all blob contents to full backup...")
             all_blob_files = blob_list()
 
-            if isinstance(all_blob_files, list):
+            # Fix blob list extraction - blob_list() returns dict with 'blobs' key
+            if isinstance(all_blob_files, dict) and 'blobs' in all_blob_files:
+                blob_files = all_blob_files['blobs']
+            elif isinstance(all_blob_files, list):
                 blob_files = all_blob_files
-            elif hasattr(all_blob_files, '__iter__') and not isinstance(all_blob_files, str):
-                blob_files = list(all_blob_files)
-            elif hasattr(all_blob_files, 'blobs'):
-                blob_files = all_blob_files.blobs
             else:
+                print(f"Unexpected blob_list() response type: {type(all_blob_files)}")
                 blob_files = []
+
+            print(f"Found {len(blob_files)} files in blob storage")
 
             for blob_file in blob_files:
                 try:
-                    filename = blob_file.get('pathname', '') if isinstance(blob_file, dict) else str(blob_file)
+                    # Extract filename and URL from blob object
+                    if isinstance(blob_file, dict):
+                        filename = blob_file.get('pathname', '')
+                        blob_url = blob_file.get('url', '')
+                    else:
+                        filename = str(blob_file)
+                        blob_url = None
 
-                    # Skip the full backup we're creating
-                    if filename == zip_filename:
+                    # Skip the full backup we're creating (more robust check)
+                    if filename == tgz_filename or (filename.endswith('.tar.gz') and 'blob-backup-' in filename):
+                        print(f"Skipping self-reference: {filename}")
                         continue
 
-                    # Get the file content
-                    file_content = download_backup_file(filename)
+                    # Skip any prior backup artifacts to avoid recursive growth
+                    # This excludes anything under backups/ (daily or full)
+                    if filename.startswith('backups/'):
+                        # Still allow including the database backup JSON we just created (added separately above)
+                        # All other backup artifacts are excluded from the full-blob archive
+                        print(f"Skipping backup artifact: {filename}")
+                        continue
+
+                    # Skip if no URL available
+                    if not blob_url:
+                        print(f"No URL available for {filename}, skipping")
+                        continue
+
+                    # Enforce correct store host
+                    try:
+                        parsed = urlparse(blob_url)
+                        if parsed.netloc != ALLOWED_BLOB_HOST:
+                            print(f"Skipping file from unexpected host {parsed.netloc}: {filename}")
+                            continue
+                    except Exception as e:
+                        print(f"Error parsing URL for {filename}: {e}")
+                        continue
+
+                    # Get the file content using the blob URL
+                    file_content = download_backup_file_by_url(blob_url)
                     if file_content:
-                        # Create a path within the ZIP that preserves folder structure
-                        zip_path = f"blob_contents/{filename}"
-                        zip_file.writestr(zip_path, file_content)
-                        print(f"Added to ZIP: {filename}")
+                        # Create a path within the tar.gz that preserves folder structure
+                        tar_path = f"blob_contents/{filename}"
+                        # Create a TarInfo object for the file
+                        file_info = tarfile.TarInfo(name=tar_path)
+                        file_info.size = len(file_content)
+                        tar_file.addfile(file_info, io.BytesIO(file_content))
+                        print(f"Added to tar.gz: {filename} ({len(file_content)} bytes)")
+                    else:
+                        print(f"Failed to download content for {filename}")
 
                 except Exception as e:
-                    print(f"Error adding {filename} to ZIP: {e}")
+                    print(f"Error adding {filename} to tar.gz: {e}")
                     continue
 
             # 3. Add backup metadata
@@ -180,31 +232,35 @@ def create_full_backup_zip(description="Weekly full backup"):
                 'contents': {
                     'database_backup': backup_filename if backup_filename else None,
                     'blob_files_count': len(blob_files) if blob_files else 0,
-                    'total_size': zip_buffer.tell()
+                    'total_size': tgz_buffer.tell()
                 }
             }
 
-            zip_file.writestr('backup_metadata.json', json.dumps(metadata, indent=2))
+            # Create a TarInfo object for the metadata
+            metadata_content = json.dumps(metadata, indent=2).encode('utf-8')
+            metadata_info = tarfile.TarInfo(name='backup_metadata.json')
+            metadata_info.size = len(metadata_content)
+            tar_file.addfile(metadata_info, io.BytesIO(metadata_content))
 
-        # Upload the ZIP file
-        zip_buffer.seek(0)
-        zip_content = zip_buffer.read()
+        # Upload the tar.gz file
+        tgz_buffer.seek(0)
+        tgz_content = tgz_buffer.read()
 
         blob_response = put(
-            zip_filename,
-            zip_content,
+            tgz_filename,
+            tgz_content,
             {"addRandomSuffix": False}
         )
 
         if blob_response and 'url' in blob_response:
-            print(f"Full backup ZIP uploaded successfully: {zip_filename}")
-            return zip_filename, blob_response['url']
+            print(f"Full backup tar.gz uploaded successfully: {tgz_filename}")
+            return tgz_filename, blob_response['url']
         else:
-            print("Failed to upload full backup ZIP to blob storage")
+            print("Failed to upload full backup tar.gz to blob storage")
             return None, None
 
     except Exception as e:
-        print(f"Error creating full backup ZIP: {e}")
+        print(f"Error creating full backup tar.gz: {e}")
         return None, None
 
 def list_backup_files():
@@ -214,17 +270,11 @@ def list_backup_files():
         blob_files = blob_list()
 
         # Handle different response types from vercel_blob
-        if isinstance(blob_files, list):
-            files = blob_files
-        elif isinstance(blob_files, dict) and 'blobs' in blob_files:
-            # If it's a dictionary with a blobs key
+        if isinstance(blob_files, dict) and 'blobs' in blob_files:
+            # If it's a dictionary with a blobs key (correct format)
             files = blob_files['blobs']
-        elif hasattr(blob_files, '__iter__') and not isinstance(blob_files, str):
-            # It's some kind of iterable (list, tuple, etc.)
-            files = list(blob_files)
-        elif hasattr(blob_files, 'blobs'):
-            # If it's an object with a blobs attribute
-            files = blob_files.blobs
+        elif isinstance(blob_files, list):
+            files = blob_files
         else:
             print(f"Unexpected response type from blob.list(): {type(blob_files)}")
             return []
@@ -343,6 +393,24 @@ def download_backup_file(filename):
         print(f"Error downloading backup file {filename}: {e}")
         return None
 
+def download_backup_file_by_url(url):
+    """Download a file directly from its blob URL"""
+    try:
+        import requests
+        # Stream with sensible timeouts to avoid long hangs on huge files
+        with requests.get(url, stream=True, timeout=(10, 60)) as response:
+            if response.status_code != 200:
+                print(f"Failed to download file from {url}: HTTP {response.status_code}")
+                return None
+            content = io.BytesIO()
+            for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB chunks
+                if chunk:
+                    content.write(chunk)
+            return content.getvalue()
+    except Exception as e:
+        print(f"Error downloading file from {url}: {e}")
+        return None
+
 def delete_backup_file(filename):
     """Delete a backup file from blob storage"""
     try:
@@ -420,7 +488,7 @@ def perform_weekly_full_backup():
 
     try:
         # Create full backup ZIP
-        backup_filename, backup_url = create_full_backup_zip("Weekly full backup")
+        backup_filename, backup_url = create_full_backup_tgz("Weekly full backup")
 
         if backup_filename:
             print(f"[{timestamp}] Weekly full backup completed successfully: {backup_filename}")
@@ -483,7 +551,7 @@ def test_backup_system():
 
     # Test full backup creation
     print("2. Testing full backup creation...")
-    full_backup_filename, full_backup_url = create_full_backup_zip("Test full backup")
+    full_backup_filename, full_backup_url = create_full_backup_tgz("Test full backup")
     if full_backup_filename:
         print(f"✅ Full backup created: {full_backup_filename}")
     else:

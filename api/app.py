@@ -239,8 +239,8 @@ def create_full_backup(description="Manual full backup"):
     """Create a full backup including database and all blob contents"""
     try:
         # Import the full backup function from neon_backup_scheduler
-        from neon_backup_scheduler import create_full_backup_zip
-        return create_full_backup_zip(description)
+        from neon_backup_scheduler import create_full_backup_tgz
+        return create_full_backup_tgz(description)
     except Exception as e:
         print(f"Error creating full backup: {e}")
         return None, None
