@@ -21,27 +21,41 @@
                         <input type="file" class="form-control" id="backup_file" name="backup_file" accept=".json" required>
                         <div class="form-text">Select a PostgreSQL database backup file (.json) to restore from.</div>
                     </div>
-                    <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to restore the database? This will overwrite all current data!')">
+                    <!-- Restore functionality temporarily disabled - not implemented -->
+                    <!-- <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to restore the database? This will overwrite all current data!')">
                         <i class="fas fa-undo"></i> Restore Database
-                    </button>
+                    </button> -->
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Restore Functionality Temporarily Disabled</strong><br>
+                        The restore functionality is currently being updated and is not available.
+                        Please use the command-line restore scripts if needed.
+                    </div>
                 </form>
             </div>
         </div>
 
         <div class="card mt-3">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Important Warning</h5>
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Important Notice</h5>
             </div>
             <div class="card-body">
-                <div class="alert alert-danger">
-                    <h6><i class="fas fa-exclamation-triangle"></i> Data Loss Warning</h6>
-                    <p class="mb-0">Restoring a database will completely overwrite all current data. This action cannot be undone!</p>
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> Restore Functionality Status</h6>
+                    <p class="mb-0">The web-based restore functionality is currently being updated and is temporarily unavailable.</p>
                 </div>
-                <ul class="list-unstyled">
-                    <li><i class="fas fa-check text-success"></i> A backup of current data will be created automatically</li>
-                    <li><i class="fas fa-check text-success"></i> All users, contacts, and data will be replaced</li>
-                    <li><i class="fas fa-check text-success"></i> The system will restart after restoration</li>
-                </ul>
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Alternative Restore Methods</h6>
+                    <p class="mb-0">If you need to restore data, please use the command-line restore scripts:</p>
+                    <ul class="mb-0 mt-2">
+                        <li><code>python scripts/restore_from_backup.py &lt;backup_url&gt; [--execute]</code></li>
+                        <li><code>python restore_production_data.py</code></li>
+                    </ul>
+                </div>
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-check-circle"></i> Backup System Status</h6>
+                    <p class="mb-0">The backup system is working correctly and creating daily backups automatically.</p>
+                </div>
             </div>
         </div>
     </div>

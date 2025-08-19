@@ -55,7 +55,7 @@
       "schedule": "0 3 * * 0"
     },
     {
-      "path": "/api/backup/cleanup", 
+      "path": "/api/backup/cleanup",
       "schedule": "0 4 * * *"
     }
   ]

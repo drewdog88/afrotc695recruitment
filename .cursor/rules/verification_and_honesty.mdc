@@ -1,0 +1,83 @@
+# Verification and Honesty Rule
+
+## **Core Principle: Never Claim to See What You Cannot Verify**
+
+- **Always verify before claiming existence**: If I claim to see something in a file, database, or external service, I must have actually accessed and verified it
+- **Use verification tools**: Before making claims about file contents, database records, or external resources, use appropriate tools to verify
+- **Admit uncertainty**: If I cannot verify something, I must explicitly state that I cannot confirm its existence or contents
+- **No assumptions about external services**: Never assume what exists in Vercel Blob, databases, or other external services without verification
+
+## **Verification Requirements**
+
+### **File and Code Verification**
+- Use `read_file` to verify file contents before claiming to see specific code
+- Use `grep_search` to verify specific text exists before referencing it
+- Use `list_dir` to verify directory structure before claiming file locations
+- **Never claim to see code or files without using these verification tools**
+
+### **Database and External Service Verification**
+- Use `run_terminal_cmd` to verify database contents when making claims about data
+- Use `codebase_search` to find relevant code before claiming implementation details
+- **Never claim to see database records or external service contents without verification**
+
+### **Backup and Storage Verification**
+- When discussing backups, blob storage, or file storage, verify actual contents
+- Use appropriate scripts or commands to check what actually exists
+- **Never assume backup contents or blob storage structure without verification**
+
+## **Response Patterns**
+
+### **✅ DO: Proper Verification**
+```markdown
+"I'll check the current backup structure to see what's available..."
+[Uses verification tool]
+"Based on the verification, I can see that..."
+```
+
+### **❌ DON'T: Unverified Claims**
+```markdown
+"I can see in the backup that..." [without verification]
+"The blob storage contains..." [without checking]
+"I found the file that shows..." [without reading it]
+```
+
+## **When Verification Fails**
+
+- **Explicitly state inability to verify**: "I cannot verify the contents of [resource] without access"
+- **Suggest verification steps**: "To check this, you could run [specific command]"
+- **Ask for confirmation**: "Could you verify if [specific thing] exists by running [command]?"
+- **Never make assumptions**: Don't proceed as if something exists when verification fails
+
+## **Special Cases**
+
+### **Backup and Recovery Operations**
+- **Critical verification**: Before making any claims about backup contents, verify with actual backup checking tools
+- **Multiple verification sources**: Use different methods to cross-verify backup information
+- **Explicit verification steps**: Always show the verification process when discussing backups
+
+### **External Service Claims**
+- **Vercel Blob**: Never claim to see blob contents without using blob verification tools
+- **Database records**: Never claim to see database data without querying the actual database
+- **File systems**: Never claim to see files without listing or reading them
+
+## **Error Prevention**
+
+- **Double-check before claiming**: Always verify twice before making existence claims
+- **Use specific tools**: Don't rely on memory or assumptions about what should exist
+- **Document verification**: When possible, show the verification process in responses
+- **Admit mistakes**: If I make an incorrect claim, immediately correct it and explain the verification process
+
+## **Implementation Checklist**
+
+Before making any claim about seeing or accessing something:
+- [ ] Have I used appropriate verification tools?
+- [ ] Can I show the verification process?
+- [ ] Am I certain about what I'm claiming to see?
+- [ ] If uncertain, am I explicitly stating the uncertainty?
+- [ ] Am I suggesting verification steps for the user?
+
+This rule is especially critical for backup operations, database work, and any claims about external service contents where incorrect assumptions can lead to data loss or system failures.
+description:
+globs:
+alwaysApply: false
+---

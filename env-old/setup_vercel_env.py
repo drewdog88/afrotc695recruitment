@@ -23,23 +23,23 @@ def load_env_file(file_path):
 def generate_vercel_commands(env_vars):
     """Generate Vercel CLI commands to set environment variables"""
     commands = []
-    
+
     # Required variables for production
     required_vars = [
         'DATABASE_URL',
-        'BLOB_READ_WRITE_TOKEN', 
+        'BLOB_READ_WRITE_TOKEN',
         'SECRET_KEY',
         'TOTP_ENCRYPTION_KEY',
         'BCRYPT_ROUNDS',
         'FLASK_ENV'
     ]
-    
+
     print("🔧 Vercel Environment Variables Setup")
     print("=" * 50)
     print()
     print("📋 REQUIRED ENVIRONMENT VARIABLES:")
     print()
-    
+
     for var in required_vars:
         if var in env_vars:
             value = env_vars[var]
@@ -49,7 +49,7 @@ def generate_vercel_commands(env_vars):
                 print(f"✅ {var}: {masked_value}")
             else:
                 print(f"✅ {var}: {value}")
-            
+
             # Generate Vercel CLI command
             command = f'vercel env add {var} production'
             commands.append(command)
@@ -57,20 +57,20 @@ def generate_vercel_commands(env_vars):
             print(f"❌ {var}: MISSING")
             print(f"   Command: vercel env add {var} production")
             commands.append(f'vercel env add {var} production')
-    
+
     print()
     print("🚀 VERCEL CLI COMMANDS TO RUN:")
     print("=" * 50)
     print()
     print("# Run these commands in your terminal:")
     print()
-    
+
     for i, command in enumerate(commands, 1):
         print(f"{i}. {command}")
         if command in ['vercel env add SECRET_KEY production', 'vercel env add TOTP_ENCRYPTION_KEY production']:
             print("   # You'll be prompted to enter the value securely")
         elif command == 'vercel env add BLOB_READ_WRITE_TOKEN production':
-            print("   # Enter: vercel_blob_rw_pWMALcxzCqU5EtRO_nz6sr9gFjTvtBizz3PfMYiv8efYDNe")
+            print("   # Enter: vercel_blob_rw_kRe9XoIvjggJ03oF_JLbmM2kbj59CKUV5yrdsU1aa7lDTKt")
         elif command == 'vercel env add DATABASE_URL production':
             print("   # Enter: postgresql://neondb_owner:npg_5qC7jUoluvOY@ep-crimson-hall-admf1mo5-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require")
         elif command == 'vercel env add BCRYPT_ROUNDS production':
@@ -78,7 +78,7 @@ def generate_vercel_commands(env_vars):
         elif command == 'vercel env add FLASK_ENV production':
             print("   # Enter: production")
         print()
-    
+
     print("📝 ALTERNATIVE: Manual Dashboard Setup")
     print("=" * 50)
     print()
@@ -88,22 +88,22 @@ def generate_vercel_commands(env_vars):
     print("3. Go to Settings → Environment Variables")
     print("4. Add each variable manually")
     print()
-    
+
     return commands
 
 def main():
     """Main function"""
     # Load environment variables from env.local
     env_vars = load_env_file('env.local')
-    
+
     if not env_vars:
         print("❌ No environment variables found in env.local")
         print("Please make sure env.local exists and contains the required variables.")
         return
-    
+
     # Generate commands
     commands = generate_vercel_commands(env_vars)
-    
+
     # Save commands to file for easy reference
     with open('vercel_env_setup_commands.txt', 'w') as f:
         f.write("Vercel Environment Variables Setup Commands\n")
@@ -111,7 +111,7 @@ def main():
         f.write("Run these commands in your terminal:\n\n")
         for i, command in enumerate(commands, 1):
             f.write(f"{i}. {command}\n")
-    
+
     print("💾 Commands saved to: vercel_env_setup_commands.txt")
     print()
     print("🎯 NEXT STEPS:")

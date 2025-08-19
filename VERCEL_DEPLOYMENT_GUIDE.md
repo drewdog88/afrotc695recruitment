@@ -55,7 +55,7 @@ DATABASE_URL=postgres://neondb_owner:npg_5qC7jUoluvOY@ep-crimson-hall-admf1mo5-p
 
 #### Vercel Blob Storage
 ```
-BLOB_READ_WRITE_TOKEN=vercel_blob_rw_pWMALcxzCqU5EtRO_nz6sr9gFjTvtBizz3PfMYiv8efYDNe
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_kRe9XoIvjggJ03oF_JLbmM2kbj59CKUV5yrdsU1aa7lDTKt
 ```
 
 #### Flask Configuration

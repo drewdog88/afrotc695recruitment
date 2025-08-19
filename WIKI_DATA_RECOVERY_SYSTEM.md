@@ -63,7 +63,7 @@ def analyze_backup(self, backup_file):
     """Analyze the contents of a specific backup file"""
 ```
 
-**Output**: 
+**Output**:
 - Backup timestamp and description
 - Record counts per table
 - Total record count
@@ -103,7 +103,7 @@ The system restores tables in a specific order to handle foreign key dependencie
 ```python
 main_tables = [
     'user',
-    'cadet', 
+    'cadet',
     'university_contact',
     'document',
     'activity_log'

@@ -19,8 +19,8 @@ import zipfile
 
 
 
-# Load environment variables from env.local
-load_dotenv('env.local')
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')

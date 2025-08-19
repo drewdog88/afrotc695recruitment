@@ -129,9 +129,10 @@
                                     <i class="fas fa-download"></i>
                                 </a>
                                 {% if backup.backup_type != 'full_zip' %}
-                                <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup.filename }}')">
+                                <!-- Restore button temporarily disabled - functionality not implemented -->
+                                <!-- <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup.filename }}')">
                                     <i class="fas fa-undo"></i>
-                                </button>
+                                </button> -->
                                 {% endif %}
                                 <button class="btn btn-outline-danger" title="Delete" onclick="confirmDelete('{{ backup.filename }}')">
                                     <i class="fas fa-trash"></i>
@@ -211,9 +212,9 @@
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Cloud Storage:</strong> Backups are automatically uploaded to Vercel Blob storage with proper folder structure.
                 </div>
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Restore Warning:</strong> Restoring a database will overwrite all current data. Make sure to backup first.
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Restore Status:</strong> Web-based restore functionality is temporarily disabled while being updated.
                 </div>
                 <div class="alert alert-success">
                     <i class="fas fa-clock"></i>
@@ -225,12 +226,13 @@
 </div>
 
 <script>
-function confirmRestore(filename) {
-    if (confirm(`Are you sure you want to restore the database from "${filename}"?\n\nThis will overwrite all current data and cannot be undone!`)) {
-        // Redirect to restore page with filename
-        window.location.href = "{{ url_for('restore') }}?file=" + encodeURIComponent(filename);
-    }
-}
+// Restore functionality temporarily disabled - not implemented
+// function confirmRestore(filename) {
+//     if (confirm(`Are you sure you want to restore the database from "${filename}"?\n\nThis will overwrite all current data and cannot be undone!`)) {
+//         // Redirect to restore page with filename
+//         window.location.href = "{{ url_for('restore') }}?file=" + encodeURIComponent(filename);
+//     }
+// }
 
 function confirmDelete(filename) {
     if (confirm(`Are you sure you want to delete the backup "${filename}"?\n\nThis action cannot be undone and the backup will be permanently removed.`)) {

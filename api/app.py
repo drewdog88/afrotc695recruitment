@@ -24,8 +24,8 @@ from vercel_blob import put, list as blob_list, delete, head
 
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 
-# Load environment variables from env.local
-load_dotenv('env.local')
+# Load environment variables from .env
+load_dotenv()
 
 # Configure Vercel Blob storage (token handled by vercel_storage internally if needed)
 if not os.getenv('BLOB_READ_WRITE_TOKEN'):

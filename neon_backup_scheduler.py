@@ -39,7 +39,7 @@ BACKUP_FOLDERS = {
 }
 
 # Enforce correct Vercel Blob store host to avoid mixing stores
-ALLOWED_BLOB_HOST = 'kre9xoivjggj03of.public.blob.vercel-storage.com'
+ALLOWED_BLOB_HOST = 'pwmalcxzcqu5etro.public.blob.vercel-storage.com'
 
 def get_database_engine():
     """Get database engine for backup operations"""
