@@ -2889,7 +2889,7 @@ def nightly_backup_cron():
             return jsonify({'error': 'Unauthorized'}), 403
 
         # Create backup
-        backup_filename, backup_url = backup_database("Nightly automatic backup")
+        backup_filename, backup_url = backup_database_neon("Nightly automatic backup", "daily")
 
         if backup_filename:
             print(f"Nightly backup completed: {backup_filename}")
@@ -2907,6 +2907,34 @@ def nightly_backup_cron():
         print(f"Error in nightly backup cron: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/backup/full-weekly')
+def weekly_full_backup_cron():
+    """Cron job endpoint for weekly full backup - called by Vercel cron"""
+    try:
+        # Verify this is a legitimate cron call (optional security check)
+        user_agent = request.headers.get('User-Agent', '')
+        if not user_agent.startswith('Vercel'):
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        # Create full backup
+        backup_filename, backup_url = create_full_backup_tgz("Weekly automatic full backup")
+
+        if backup_filename:
+            print(f"Weekly full backup completed: {backup_filename}")
+            return jsonify({
+                'success': True,
+                'backup_filename': backup_filename,
+                'backup_url': backup_url,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            print("Weekly full backup failed")
+            return jsonify({'error': 'Full backup failed'}), 500
+
+    except Exception as e:
+        print(f"Error in weekly full backup cron: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/backup/cleanup')
 def backup_cleanup_cron():
     """Cron job endpoint for backup cleanup - called by Vercel cron"""
@@ -2917,21 +2945,29 @@ def backup_cleanup_cron():
             return jsonify({'error': 'Unauthorized'}), 403
 
         # Get backup files and clean up old ones
-        backup_files = get_backup_files()
-        cutoff_date = datetime.now() - timedelta(days=30)
+        backup_files = list_backup_files()
+        daily_cutoff = datetime.now() - timedelta(days=30)
+        full_cutoff = datetime.now() - timedelta(days=90)
         deleted_count = 0
 
         for backup in backup_files:
             try:
-                # Extract timestamp from filename
                 filename = backup.get('filename', '')
-                if filename.startswith('afrotc695_backup_') and filename.endswith('.json'):
-                    timestamp_str = filename.replace('afrotc695_backup_', '').replace('.json', '')
-                    backup_date = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                backup_type = backup.get('backup_type', '')
+                created = backup.get('created')
 
-                    if backup_date < cutoff_date:
-                        # Delete old backup
-                        delete(filename)
+                if not created:
+                    continue
+
+                # Determine cutoff based on backup type
+                if backup_type in ['full', 'full_zip']:
+                    cutoff_date = full_cutoff
+                else:
+                    cutoff_date = daily_cutoff
+
+                if created < cutoff_date:
+                    # Delete old backup
+                    if delete_backup_file(filename):
                         deleted_count += 1
                         print(f"Deleted old backup: {filename}")
 

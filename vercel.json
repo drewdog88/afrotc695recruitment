@@ -51,8 +51,12 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/backup/full-weekly",
+      "schedule": "0 3 * * 0"
+    },
+    {
       "path": "/api/backup/cleanup", 
-      "schedule": "0 3 * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
