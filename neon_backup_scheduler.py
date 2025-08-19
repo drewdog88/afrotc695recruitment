@@ -38,8 +38,8 @@ BACKUP_FOLDERS = {
     'full': 'backups/full'
 }
 
-# Enforce correct Vercel Blob store host to avoid mixing stores
-ALLOWED_BLOB_HOST = 'pwmalcxzcqu5etro.public.blob.vercel-storage.com'
+# Use environment variable for blob store configuration
+BLOB_STORE_HOST = os.getenv('BLOB_STORE_HOST')  # Optional: can be None to allow any store
 
 def get_database_engine():
     """Get database engine for backup operations"""
@@ -196,15 +196,16 @@ def create_full_backup_tgz(description="Weekly full backup"):
                         print(f"No URL available for {filename}, skipping")
                         continue
 
-                    # Enforce correct store host
-                    try:
-                        parsed = urlparse(blob_url)
-                        if parsed.netloc != ALLOWED_BLOB_HOST:
-                            print(f"Skipping file from unexpected host {parsed.netloc}: {filename}")
+                    # Optional: Check blob store host if configured
+                    if BLOB_STORE_HOST:
+                        try:
+                            parsed = urlparse(blob_url)
+                            if parsed.netloc != BLOB_STORE_HOST:
+                                print(f"Skipping file from unexpected host {parsed.netloc}: {filename}")
+                                continue
+                        except Exception as e:
+                            print(f"Error parsing URL for {filename}: {e}")
                             continue
-                    except Exception as e:
-                        print(f"Error parsing URL for {filename}: {e}")
-                        continue
 
                     # Get the file content using the blob URL
                     file_content = download_backup_file_by_url(blob_url)
