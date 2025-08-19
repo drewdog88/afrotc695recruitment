@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Check the actual backup structure on the correct blob store
+Check the actual backup structure in Vercel Blob storage
 """
+
 import os
 from dotenv import load_dotenv
-from vercel_blob import list
+from vercel_blob import list as blob_list
 
-# Load environment variables
-load_dotenv('env.local')
+# Load environment variables from .env
+load_dotenv()
 
 def check_backup_structure():
     """Check the actual backup structure on the blob store"""
@@ -15,7 +16,7 @@ def check_backup_structure():
         print("Checking backup structure on blob store...")
 
         # List all files in the blob store
-        blobs = list()
+        blobs = blob_list()
 
         if not blobs:
             print("❌ No files found in blob store")

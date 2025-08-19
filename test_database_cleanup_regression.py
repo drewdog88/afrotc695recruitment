@@ -21,7 +21,7 @@ class TestDatabaseCleanupRegression(unittest.TestCase):
         """Set up test environment"""
         # Load environment variables
         from dotenv import load_dotenv
-        load_dotenv('env.local')
+        load_dotenv()
         
         # Import app after environment is loaded
         from app import app, db

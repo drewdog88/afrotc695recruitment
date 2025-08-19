@@ -16,7 +16,7 @@ def load_env():
 		# Load default .env first, then overlay env.local
 		load_dotenv()
 		if os.path.exists("env.local"):
-			load_dotenv("env.local")
+			                   load_dotenv()
 
 
 def summarize_backup_json_bytes(data: bytes):

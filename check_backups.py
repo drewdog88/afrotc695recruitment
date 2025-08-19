@@ -6,10 +6,8 @@ Check available backups
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env
 load_dotenv()
-if os.path.exists("env.local"):
-    load_dotenv("env.local")
 
 try:
     from neon_backup_scheduler import list_backup_files

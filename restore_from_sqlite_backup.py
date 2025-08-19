@@ -19,7 +19,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, inspect
 
-load_dotenv('env.local')
+load_dotenv()
 
 # Tables to restore in dependency-safe order (parents first)
 TABLE_ORDER = [
@@ -138,7 +138,7 @@ def insert_rows(engine, table: str, columns, rows) -> int:
                     # Use default value for missing column
                     defaults = default_values.get(table, {})
                     v = defaults.get(col, None)
-                
+
                 normalized.append(v)
             cur.execute(sql, normalized)
             inserted += 1
@@ -234,7 +234,7 @@ def main():
                 restore_order.insert(0, (table, exists, src_count, cols, rows))
             else:
                 restore_order.append((table, exists, src_count, cols, rows))
-    
+
     for table, exists, src_count, cols, rows in restore_order:
         print(f'\nRestoring table: {table} ({len(rows)} rows)')
         inserted = insert_rows(engine, table, cols, rows)

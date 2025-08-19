@@ -5,13 +5,13 @@ from werkzeug.security import generate_password_hash
 from app_local import app, db, User, PotentialRecruit, Cadet, UniversityContact, RecruitmentEvent, RecruitmentDocument, ExternalLink, ActivityLog
 
 # Load environment variables
-load_dotenv('env.local')
+load_dotenv()
 
 def create_test_data():
     """Create test data for local development"""
     with app.app_context():
         print("Creating test data...")
-        
+
         # Create test users
         users = [
             {
@@ -35,7 +35,7 @@ def create_test_data():
                 'secret_answer': 'pizza'
             }
         ]
-        
+
         for user_data in users:
             if not User.query.filter_by(username=user_data['username']).first():
                 user = User(
@@ -50,7 +50,7 @@ def create_test_data():
                 )
                 db.session.add(user)
                 print(f"Created user: {user.username}")
-        
+
         # Create test potential recruits
         recruits = [
             {
@@ -86,12 +86,12 @@ def create_test_data():
                 'status': 'interested'
             }
         ]
-        
+
         for recruit_data in recruits:
             recruit = PotentialRecruit(**recruit_data)
             db.session.add(recruit)
             print(f"Created recruit: {recruit.first_name} {recruit.last_name}")
-        
+
         # Create test cadets
         cadets = [
             {
@@ -121,12 +121,12 @@ def create_test_data():
                 'gpa': 3.9
             }
         ]
-        
+
         for cadet_data in cadets:
             cadet = Cadet(**cadet_data)
             db.session.add(cadet)
             print(f"Created cadet: {cadet.first_name} {cadet.last_name}")
-        
+
         # Create test university contacts
         contacts = [
             {
@@ -148,12 +148,12 @@ def create_test_data():
                 'notes': 'Interested in cybersecurity collaboration'
             }
         ]
-        
+
         for contact_data in contacts:
             contact = UniversityContact(**contact_data)
             db.session.add(contact)
             print(f"Created contact: {contact.contact_name}")
-        
+
         # Create test events
         events = [
             {
@@ -177,12 +177,12 @@ def create_test_data():
                 'status': 'scheduled'
             }
         ]
-        
+
         for event_data in events:
             event = RecruitmentEvent(**event_data)
             db.session.add(event)
             print(f"Created event: {event.title}")
-        
+
         # Create test external links
         links = [
             {
@@ -198,12 +198,12 @@ def create_test_data():
                 'category': 'resources'
             }
         ]
-        
+
         for link_data in links:
             link = ExternalLink(**link_data)
             db.session.add(link)
             print(f"Created link: {link.title}")
-        
+
         # Commit all changes
         try:
             db.session.commit()
@@ -215,4 +215,3 @@ def create_test_data():
 
 if __name__ == '__main__':
     create_test_data()
-

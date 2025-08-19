@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 if os.path.exists("env.local"):
-    load_dotenv("env.local")
+    load_dotenv()
 
 print("Environment check:")
 print(f"BLOB_READ_WRITE_TOKEN: {os.getenv('BLOB_READ_WRITE_TOKEN')}")
