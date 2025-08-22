@@ -433,22 +433,22 @@ def list_backup_files():
                     description = metadata.get('description', 'Backup file')
                     user = metadata.get('user', 'System')
 
-                     # Parse timestamp from metadata
-                     timestamp = None
-                     if 'timestamp' in metadata:
-                         try:
-                             timestamp = datetime.fromisoformat(metadata['timestamp'].replace('Z', '+00:00'))
-                         except:
-                             pass
-                     elif 'created_at' in metadata:
-                         try:
-                             timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
-                         except:
-                             pass
-                     
-                     # Ensure timestamp is timezone-naive for consistency
-                     if timestamp and timestamp.tzinfo:
-                         timestamp = timestamp.replace(tzinfo=None)
+                    # Parse timestamp from metadata
+                    timestamp = None
+                    if 'timestamp' in metadata:
+                        try:
+                            timestamp = datetime.fromisoformat(metadata['timestamp'].replace('Z', '+00:00'))
+                        except:
+                            pass
+                    elif 'created_at' in metadata:
+                        try:
+                            timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
+                        except:
+                            pass
+                    
+                    # Ensure timestamp is timezone-naive for consistency
+                    if timestamp and timestamp.tzinfo:
+                        timestamp = timestamp.replace(tzinfo=None)
                 else:
                     # Legacy files without metadata - use filename parsing
                     backup_type = "unknown"
