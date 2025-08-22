@@ -480,7 +480,7 @@ def list_backup_files():
                         except:
                             pass
 
-                                    # Try to read description from the JSON backup file
+                    # Try to read description from the JSON backup file
                     try:
                         backup_content = download_backup_file(filename)
                         if backup_content:
