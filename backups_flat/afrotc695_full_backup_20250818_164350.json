@@ -1,0 +1,17 @@
+{
+  "timestamp": "20250818_164350",
+  "description": "Test backup fix verification",
+  "backup_type": "full",
+  "created_at": "2025-08-18T16:43:50.499868",
+  "tables": {
+    "user": [],
+    "potential_recruit": [],
+    "cadet": [],
+    "university_contact": [],
+    "recruitment_event": [],
+    "external_link": [],
+    "recruitment_document": [],
+    "activity_log": [],
+    "password_history": []
+  }
+}

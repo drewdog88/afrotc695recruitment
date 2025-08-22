@@ -1,0 +1,5 @@
+Hello World from AFROTC 695 Recruitment System!
+This is a test file to verify REMOTE R2 connectivity.
+Timestamp: 2025-08-20
+Remote upload test.
+

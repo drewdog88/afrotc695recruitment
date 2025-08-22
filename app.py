@@ -39,11 +39,11 @@ db = SQLAlchemy(app)
 # Database backup configuration - using Vercel Blob storage via neon_backup_scheduler
 
 def backup_database(description="Manual backup"):
-    """Create a database backup using Neon PostgreSQL and Vercel Blob storage"""
+    """Create a database backup using Neon PostgreSQL and R2 storage"""
     try:
-        # Check if required environment variables are set
-        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
-            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+        # Check if required R2 environment variables are set
+        if not os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'):
+            print("Warning: CLOUDFLARE_R2_ACCESS_KEY_ID not set, backup system unavailable")
             return None, None
 
         # Import the Neon backup function from neon_backup_scheduler
@@ -54,11 +54,11 @@ def backup_database(description="Manual backup"):
         return None, None
 
 def create_full_backup(description="Manual full backup"):
-    """Create a full backup including database and all blob contents"""
+    """Create a full backup including database and all R2 contents"""
     try:
-        # Check if required environment variables are set
-        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
-            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+        # Check if required R2 environment variables are set
+        if not os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'):
+            print("Warning: CLOUDFLARE_R2_ACCESS_KEY_ID not set, backup system unavailable")
             return None, None
 
         # Import the full backup function from neon_backup_scheduler
@@ -81,11 +81,11 @@ def restore_database(backup_file_path):
         return False
 
 def get_backup_files():
-    """Get list of available backup files from Vercel Blob storage"""
+    """Get list of available backup files from R2 storage"""
     try:
-        # Check if required environment variables are set
-        if not os.getenv('BLOB_READ_WRITE_TOKEN'):
-            print("Warning: BLOB_READ_WRITE_TOKEN not set, backup system unavailable")
+        # Check if required R2 environment variables are set
+        if not os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'):
+            print("Warning: CLOUDFLARE_R2_ACCESS_KEY_ID not set, backup system unavailable")
             return []
 
         # Import the Neon backup function from neon_backup_scheduler
@@ -103,7 +103,7 @@ def get_backup_files():
         return []
 
 def download_backup_content(filename):
-    """Download backup file content from Vercel Blob storage"""
+    """Download backup file content from R2 storage"""
     try:
         # Import the download function from neon_backup_scheduler
         from neon_backup_scheduler import download_backup_file
@@ -1247,14 +1247,29 @@ def full_backup():
 
 @app.route('/admin/download-backup/<path:filename>')
 def download_backup(filename):
+    """Secure backup download with enhanced security validation"""
+    # Enhanced security checks
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
+        log_activity('UNAUTHORIZED_ACCESS_ATTEMPT', 'security', None, f'Unauthorized backup download attempt: {filename}', f'IP: {request.remote_addr}')
+        return redirect(url_for('dashboard'))
+
+    # Security validation: Ensure filename is safe
+    if not filename or '..' in filename or filename.startswith('/'):
+        flash('Invalid filename. Access denied.', 'error')
+        log_activity('SECURITY_VIOLATION', 'security', None, f'Invalid filename pattern: {filename}', f'IP: {request.remote_addr}')
+        return redirect(url_for('dashboard'))
+
+    # Security validation: Only allow backup files
+    if not filename.startswith('afrotc695_backup_'):
+        flash('Invalid backup file. Access denied.', 'error')
+        log_activity('SECURITY_VIOLATION', 'security', None, f'Non-backup file access attempt: {filename}', f'IP: {request.remote_addr}')
         return redirect(url_for('dashboard'))
 
     try:
-        print(f"Download request for filename: {filename}")
+        print(f"Secure download request for filename: {filename} from IP: {request.remote_addr}")
 
-        # Download backup content from blob storage
+        # Download backup content from R2 storage
         backup_content = download_backup_content(filename)
         print(f"Backup content received: {len(backup_content) if backup_content else 'None'} bytes")
 
@@ -1272,7 +1287,7 @@ def download_backup(filename):
 
             print(f"Using MIME type: {mime_type}, extension: {file_extension}")
 
-            # Create response with proper headers
+            # Create response with proper headers and security
             response = send_file(
                 BytesIO(backup_content),
                 mimetype=mime_type,
@@ -1280,10 +1295,22 @@ def download_backup(filename):
                 download_name=f"afrotc695_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_extension}"
             )
 
-            print("Response created successfully")
+            # Add security headers
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            response.headers['Content-Security-Policy'] = "default-src 'self'"
 
-            # Log the download
-            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
+            # Add audit headers
+            response.headers['X-Audit-User'] = session.get('username', 'unknown')
+            response.headers['X-Audit-IP'] = request.remote_addr
+
+            print("Secure response created successfully")
+
+            # Enhanced logging with security details
+            log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}',
+                        f'User: {session.get("username")}, IP: {request.remote_addr}, Size: {len(backup_content)} bytes')
 
             return response
         else:

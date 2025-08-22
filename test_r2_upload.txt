@@ -1,0 +1,4 @@
+Test file for R2 bucket verification
+Uploaded via Wrangler CLI
+Timestamp: 2025-08-20
+

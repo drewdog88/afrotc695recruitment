@@ -21,6 +21,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from vercel_blob import put, list as blob_list, delete, head
 from urllib.parse import urlparse
+import boto3
+from botocore.exceptions import ClientError
 
 # Add the project directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +45,121 @@ BLOB_READ_WRITE_TOKEN = os.getenv('BLOB_READ_WRITE_TOKEN')
 if not BLOB_READ_WRITE_TOKEN:
     print("Warning: BLOB_READ_WRITE_TOKEN not set - backup system unavailable")
 
+def get_r2_client():
+    """Get configured R2 client using boto3"""
+    return boto3.client(
+        's3',
+        endpoint_url=f'https://{os.getenv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com',
+        aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
+        region_name='auto'
+    )
+
+def upload_backup_to_r2(backup_data, filename):
+    """Upload backup to R2 using boto3"""
+    try:
+        r2_client = get_r2_client()
+        bucket_name = 'afrotc695recruitment'
+
+        r2_client.put_object(
+            Bucket=bucket_name,
+            Key=filename,
+            Body=backup_data
+        )
+        return True
+    except ClientError as e:
+        print(f"R2 upload error: {e}")
+        return False
+
+def list_backup_files_r2():
+    """List backup files in R2 using boto3"""
+    try:
+        r2_client = get_r2_client()
+        bucket_name = 'afrotc695recruitment'
+
+        response = r2_client.list_objects_v2(
+            Bucket=bucket_name,
+            Prefix='afrotc695_backup_'  # Filter for backup files
+        )
+
+        files = []
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                files.append({
+                    'filename': obj['Key'],
+                    'size': obj['Size'],
+                    'last_modified': obj['LastModified']
+                })
+        return files
+    except ClientError as e:
+        print(f"R2 list error: {e}")
+        return []
+
+def download_backup_file_r2(filename):
+    """Download backup file from R2 using boto3 with enhanced security validation"""
+    try:
+        r2_client = get_r2_client()
+        if not r2_client:
+            print("Error: Failed to create R2 client")
+            return None
+
+        bucket_name = 'afrotc695recruitment'
+
+        # Security validation: Ensure filename is safe
+        if not filename or '..' in filename or filename.startswith('/'):
+            print(f"Security error: Invalid filename pattern: {filename}")
+            return None
+
+        # Security validation: Only allow backup files
+        if not filename.startswith('afrotc695_backup_'):
+            print(f"Security error: Filename does not match backup pattern: {filename}")
+            return None
+
+        response = r2_client.get_object(
+            Bucket=bucket_name,
+            Key=filename
+        )
+
+        content = response['Body'].read()
+        print(f"Successfully downloaded {len(content)} bytes from R2: {filename}")
+        return content
+
+    except ClientError as e:
+        print(f"R2 download error: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error downloading from R2: {e}")
+        return None
+
+# R2 Configuration
+R2_BUCKET_NAME = 'afrotc695recruitment'
+
+def get_r2_client():
+    """Get configured R2 client using boto3 with custom domain for enhanced security"""
+    try:
+        # Use custom domain if configured, otherwise fall back to direct R2 endpoint
+        custom_domain = os.getenv('CLOUDFLARE_R2_CUSTOM_DOMAIN')
+
+        if custom_domain:
+            # Use custom domain with Cloudflare Access protection
+            endpoint_url = f'https://{custom_domain}'
+            print(f"Using secure custom domain: {endpoint_url}")
+        else:
+            # Fall back to direct R2 endpoint (less secure)
+            endpoint_url = f'https://{os.getenv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com'
+            print(f"Warning: Using direct R2 endpoint. Consider setting CLOUDFLARE_R2_CUSTOM_DOMAIN for enhanced security")
+
+        return boto3.client(
+            's3',
+            endpoint_url=endpoint_url,
+            aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
+            region_name='auto'
+        )
+    except Exception as e:
+        print(f"Error creating R2 client: {e}")
+        return None
+
 def get_database_engine():
     """Get database engine for backup operations"""
     try:
@@ -63,14 +180,13 @@ def get_database_engine():
 def backup_database_neon(description="Nightly automatic backup", backup_type="daily"):
     """Create a PostgreSQL database backup with timestamp and description"""
     try:
-        # Use organized date folder structure like the existing system
-        date_folder = datetime.now().strftime('%Y-%m-%d')
-        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S-%f')[:-3] + 'Z'
+        # Use flat R2 filename structure (no folders)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # e.g., 20250110_143022
 
         if backup_type == "full":
-            backup_filename = f"{BACKUP_FOLDERS['full']}/{date_folder}/blob-backup-{timestamp}"
+            backup_filename = f"afrotc695_backup_full_{timestamp}.json"
         else:
-            backup_filename = f"{BACKUP_FOLDERS['daily']}/{date_folder}/db-backup-{timestamp}"
+            backup_filename = f"afrotc695_backup_daily_{timestamp}.json"
 
         # Export all data to JSON format
         backup_data = {
@@ -106,18 +222,15 @@ def backup_database_neon(description="Nightly automatic backup", backup_type="da
         # Convert to JSON string
         backup_json = json.dumps(backup_data, indent=2, default=str)
 
-        # Upload to Vercel Blob
-        blob_response = put(
-            backup_filename,
-            backup_json.encode('utf-8'),
-            {"addRandomSuffix": False}
-        )
+        # Upload to R2 (replacing Vercel Blob)
+        success = upload_backup_to_r2(backup_json.encode('utf-8'), backup_filename)
 
-        if blob_response and 'url' in blob_response:
-            print(f"Backup uploaded successfully: {backup_filename}")
-            return backup_filename, blob_response['url']
+        if success:
+            print(f"Backup uploaded successfully to R2: {backup_filename}")
+            # Return filename and a placeholder URL (R2 doesn't provide direct URLs)
+            return backup_filename, f"r2://{backup_filename}"
         else:
-            print("Failed to upload backup to blob storage")
+            print("Failed to upload backup to R2 storage")
             return None, None
 
     except Exception as e:
@@ -125,12 +238,11 @@ def backup_database_neon(description="Nightly automatic backup", backup_type="da
         return None, None
 
 def create_full_backup_tgz(description="Weekly full backup"):
-    """Create a full backup that includes database and all blob contents using tar.gz format"""
+    """Create a full backup that includes database, Vercel Blob contents, and R2 backup files using tar.gz format"""
     try:
-        # Use organized date folder structure like the existing system
-        date_folder = datetime.now().strftime('%Y-%m-%d')
-        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S-%f')[:-3] + 'Z'
-        tgz_filename = f"{BACKUP_FOLDERS['full']}/{date_folder}/blob-backup-{timestamp}.tar.gz"
+        # Use flat R2 filename structure (no folders)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # e.g., 20250110_143022
+        tgz_filename = f"afrotc695_backup_full_{timestamp}.tar.gz"
 
         # Create a tar.gz file in memory
         tgz_buffer = io.BytesIO()
@@ -143,7 +255,8 @@ def create_full_backup_tgz(description="Weekly full backup"):
             if backup_filename and backup_url:
                 # Get the database backup content and add to tar.gz
                 try:
-                    db_backup_content = download_backup_file_by_url(backup_url)
+                    # Since we're using R2 now, download from R2
+                    db_backup_content = download_backup_file_r2(backup_filename)
                     if db_backup_content:
                         # Create a TarInfo object for the database backup
                         db_info = tarfile.TarInfo(name='database_backup.json')
@@ -151,12 +264,12 @@ def create_full_backup_tgz(description="Weekly full backup"):
                         tar_file.addfile(db_info, io.BytesIO(db_backup_content))
                         print(f"Added database backup to tar.gz: {backup_filename}")
                     else:
-                        print(f"Failed to download database backup content from {backup_url}")
+                        print(f"Failed to download database backup content from R2: {backup_filename}")
                 except Exception as e:
                     print(f"Error adding database backup to tar.gz: {e}")
 
-            # 2. Add all blob contents
-            print("Adding all blob contents to full backup...")
+            # 2. Add all Vercel Blob contents (existing documents)
+            print("Adding all Vercel Blob contents to full backup...")
             all_blob_files = blob_list()
 
             # Fix blob list extraction - blob_list() returns dict with 'blobs' key
@@ -168,7 +281,7 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 print(f"Unexpected blob_list() response type: {type(all_blob_files)}")
                 blob_files = []
 
-            print(f"Found {len(blob_files)} files in blob storage")
+            print(f"Found {len(blob_files)} files in Vercel Blob storage")
 
             for blob_file in blob_files:
                 try:
@@ -198,11 +311,13 @@ def create_full_backup_tgz(description="Weekly full backup"):
                         print(f"No URL available for {filename}, skipping")
                         continue
 
-                    # Optional: Check blob store host if configured
-                    if BLOB_STORE_HOST:
+                    # Optional: Check blob store host if configured (for Vercel Blob security)
+                    # Since we're migrating to R2, this check is less critical but kept for security
+                    vercel_blob_host = os.getenv('BLOB_STORE_HOST', 'kre9xoivjggj03of.public.blob.vercel-storage.com')
+                    if vercel_blob_host:
                         try:
                             parsed = urlparse(blob_url)
-                            if parsed.netloc != BLOB_STORE_HOST:
+                            if parsed.netloc != vercel_blob_host:
                                 print(f"Skipping file from unexpected host {parsed.netloc}: {filename}")
                                 continue
                         except Exception as e:
@@ -213,12 +328,12 @@ def create_full_backup_tgz(description="Weekly full backup"):
                     file_content = download_backup_file_by_url(blob_url)
                     if file_content:
                         # Create a path within the tar.gz that preserves folder structure
-                        tar_path = f"blob_contents/{filename}"
+                        tar_path = f"vercel_blob_contents/{filename}"
                         # Create a TarInfo object for the file
                         file_info = tarfile.TarInfo(name=tar_path)
                         file_info.size = len(file_content)
                         tar_file.addfile(file_info, io.BytesIO(file_content))
-                        print(f"Added to tar.gz: {filename} ({len(file_content)} bytes)")
+                        print(f"Added Vercel Blob file to tar.gz: {filename} ({len(file_content)} bytes)")
                     else:
                         print(f"Failed to download content for {filename}")
 
@@ -226,7 +341,43 @@ def create_full_backup_tgz(description="Weekly full backup"):
                     print(f"Error adding {filename} to tar.gz: {e}")
                     continue
 
-            # 3. Add backup metadata
+            # 3. Add all R2 backup files (existing backups)
+            print("Adding all R2 backup files to full backup...")
+            r2_backup_files = list_backup_files_r2()
+            print(f"Found {len(r2_backup_files)} backup files in R2 storage")
+
+            for r2_file in r2_backup_files:
+                try:
+                    filename = r2_file['filename']
+
+                    # Skip the full backup we're creating (prevent recursive backup)
+                    if filename == tgz_filename:
+                        print(f"Skipping self-reference: {filename}")
+                        continue
+
+                    # Skip other full backups to prevent recursive growth
+                    if filename.startswith('afrotc695_backup_full_'):
+                        print(f"Skipping existing full backup: {filename}")
+                        continue
+
+                    # Get the file content from R2
+                    file_content = download_backup_file_r2(filename)
+                    if file_content:
+                        # Create a path within the tar.gz for R2 backups
+                        tar_path = f"r2_backup_files/{filename}"
+                        # Create a TarInfo object for the file
+                        file_info = tarfile.TarInfo(name=tar_path)
+                        file_info.size = len(file_content)
+                        tar_file.addfile(file_info, io.BytesIO(file_content))
+                        print(f"Added R2 backup file to tar.gz: {filename} ({len(file_content)} bytes)")
+                    else:
+                        print(f"Failed to download R2 backup file: {filename}")
+
+                except Exception as e:
+                    print(f"Error adding R2 backup file {filename} to tar.gz: {e}")
+                    continue
+
+            # 4. Add backup metadata
             metadata = {
                 'timestamp': timestamp,
                 'description': description,
@@ -234,7 +385,8 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 'created_at': datetime.now().isoformat(),
                 'contents': {
                     'database_backup': backup_filename if backup_filename else None,
-                    'blob_files_count': len(blob_files) if blob_files else 0,
+                    'vercel_blob_files_count': len(blob_files) if blob_files else 0,
+                    'r2_backup_files_count': len(r2_backup_files) if r2_backup_files else 0,
                     'total_size': tgz_buffer.tell()
                 }
             }
@@ -245,21 +397,17 @@ def create_full_backup_tgz(description="Weekly full backup"):
             metadata_info.size = len(metadata_content)
             tar_file.addfile(metadata_info, io.BytesIO(metadata_content))
 
-        # Upload the tar.gz file
+        # Upload the tar.gz file to R2
         tgz_buffer.seek(0)
         tgz_content = tgz_buffer.read()
 
-        blob_response = put(
-            tgz_filename,
-            tgz_content,
-            {"addRandomSuffix": False}
-        )
+        success = upload_backup_to_r2(tgz_content, tgz_filename)
 
-        if blob_response and 'url' in blob_response:
-            print(f"Full backup tar.gz uploaded successfully: {tgz_filename}")
-            return tgz_filename, blob_response['url']
+        if success:
+            print(f"Full backup tar.gz uploaded successfully to R2: {tgz_filename}")
+            return tgz_filename, f"r2://{tgz_filename}"  # Placeholder URL
         else:
-            print("Failed to upload full backup tar.gz to blob storage")
+            print("Failed to upload full backup tar.gz to R2 storage")
             return None, None
 
     except Exception as e:
@@ -267,26 +415,20 @@ def create_full_backup_tgz(description="Weekly full backup"):
         return None, None
 
 def list_backup_files():
-    """List all backup files in blob storage with folder structure"""
+    """List all backup files in R2 storage (replacing Vercel Blob)"""
     try:
-        # Use the imported list function directly from vercel_blob
-        blob_files = blob_list()
+        # Use R2 listing instead of Vercel Blob
+        r2_files = list_backup_files_r2()
 
-        # Handle different response types from vercel_blob
-        if isinstance(blob_files, dict) and 'blobs' in blob_files:
-            # If it's a dictionary with a blobs key (correct format)
-            files = blob_files['blobs']
-        elif isinstance(blob_files, list):
-            files = blob_files
-        else:
-            print(f"Unexpected response type from blob.list(): {type(blob_files)}")
+        if not r2_files:
+            print("No backup files found in R2 storage")
             return []
 
-        # Process files to add metadata
+        # Process R2 files to add metadata
         backup_files = []
-        for file_info in files:
+        for file_info in r2_files:
             try:
-                filename = file_info.get('pathname', '') if isinstance(file_info, dict) else str(file_info)
+                filename = file_info['filename']  # R2 returns filename directly
 
                 # Determine backup type based on filename
                 if filename.startswith(f"{BACKUP_FOLDERS['full']}/"):
@@ -346,12 +488,8 @@ def list_backup_files():
                     except Exception as e:
                         print(f"Could not read description from ZIP {filename}: {e}")
 
-                # Get file size
-                try:
-                    file_info_obj = head(filename)
-                    size = file_info_obj.get('size', 0) if isinstance(file_info_obj, dict) else 0
-                except:
-                    size = 0
+                # Get file size from R2 metadata
+                size = file_info.get('size', 0)  # R2 provides size directly
 
                 backup_files.append({
                     'filename': filename,
@@ -376,24 +514,17 @@ def list_backup_files():
         return []
 
 def download_backup_file(filename):
-    """Download a backup file from blob storage"""
+    """Download a backup file from R2 storage (replacing Vercel Blob)"""
     try:
-        # Get file info first to get the URL
-        file_info = head(filename)
-        if file_info and 'url' in file_info:
-            # Download the file content using requests
-            import requests
-            response = requests.get(file_info['url'])
-            if response.status_code == 200:
-                return response.content
-            else:
-                print(f"Failed to download file {filename}: HTTP {response.status_code}")
-                return None
+        # Use R2 download instead of Vercel Blob
+        content = download_backup_file_r2(filename)
+        if content:
+            return content
         else:
-            print(f"Could not get file info for {filename}")
+            print(f"Failed to download file {filename} from R2")
             return None
     except Exception as e:
-        print(f"Error downloading backup file {filename}: {e}")
+        print(f"Error downloading backup file {filename} from R2: {e}")
         return None
 
 def download_backup_file_by_url(url):

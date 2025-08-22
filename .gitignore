@@ -85,6 +85,8 @@ node_modules/
 
 .vercel
 
+.env
+
 # Task files
 # tasks.json
-# tasks/
+# tasks/ 
