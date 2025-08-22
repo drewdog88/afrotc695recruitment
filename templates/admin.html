@@ -74,19 +74,10 @@
                 <div class="mt-3">
                     <p><strong>Available Backups:</strong> {{ backup_files|length }}</p>
                     <p><strong>Last Backup:</strong> 
-                        {% if backup_files %}
-                            {% set latest_backup = None %}
-                            {% for backup in backup_files %}
-                                {% if backup.created %}
-                                    {% set latest_backup = backup %}
-                                    {% break %}
-                                {% endif %}
-                            {% endfor %}
-                            {% if latest_backup %}
-                                {{ latest_backup.created.strftime('%Y-%m-%d %H:%M') }}
-                            {% else %}
-                                Available (date unknown)
-                            {% endif %}
+                        {% if backup_files and backup_files[0] and backup_files[0].get('created') %}
+                            {{ backup_files[0].get('created').strftime('%Y-%m-%d %H:%M') }}
+                        {% elif backup_files %}
+                            Available (date unknown)
                         {% else %}
                             None
                         {% endif %}
