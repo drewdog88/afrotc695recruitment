@@ -94,18 +94,20 @@ def list_backup_files_r2():
         bucket_name = 'afrotc695recruitment'
 
         response = r2_client.list_objects_v2(
-            Bucket=bucket_name,
-            Prefix='afrotc695_backup_'  # Filter for backup files
+            Bucket=bucket_name
+            # Removed restrictive prefix filter to list all files
         )
 
         files = []
         if 'Contents' in response:
             for obj in response['Contents']:
-                files.append({
-                    'filename': obj['Key'],
-                    'size': obj['Size'],
-                    'last_modified': obj['LastModified']
-                })
+                # Only include backup-related files
+                if 'backup' in obj['Key'].lower() or 'afrotc695' in obj['Key'].lower():
+                    files.append({
+                        'filename': obj['Key'],
+                        'size': obj['Size'],
+                        'last_modified': obj['LastModified']
+                    })
         return files
     except ClientError as e:
         print(f"R2 list error: {e}")
@@ -420,27 +422,30 @@ def list_backup_files():
             try:
                 filename = file_info['filename']  # R2 returns filename directly
 
-                # Determine backup type based on filename
-                if filename.startswith(f"{BACKUP_FOLDERS['full']}/"):
+                # Determine backup type based on flat filename structure
+                backup_type = "unknown"
+                if filename.endswith('.tar.gz'):
                     backup_type = "full"
-                    if filename.endswith('.zip'):
-                        backup_type = "full_zip"
-                elif filename.startswith(f"{BACKUP_FOLDERS['daily']}/"):
-                    backup_type = "daily"
-                else:
-                    # Skip files not in backup folders
-                    continue
+                elif filename.endswith('.json'):
+                    if 'daily' in filename:
+                        backup_type = "daily"
+                    elif 'full' in filename:
+                        backup_type = "full"
+                    else:
+                        backup_type = "daily"  # Default for JSON files
 
                 # Extract timestamp and description
                 timestamp = None
                 description = "Unknown"
 
                 if filename.endswith('.json'):
-                    # Extract timestamp from filename: afrotc695_backup_YYYYMMDD_HHMMSS.json
+                    # Extract timestamp from filename: afrotc695_backup_daily_YYYYMMDD_HHMMSS.json
+                    # or afrotc695_backup_full_YYYYMMDD_HHMMSS.json
                     if 'afrotc695_backup_' in filename:
-                        timestamp_str = filename.split('afrotc695_backup_')[1].replace('.json', '')
+                        # Remove prefix and extension
+                        timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('afrotc695_backup_full_', '').replace('.json', '')
                         try:
-                            timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                            timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
                         except:
                             pass
 
@@ -454,29 +459,29 @@ def list_backup_files():
                     except Exception as e:
                         print(f"Could not read description from {filename}: {e}")
 
-                elif filename.endswith('.zip'):
-                    # Extract timestamp from filename: afrotc695_full_backup_YYYYMMDD_HHMMSS.zip
-                    if 'afrotc695_full_backup_' in filename:
-                        timestamp_str = filename.split('afrotc695_full_backup_')[1].replace('.zip', '')
+                elif filename.endswith('.tar.gz'):
+                    # Extract timestamp from filename: afrotc695_backup_full_YYYYMMDD_HHMMSS.tar.gz
+                    if 'afrotc695_backup_full_' in filename:
+                        timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.tar.gz', '')
                         try:
-                            timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                            timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
                         except:
                             pass
 
-                    # Try to read description from the ZIP metadata
+                    # Try to read description from the tar.gz metadata
                     try:
                         backup_content = download_backup_file(filename)
                         if backup_content:
-                            import zipfile
+                            import tarfile
                             import io
-                            with zipfile.ZipFile(io.BytesIO(backup_content), 'r') as zip_file:
-                                if 'backup_metadata.json' in zip_file.namelist():
-                                    metadata_content = zip_file.read('backup_metadata.json')
+                            with tarfile.open(fileobj=io.BytesIO(backup_content), mode='r:gz') as tar_file:
+                                if 'backup_metadata.json' in [member.name for member in tar_file.getmembers()]:
+                                    metadata_content = tar_file.extractfile('backup_metadata.json').read()
                                     metadata = json.loads(metadata_content.decode('utf-8'))
                                     if 'description' in metadata:
                                         description = metadata['description']
                     except Exception as e:
-                        print(f"Could not read description from ZIP {filename}: {e}")
+                        print(f"Could not read description from tar.gz {filename}: {e}")
 
                 # Get file size from R2 metadata
                 size = file_info.get('size', 0)  # R2 provides size directly
