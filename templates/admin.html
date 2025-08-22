@@ -74,10 +74,12 @@
                 <div class="mt-3">
                     <p><strong>Available Backups:</strong> {{ backup_files|length }}</p>
                     <p><strong>Last Backup:</strong> 
-                        {% if backup_files and backup_files[0] and backup_files[0].get('created') %}
-                            {{ backup_files[0].get('created').strftime('%Y-%m-%d %H:%M') }}
-                        {% elif backup_files %}
-                            Available (date unknown)
+                        {% if backup_files and backup_files|length > 0 %}
+                            {% if backup_files[0] and backup_files[0].created %}
+                                {{ backup_files[0].created.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                Available (date unknown)
+                            {% endif %}
                         {% else %}
                             None
                         {% endif %}
