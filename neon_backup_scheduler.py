@@ -128,8 +128,16 @@ def download_backup_file_r2(filename):
             print(f"Security error: Invalid filename pattern: {filename}")
             return None
 
-        # Security validation: Only allow backup files
-        if not filename.startswith('afrotc695_backup_'):
+        # Security validation: Allow various backup filename patterns
+        valid_patterns = [
+            'afrotc695_backup_',
+            'afrotc695_full_backup_',
+            'neon_backup_',
+            'emergency_backup_',
+            'test_backup_'
+        ]
+        
+        if not any(filename.startswith(pattern) for pattern in valid_patterns):
             print(f"Security error: Filename does not match backup pattern: {filename}")
             return None
 
@@ -431,6 +439,10 @@ def list_backup_files():
                         backup_type = "daily"
                     elif 'full' in filename:
                         backup_type = "full"
+                    elif 'emergency' in filename:
+                        backup_type = "emergency"
+                    elif 'test' in filename:
+                        backup_type = "test"
                     else:
                         backup_type = "daily"  # Default for JSON files
 
@@ -439,11 +451,29 @@ def list_backup_files():
                 description = "Unknown"
 
                 if filename.endswith('.json'):
-                    # Extract timestamp from filename: afrotc695_backup_daily_YYYYMMDD_HHMMSS.json
-                    # or afrotc695_backup_full_YYYYMMDD_HHMMSS.json
-                    if 'afrotc695_backup_' in filename:
-                        # Remove prefix and extension
-                        timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('afrotc695_backup_full_', '').replace('.json', '')
+                    # Handle various timestamp patterns in filenames
+                    timestamp_part = None
+                    
+                    # Pattern 1: afrotc695_backup_daily_YYYYMMDD_HHMMSS.json
+                    if 'afrotc695_backup_daily_' in filename:
+                        timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('.json', '')
+                    # Pattern 2: afrotc695_backup_full_YYYYMMDD_HHMMSS.json
+                    elif 'afrotc695_backup_full_' in filename:
+                        timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.json', '')
+                    # Pattern 3: afrotc695_full_backup_YYYYMMDD_HHMMSS.json
+                    elif 'afrotc695_full_backup_' in filename:
+                        timestamp_part = filename.replace('afrotc695_full_backup_', '').replace('.json', '')
+                    # Pattern 4: neon_backup_YYYYMMDD_HHMMSS.json
+                    elif 'neon_backup_' in filename:
+                        timestamp_part = filename.replace('neon_backup_', '').replace('.json', '')
+                    # Pattern 5: emergency_backup_YYYYMMDD_HHMMSS.json
+                    elif 'emergency_backup_' in filename:
+                        timestamp_part = filename.replace('emergency_backup_', '').replace('.json', '')
+                    # Pattern 6: test_backup_YYYYMMDD_HHMMSS.json
+                    elif 'test_backup_' in filename:
+                        timestamp_part = filename.replace('test_backup_', '').replace('.json', '')
+                    
+                    if timestamp_part:
                         try:
                             timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
                         except:
