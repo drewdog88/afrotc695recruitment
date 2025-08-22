@@ -117,13 +117,13 @@ def restore_database(backup_file_path):
         print(f"Error restoring database: {e}")
         return False
 
-def get_backup_files():
-    """Get list of available backup files from R2 storage"""
+def get_backup_files(page=1, per_page=10):
+    """Get list of available backup files from R2 storage with pagination"""
     try:
         # Check if required R2 environment variables are set
         if not os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'):
             print("Warning: CLOUDFLARE_R2_ACCESS_KEY_ID not set, backup system unavailable")
-            return []
+            return [], 0
 
         # Import the Neon backup function from neon_backup_scheduler
         try:
@@ -133,16 +133,26 @@ def get_backup_files():
             print(f"Import error for list_backup_files: {e}")
             import traceback
             traceback.print_exc()
-            return []
+            return [], 0
         
-        files = list_backup_files()
-        print(f"Successfully retrieved {len(files)} backup files from R2")
-        return files
+        # Get all files first (they're already sorted by date, newest first)
+        all_files = list_backup_files()
+        total_count = len(all_files)
+        print(f"Successfully retrieved {total_count} backup files from R2")
+        
+        # Calculate pagination
+        start_index = (page - 1) * per_page
+        end_index = start_index + per_page
+        
+        # Get the page of files
+        page_files = all_files[start_index:end_index]
+        
+        return page_files, total_count
     except Exception as e:
         print(f"Error getting backup files: {e}")
         import traceback
         traceback.print_exc()
-        return []
+        return [], 0
 
 def download_backup_content(filename):
     """Download backup file content from R2 storage"""
@@ -1184,7 +1194,11 @@ def database_management():
         return redirect(url_for('dashboard'))
 
     try:
-        backup_files = get_backup_files()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = 10  # Show 10 backups per page
+        
+        backup_files, total_count = get_backup_files(page=page, per_page=per_page)
 
         # Check if backup system is available (R2)
         backup_system_available = bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'))
@@ -1194,13 +1208,19 @@ def database_management():
         r2_secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
         r2_bucket = os.getenv('CLOUDFLARE_R2_BUCKET_NAME', 'afrotc695recruitment')
         
+        # Calculate pagination info
+        total_pages = (total_count + per_page - 1) // per_page
+        has_prev = page > 1
+        has_next = page < total_pages
+        
         # Determine backup system status
         backup_status = {
             'available': backup_system_available,
             'account_id_configured': bool(r2_account_id),
             'secret_key_configured': bool(r2_secret_key),
             'bucket_configured': bool(r2_bucket),
-            'files_count': len(backup_files) if backup_files else 0
+            'files_count': total_count,  # Total count of all backups
+            'page_files_count': len(backup_files)  # Count of files on current page
         }
 
         # If R2 is not available, show a helpful message
@@ -1211,7 +1231,15 @@ def database_management():
         return render_template('database_management.html',
                              backup_files=backup_files,
                              backup_system_available=backup_system_available,
-                             backup_status=backup_status)
+                             backup_status=backup_status,
+                             pagination={
+                                 'page': page,
+                                 'per_page': per_page,
+                                 'total_count': total_count,
+                                 'total_pages': total_pages,
+                                 'has_prev': has_prev,
+                                 'has_next': has_next
+                             })
     except Exception as e:
         print(f"Error in database management route: {e}")
         import traceback
@@ -1220,7 +1248,8 @@ def database_management():
         return render_template('database_management.html',
                              backup_files=[],
                              backup_system_available=False,
-                             backup_status={'available': False, 'error': str(e)})
+                             backup_status={'available': False, 'error': str(e)},
+                             pagination={'page': 1, 'per_page': 10, 'total_count': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False})
 
 @app.route('/admin/activity-log')
 def activity_log():
