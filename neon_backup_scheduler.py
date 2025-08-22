@@ -480,7 +480,7 @@ def list_backup_files():
                         except:
                             pass
 
-                    # Try to read description from the JSON backup file
+                                    # Try to read description from the JSON backup file
                     try:
                         backup_content = download_backup_file(filename)
                         if backup_content:
@@ -488,7 +488,9 @@ def list_backup_files():
                             if 'description' in backup_data:
                                 description = backup_data['description']
                     except Exception as e:
+                        # Don't fail the entire listing if we can't read one file's description
                         print(f"Could not read description from {filename}: {e}")
+                        description = "Backup file"  # Default description
 
                 elif filename.endswith('.tar.gz'):
                     # Extract timestamp from filename: afrotc695_backup_full_YYYYMMDD_HHMMSS.tar.gz
@@ -512,7 +514,9 @@ def list_backup_files():
                                     if 'description' in metadata:
                                         description = metadata['description']
                     except Exception as e:
+                        # Don't fail the entire listing if we can't read one file's description
                         print(f"Could not read description from tar.gz {filename}: {e}")
+                        description = "Full backup archive"  # Default description
 
                 # Get file size from R2 metadata
                 size = file_info.get('size', 0)  # R2 provides size directly
@@ -528,6 +532,15 @@ def list_backup_files():
 
             except Exception as e:
                 print(f"Error processing backup file {filename}: {e}")
+                # Add a basic entry even if processing fails
+                backup_files.append({
+                    'filename': filename,
+                    'backup_type': 'unknown',
+                    'created': None,
+                    'size': file_info.get('size', 0),
+                    'description': 'Backup file',
+                    'user': 'System'
+                })
                 continue
 
         # Sort by creation date (newest first)
