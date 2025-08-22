@@ -43,7 +43,7 @@
                 <h5 class="mb-0"><i class="fas fa-archive"></i> Create Full Backup</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Create a full backup including database and all blob contents (ZIP format).</p>
+                <p class="text-muted">Create a full backup including database and all blob contents (tar.gz format).</p>
                 <form action="{{ url_for('full_backup') }}" method="POST" class="d-inline">
                     <button type="submit" class="btn btn-success" onclick="return confirm('Create a full backup including database and all blob contents? This may take several minutes.')" {% if not backup_system_available %}disabled{% endif %}>
                         <i class="fas fa-archive"></i> Create Full Backup
@@ -169,14 +169,14 @@
                     </div>
                     <div class="col-6">
                         <strong>Backup Format:</strong><br>
-                        <span class="text-muted">JSON Export (.json) & ZIP (.zip)</span>
+                        <span class="text-muted">JSON Export (.json) & tar.gz (.tar.gz)</span>
                     </div>
                 </div>
                 <hr>
                 <div class="row">
                     <div class="col-6">
                         <strong>Storage Location:</strong><br>
-                        <span class="text-muted">Vercel Blob Storage</span>
+                        <span class="text-muted">Cloudflare R2 Storage</span>
                     </div>
                     <div class="col-6">
                         <strong>Total Backups:</strong><br>
@@ -206,11 +206,11 @@
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Backup Types:</strong> Daily backups contain database only. Full backups include database + all blob contents in ZIP format.
+                    <strong>Backup Types:</strong> Daily backups contain database only. Full backups include database + all blob contents in tar.gz format.
                 </div>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Cloud Storage:</strong> Backups are automatically uploaded to Vercel Blob storage with proper folder structure.
+                    <strong>Cloud Storage:</strong> Backups are automatically uploaded to Cloudflare R2 storage with flat filename structure.
                 </div>
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i>
