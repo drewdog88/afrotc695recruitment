@@ -49,7 +49,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Database backup configuration - using Vercel Blob storage via neon_backup_scheduler
+# Database backup configuration - using Cloudflare R2 storage via neon_backup_scheduler
 
 def backup_database(description="Manual backup"):
     """Create a database backup using Neon PostgreSQL and R2 storage"""
@@ -1161,7 +1161,7 @@ def database_management():
 
         # Check if backup system is available (R2)
         backup_system_available = bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'))
-        
+
         # If R2 is not available, show a helpful message
         if not backup_system_available:
             print("Warning: R2 backup system not available - CLOUDFLARE_R2_ACCESS_KEY_ID not configured")
@@ -2171,14 +2171,14 @@ def export_data(data, filename, format, title):
         import csv
         output = BytesIO()
         writer = csv.writer(output)
-        
+
         if data:
             # Write headers
             writer.writerow(data[0].keys())
             # Write data rows
             for row in data:
                 writer.writerow(row.values())
-        
+
         output.seek(0)
         return send_file(
             output,
@@ -2194,7 +2194,7 @@ def export_data(data, filename, format, title):
             output = BytesIO()
             workbook = xlsxwriter.Workbook(output)
             worksheet = workbook.add_worksheet(title[:31])  # Excel sheet names limited to 31 chars
-            
+
             # Add formats
             header_format = workbook.add_format({
                 'bold': True,
@@ -2204,17 +2204,17 @@ def export_data(data, filename, format, title):
             data_format = workbook.add_format({
                 'border': 1
             })
-            
+
             if data:
                 # Write headers
                 for col, header in enumerate(data[0].keys()):
                     worksheet.write(0, col, header, header_format)
-                
+
                 # Write data
                 for row_idx, row in enumerate(data, start=1):
                     for col_idx, value in enumerate(row.values()):
                         worksheet.write(row_idx, col_idx, str(value), data_format)
-            
+
             workbook.close()
             output.seek(0)
             return send_file(
@@ -2232,34 +2232,34 @@ def export_data(data, filename, format, title):
         try:
             from fpdf import FPDF
             output = BytesIO()
-            
+
             # Create PDF
             pdf = FPDF(orientation='L')  # Landscape
             pdf.add_page()
             pdf.set_font('Arial', 'B', 16)
-            
+
             # Add title
             pdf.cell(0, 10, title, ln=True, align='C')
             pdf.ln(5)
-            
+
             if data:
                 # Calculate column widths
                 headers = list(data[0].keys())
                 col_width = 270 / len(headers)  # 270mm landscape width
-                
+
                 # Add headers
                 pdf.set_font('Arial', 'B', 10)
                 for header in headers:
                     pdf.cell(col_width, 8, str(header)[:20], border=1, align='C')
                 pdf.ln()
-                
+
                 # Add data
                 pdf.set_font('Arial', '', 8)
                 for row in data:
                     for value in row.values():
                         pdf.cell(col_width, 6, str(value)[:20], border=1, align='L')
                     pdf.ln()
-            
+
             pdf.output(output)
             output.seek(0)
             return send_file(

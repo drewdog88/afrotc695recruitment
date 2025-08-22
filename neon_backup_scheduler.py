@@ -46,14 +46,30 @@ if not BLOB_READ_WRITE_TOKEN:
     print("Warning: BLOB_READ_WRITE_TOKEN not set - backup system unavailable")
 
 def get_r2_client():
-    """Get configured R2 client using boto3"""
-    return boto3.client(
-        's3',
-        endpoint_url=f'https://{os.getenv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com',
-        aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
-        region_name='auto'
-    )
+    """Get configured R2 client using boto3 with custom domain for enhanced security"""
+    try:
+        # Use custom domain if configured, otherwise fall back to direct R2 endpoint
+        custom_domain = os.getenv('CLOUDFLARE_R2_CUSTOM_DOMAIN')
+
+        if custom_domain:
+            # Use custom domain with Cloudflare Access protection
+            endpoint_url = f'https://{custom_domain}'
+            print(f"Using secure custom domain: {endpoint_url}")
+        else:
+            # Fall back to direct R2 endpoint (less secure)
+            endpoint_url = f'https://{os.getenv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com'
+            print(f"Warning: Using direct R2 endpoint. Consider setting CLOUDFLARE_R2_CUSTOM_DOMAIN for enhanced security")
+
+        return boto3.client(
+            's3',
+            endpoint_url=endpoint_url,
+            aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
+            region_name='auto'
+        )
+    except Exception as e:
+        print(f"Error creating R2 client: {e}")
+        return None
 
 def upload_backup_to_r2(backup_data, filename):
     """Upload backup to R2 using boto3"""
@@ -133,32 +149,6 @@ def download_backup_file_r2(filename):
 
 # R2 Configuration
 R2_BUCKET_NAME = 'afrotc695recruitment'
-
-def get_r2_client():
-    """Get configured R2 client using boto3 with custom domain for enhanced security"""
-    try:
-        # Use custom domain if configured, otherwise fall back to direct R2 endpoint
-        custom_domain = os.getenv('CLOUDFLARE_R2_CUSTOM_DOMAIN')
-
-        if custom_domain:
-            # Use custom domain with Cloudflare Access protection
-            endpoint_url = f'https://{custom_domain}'
-            print(f"Using secure custom domain: {endpoint_url}")
-        else:
-            # Fall back to direct R2 endpoint (less secure)
-            endpoint_url = f'https://{os.getenv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com'
-            print(f"Warning: Using direct R2 endpoint. Consider setting CLOUDFLARE_R2_CUSTOM_DOMAIN for enhanced security")
-
-        return boto3.client(
-            's3',
-            endpoint_url=endpoint_url,
-            aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-            aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
-            region_name='auto'
-        )
-    except Exception as e:
-        print(f"Error creating R2 client: {e}")
-        return None
 
 def get_database_engine():
     """Get database engine for backup operations"""
@@ -639,7 +629,7 @@ def run_backup_scheduler():
     print("Weekly full backups will run at 3:00 AM on Sundays")
     print("Daily backup retention: 30 days")
     print("Full backup retention: 90 days")
-    print("Storage: Vercel Blob with folder structure")
+    print("Storage: Cloudflare R2 with flat filename structure")
     print("Press Ctrl+C to stop the scheduler")
 
     # Schedule nightly backup at 2:00 AM

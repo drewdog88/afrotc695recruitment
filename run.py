@@ -23,11 +23,34 @@ def main():
     try:
         import flask
         import flask_sqlalchemy
-        import pandas
-        import openpyxl
-        import reportlab
         import dotenv
-        print("✓ All required packages are installed")
+        print("✓ Core packages are installed")
+        
+        # Check optional packages (these are not required for basic functionality)
+        optional_packages = []
+        try:
+            import pandas
+            optional_packages.append("pandas")
+        except ImportError:
+            pass
+            
+        try:
+            import openpyxl
+            optional_packages.append("openpyxl")
+        except ImportError:
+            pass
+            
+        try:
+            import reportlab
+            optional_packages.append("reportlab")
+        except ImportError:
+            pass
+            
+        if optional_packages:
+            print(f"✓ Optional packages available: {', '.join(optional_packages)}")
+        else:
+            print("⚠ Optional packages (pandas, openpyxl, reportlab) not available - data export features disabled")
+            
     except ImportError as e:
         print(f"✗ Missing required package: {e}")
         print("Please install requirements: pip install -r requirements.txt")

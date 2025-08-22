@@ -16,11 +16,24 @@ import time
 import requests
 from sqlalchemy.pool import NullPool
 from sqlalchemy import text
-import pandas as pd
-from reportlab.lib.pagesizes import letter, A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
+
+# Optional imports for data export functionality
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    print("Warning: pandas not available - data export functionality disabled")
+
+try:
+    from reportlab.lib.pagesizes import letter, A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+    print("Warning: reportlab not available - PDF export functionality disabled")
 # Neon import removed - using SQLAlchemy with psycopg2 instead
 from dotenv import load_dotenv
 from vercel_blob import put, list as blob_list, delete, head
