@@ -71,16 +71,22 @@ def get_r2_client():
         print(f"Error creating R2 client: {e}")
         return None
 
-def upload_backup_to_r2(backup_data, filename):
-    """Upload backup to R2 using boto3"""
+def upload_backup_to_r2(backup_data, filename, metadata=None):
+    """Upload backup to R2 using boto3 with optional metadata"""
     try:
         r2_client = get_r2_client()
         bucket_name = 'afrotc695recruitment'
 
+        # Prepare metadata for upload
+        extra_args = {}
+        if metadata:
+            extra_args['Metadata'] = metadata
+
         r2_client.put_object(
             Bucket=bucket_name,
             Key=filename,
-            Body=backup_data
+            Body=backup_data,
+            **extra_args
         )
         return True
     except ClientError as e:
@@ -88,7 +94,7 @@ def upload_backup_to_r2(backup_data, filename):
         return False
 
 def list_backup_files_r2():
-    """List backup files in R2 using boto3 with optimized list_objects_v2"""
+    """List backup files in R2 using boto3 with metadata included"""
     try:
         r2_client = get_r2_client()
         bucket_name = 'afrotc695recruitment'
@@ -97,7 +103,6 @@ def list_backup_files_r2():
         paginator = r2_client.get_paginator('list_objects_v2')
 
         # Use prefix filtering to reduce the number of objects we need to process
-        # This is much more efficient than filtering after listing all objects
         backup_prefixes = [
             'afrotc695_backup_',
             'afrotc695_full_backup_',
@@ -120,10 +125,21 @@ def list_backup_files_r2():
                 for page in page_iterator:
                     if 'Contents' in page:
                         for obj in page['Contents']:
+                            # Get metadata for each object (this is fast, no file download)
+                            try:
+                                head_response = r2_client.head_object(
+                                    Bucket=bucket_name,
+                                    Key=obj['Key']
+                                )
+                                metadata = head_response.get('Metadata', {})
+                            except:
+                                metadata = {}
+
                             files.append({
                                 'filename': obj['Key'],
                                 'size': obj['Size'],
-                                'last_modified': obj['LastModified']
+                                'last_modified': obj['LastModified'],
+                                'metadata': metadata
                             })
             except Exception as e:
                 print(f"Error listing objects with prefix '{prefix}': {e}")
@@ -132,7 +148,7 @@ def list_backup_files_r2():
         # Sort by last_modified for consistent ordering
         files.sort(key=lambda x: x['last_modified'], reverse=True)
 
-        print(f"R2 list_objects_v2: Found {len(files)} backup files using prefix filtering")
+        print(f"R2 list_objects_v2: Found {len(files)} backup files with metadata")
         return files
     except ClientError as e:
         print(f"R2 list_objects_v2 error: {e}")
@@ -250,8 +266,17 @@ def backup_database_neon(description="Nightly automatic backup", backup_type="da
         # Convert to JSON string
         backup_json = json.dumps(backup_data, indent=2, default=str)
 
-        # Upload to R2 (replacing Vercel Blob)
-        success = upload_backup_to_r2(backup_json.encode('utf-8'), backup_filename)
+        # Prepare metadata for R2 upload
+        backup_metadata = {
+            'backup_type': backup_type,
+            'description': description,
+            'timestamp': datetime.now().isoformat(),
+            'user': 'System',
+            'created_at': datetime.now().isoformat()
+        }
+
+        # Upload to R2 with metadata
+        success = upload_backup_to_r2(backup_json.encode('utf-8'), backup_filename, backup_metadata)
 
         if success:
             print(f"Backup uploaded successfully to R2: {backup_filename}")
@@ -343,7 +368,7 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 'created_at': datetime.now().isoformat(),
                 'contents': {
                     'database_backup': backup_filename if backup_filename else None,
-                    'vercel_blob_files_count': len(blob_files) if blob_files else 0,
+                    'vercel_blob_files_count': 0,  # No Vercel Blob files in backup system
                     'r2_backup_files_count': len(r2_backup_files) if r2_backup_files else 0,
                     'total_size': tgz_buffer.tell()
                 }
@@ -355,11 +380,21 @@ def create_full_backup_tgz(description="Weekly full backup"):
             metadata_info.size = len(metadata_content)
             tar_file.addfile(metadata_info, io.BytesIO(metadata_content))
 
-        # Upload the tar.gz file to R2
+        # Prepare metadata for full backup
+        full_backup_metadata = {
+            'backup_type': 'full',
+            'description': description,
+            'timestamp': datetime.now().isoformat(),
+            'user': 'System',
+            'created_at': datetime.now().isoformat(),
+            'format': 'tar.gz'
+        }
+
+        # Upload the tar.gz file to R2 with metadata
         tgz_buffer.seek(0)
         tgz_content = tgz_buffer.read()
 
-        success = upload_backup_to_r2(tgz_content, tgz_filename)
+        success = upload_backup_to_r2(tgz_content, tgz_filename, full_backup_metadata)
 
         if success:
             print(f"Full backup tar.gz uploaded successfully to R2: {tgz_filename}")
@@ -373,110 +408,104 @@ def create_full_backup_tgz(description="Weekly full backup"):
         return None, None
 
 def list_backup_files():
-    """List all backup files in R2 storage (replacing Vercel Blob)"""
+    """List all backup files in R2 storage using metadata - ULTRA FAST VERSION"""
     try:
-        # Use R2 listing instead of Vercel Blob
+        # Use R2 listing with metadata
         r2_files = list_backup_files_r2()
 
         if not r2_files:
             print("No backup files found in R2 storage")
             return []
 
-        # Process R2 files to add metadata
+        # Process R2 files using metadata (ULTRA FAST - no file downloads or filename parsing)
         backup_files = []
         for file_info in r2_files:
             try:
-                filename = file_info['filename']  # R2 returns filename directly
+                filename = file_info['filename']
+                metadata = file_info.get('metadata', {})
+                size = file_info.get('size', 0)
+                last_modified = file_info.get('last_modified')
 
-                # Determine backup type based on flat filename structure
-                backup_type = "unknown"
-                if filename.endswith('.tar.gz'):
-                    backup_type = "full"
-                elif filename.endswith('.json'):
-                    if 'daily' in filename:
-                        backup_type = "daily"
-                    elif 'full' in filename:
+                # Use metadata if available, fall back to filename parsing for legacy files
+                if metadata:
+                    # New files with metadata
+                    backup_type = metadata.get('backup_type', 'unknown')
+                    description = metadata.get('description', 'Backup file')
+                    user = metadata.get('user', 'System')
+                    
+                    # Parse timestamp from metadata
+                    timestamp = None
+                    if 'timestamp' in metadata:
+                        try:
+                            timestamp = datetime.fromisoformat(metadata['timestamp'].replace('Z', '+00:00'))
+                        except:
+                            pass
+                    elif 'created_at' in metadata:
+                        try:
+                            timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
+                        except:
+                            pass
+                else:
+                    # Legacy files without metadata - use filename parsing
+                    backup_type = "unknown"
+                    if filename.endswith('.tar.gz'):
                         backup_type = "full"
-                    elif 'emergency' in filename:
-                        backup_type = "emergency"
-                    elif 'test' in filename:
-                        backup_type = "test"
-                    else:
-                        backup_type = "daily"  # Default for JSON files
+                    elif filename.endswith('.json'):
+                        if 'daily' in filename:
+                            backup_type = "daily"
+                        elif 'full' in filename:
+                            backup_type = "full"
+                        elif 'emergency' in filename:
+                            backup_type = "emergency"
+                        elif 'test' in filename:
+                            backup_type = "test"
+                        else:
+                            backup_type = "daily"
 
-                # Extract timestamp and description
-                timestamp = None
-                description = "Unknown"
+                    # Extract timestamp from filename for legacy files
+                    timestamp = None
+                    description = "Backup file"
+                    user = 'System'
 
-                if filename.endswith('.json'):
-                    # Handle various timestamp patterns in filenames
-                    timestamp_part = None
+                    if filename.endswith('.json'):
+                        timestamp_part = None
+                        if 'afrotc695_backup_daily_' in filename:
+                            timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('.json', '')
+                            description = "Daily backup"
+                        elif 'afrotc695_backup_full_' in filename:
+                            timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.json', '')
+                            description = "Full backup"
+                        elif 'afrotc695_full_backup_' in filename:
+                            timestamp_part = filename.replace('afrotc695_full_backup_', '').replace('.json', '')
+                            description = "Full backup"
+                        elif 'neon_backup_' in filename:
+                            timestamp_part = filename.replace('neon_backup_', '').replace('.json', '')
+                            description = "Neon backup"
+                        elif 'emergency_backup_' in filename:
+                            timestamp_part = filename.replace('emergency_backup_', '').replace('.json', '')
+                            description = "Emergency backup"
+                        elif 'test_backup_' in filename:
+                            timestamp_part = filename.replace('test_backup_', '').replace('.json', '')
+                            description = "Test backup"
 
-                    # Pattern 1: afrotc695_backup_daily_YYYYMMDD_HHMMSS.json
-                    if 'afrotc695_backup_daily_' in filename:
-                        timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('.json', '')
-                    # Pattern 2: afrotc695_backup_full_YYYYMMDD_HHMMSS.json
-                    elif 'afrotc695_backup_full_' in filename:
-                        timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.json', '')
-                    # Pattern 3: afrotc695_full_backup_YYYYMMDD_HHMMSS.json
-                    elif 'afrotc695_full_backup_' in filename:
-                        timestamp_part = filename.replace('afrotc695_full_backup_', '').replace('.json', '')
-                    # Pattern 4: neon_backup_YYYYMMDD_HHMMSS.json
-                    elif 'neon_backup_' in filename:
-                        timestamp_part = filename.replace('neon_backup_', '').replace('.json', '')
-                    # Pattern 5: emergency_backup_YYYYMMDD_HHMMSS.json
-                    elif 'emergency_backup_' in filename:
-                        timestamp_part = filename.replace('emergency_backup_', '').replace('.json', '')
-                    # Pattern 6: test_backup_YYYYMMDD_HHMMSS.json
-                    elif 'test_backup_' in filename:
-                        timestamp_part = filename.replace('test_backup_', '').replace('.json', '')
+                        if timestamp_part:
+                            try:
+                                timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
+                            except:
+                                pass
 
-                    if timestamp_part:
-                        try:
-                            timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
-                        except:
-                            pass
+                    elif filename.endswith('.tar.gz'):
+                        if 'afrotc695_backup_full_' in filename:
+                            timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.tar.gz', '')
+                            description = "Full backup (compressed)"
+                            try:
+                                timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
+                            except:
+                                pass
 
-                    # Try to read description from the JSON backup file
-                    try:
-                        backup_content = download_backup_file(filename)
-                        if backup_content:
-                            backup_data = json.loads(backup_content.decode('utf-8'))
-                            if 'description' in backup_data:
-                                description = backup_data['description']
-                    except Exception as e:
-                        # Don't fail the entire listing if we can't read one file's description
-                        print(f"Could not read description from {filename}: {e}")
-                        description = "Backup file"  # Default description
-
-                elif filename.endswith('.tar.gz'):
-                    # Extract timestamp from filename: afrotc695_backup_full_YYYYMMDD_HHMMSS.tar.gz
-                    if 'afrotc695_backup_full_' in filename:
-                        timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.tar.gz', '')
-                        try:
-                            timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
-                        except:
-                            pass
-
-                    # Try to read description from the tar.gz metadata
-                    try:
-                        backup_content = download_backup_file(filename)
-                        if backup_content:
-                            import tarfile
-                            import io
-                            with tarfile.open(fileobj=io.BytesIO(backup_content), mode='r:gz') as tar_file:
-                                if 'backup_metadata.json' in [member.name for member in tar_file.getmembers()]:
-                                    metadata_content = tar_file.extractfile('backup_metadata.json').read()
-                                    metadata = json.loads(metadata_content.decode('utf-8'))
-                                    if 'description' in metadata:
-                                        description = metadata['description']
-                    except Exception as e:
-                        # Don't fail the entire listing if we can't read one file's description
-                        print(f"Could not read description from tar.gz {filename}: {e}")
-                        description = "Full backup archive"  # Default description
-
-                # Get file size from R2 metadata
-                size = file_info.get('size', 0)  # R2 provides size directly
+                # Use last_modified as fallback if no timestamp found
+                if not timestamp and last_modified:
+                    timestamp = last_modified
 
                 backup_files.append({
                     'filename': filename,
@@ -484,7 +513,8 @@ def list_backup_files():
                     'created': timestamp,
                     'size': size,
                     'description': description,
-                    'user': 'System'
+                    'user': user,
+                    'has_metadata': bool(metadata)  # Flag to identify files needing metadata update
                 })
 
             except Exception as e:
@@ -496,7 +526,8 @@ def list_backup_files():
                     'created': None,
                     'size': file_info.get('size', 0),
                     'description': 'Backup file',
-                    'user': 'System'
+                    'user': 'System',
+                    'has_metadata': False
                 })
                 continue
 
@@ -524,6 +555,122 @@ def download_backup_file(filename):
         return None
 
 
+
+def update_backup_metadata(filename):
+    """Update an existing backup file with metadata using R2 copy operation"""
+    try:
+        r2_client = get_r2_client()
+        bucket_name = 'afrotc695recruitment'
+
+        # Determine backup type and description from filename
+        backup_type = "unknown"
+        description = "Backup file"
+        timestamp = None
+
+        if filename.endswith('.tar.gz'):
+            backup_type = "full"
+            description = "Full backup (compressed)"
+        elif filename.endswith('.json'):
+            if 'daily' in filename:
+                backup_type = "daily"
+                description = "Daily backup"
+            elif 'full' in filename:
+                backup_type = "full"
+                description = "Full backup"
+            elif 'emergency' in filename:
+                backup_type = "emergency"
+                description = "Emergency backup"
+            elif 'test' in filename:
+                backup_type = "test"
+                description = "Test backup"
+            else:
+                backup_type = "daily"
+                description = "Daily backup"
+
+        # Extract timestamp from filename
+        if filename.endswith('.json'):
+            timestamp_part = None
+            if 'afrotc695_backup_daily_' in filename:
+                timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('.json', '')
+            elif 'afrotc695_backup_full_' in filename:
+                timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.json', '')
+            elif 'afrotc695_full_backup_' in filename:
+                timestamp_part = filename.replace('afrotc695_full_backup_', '').replace('.json', '')
+            elif 'neon_backup_' in filename:
+                timestamp_part = filename.replace('neon_backup_', '').replace('.json', '')
+            elif 'emergency_backup_' in filename:
+                timestamp_part = filename.replace('emergency_backup_', '').replace('.json', '')
+            elif 'test_backup_' in filename:
+                timestamp_part = filename.replace('test_backup_', '').replace('.json', '')
+
+            if timestamp_part:
+                try:
+                    timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
+                except:
+                    pass
+
+        elif filename.endswith('.tar.gz'):
+            if 'afrotc695_backup_full_' in filename:
+                timestamp_part = filename.replace('afrotc695_backup_full_', '').replace('.tar.gz', '')
+                try:
+                    timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
+                except:
+                    pass
+
+        # Prepare metadata
+        metadata = {
+            'backup_type': backup_type,
+            'description': description,
+            'timestamp': timestamp.isoformat() if timestamp else datetime.now().isoformat(),
+            'user': 'System',
+            'created_at': timestamp.isoformat() if timestamp else datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat()
+        }
+
+        # Use copy operation to update metadata (copy object to itself with new metadata)
+        copy_source = {
+            'Bucket': bucket_name,
+            'Key': filename
+        }
+
+        r2_client.copy_object(
+            CopySource=copy_source,
+            Bucket=bucket_name,
+            Key=filename,
+            Metadata=metadata,
+            MetadataDirective='REPLACE'
+        )
+
+        print(f"Updated metadata for backup file: {filename}")
+        return True
+
+    except Exception as e:
+        print(f"Error updating metadata for backup file {filename}: {e}")
+        return False
+
+def update_all_backup_metadata():
+    """Update all existing backup files with metadata"""
+    try:
+        print("Starting metadata update for all backup files...")
+        backup_files = list_backup_files()
+        
+        if not backup_files:
+            print("No backup files found to update")
+            return
+
+        updated_count = 0
+        for backup_file in backup_files:
+            if not backup_file.get('has_metadata', False):
+                filename = backup_file['filename']
+                if update_backup_metadata(filename):
+                    updated_count += 1
+
+        print(f"Metadata update completed: {updated_count} files updated")
+        return updated_count
+
+    except Exception as e:
+        print(f"Error during metadata update: {e}")
+        return 0
 
 def delete_backup_file(filename):
     """Delete a backup file from R2 storage"""
@@ -698,11 +845,15 @@ if __name__ == "__main__":
         elif sys.argv[1] == "--test":
             # Test the backup system
             test_backup_system()
+        elif sys.argv[1] == "--update-metadata":
+            # Update all existing backup files with metadata
+            update_all_backup_metadata()
         else:
-            print("Usage: python neon_backup_scheduler.py [--now|--full|--test]")
+            print("Usage: python neon_backup_scheduler.py [--now|--full|--test|--update-metadata]")
             print("  --now: Run a single daily backup immediately")
             print("  --full: Run a full backup immediately")
             print("  --test: Test the backup system")
+            print("  --update-metadata: Update all existing backup files with metadata")
     else:
         # Run the scheduled backup system
         run_backup_scheduler()
