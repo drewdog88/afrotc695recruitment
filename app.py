@@ -5,14 +5,27 @@ from datetime import datetime, date, time, timezone, timedelta
 import os
 # Removed sqlite3 import - using Neon PostgreSQL exclusively
 from dotenv import load_dotenv
-import pandas as pd
 from io import BytesIO
-from reportlab.lib.pagesizes import letter, A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
 import tempfile
 import zipfile
+
+# Optional imports for data export functionality
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    print("Warning: pandas not available - data export functionality disabled")
+
+try:
+    from reportlab.lib.pagesizes import letter, A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+    print("Warning: reportlab not available - PDF export functionality disabled")
 
 
 
@@ -2152,11 +2165,20 @@ def download_activity_log(format):
     return export_data(data, f'activity_log_{datetime.now().strftime("%Y%m%d")}', format, 'Activity Log')
 
 def export_data(data, filename, format, title):
-    """Helper function to export data in different formats"""
+    """Helper function to export data in different formats using lightweight alternatives"""
     if format == 'csv':
-        df = pd.DataFrame(data)
+        # Use built-in csv module (0MB)
+        import csv
         output = BytesIO()
-        df.to_csv(output, index=False)
+        writer = csv.writer(output)
+        
+        if data:
+            # Write headers
+            writer.writerow(data[0].keys())
+            # Write data rows
+            for row in data:
+                writer.writerow(row.values())
+        
         output.seek(0)
         return send_file(
             output,
@@ -2166,71 +2188,89 @@ def export_data(data, filename, format, title):
         )
 
     elif format == 'excel':
-        df = pd.DataFrame(data)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name=title, index=False)
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name=f'{filename}.xlsx'
-        )
+        # Use xlsxwriter instead of openpyxl (~5-10MB vs 20-30MB)
+        try:
+            import xlsxwriter
+            output = BytesIO()
+            workbook = xlsxwriter.Workbook(output)
+            worksheet = workbook.add_worksheet(title[:31])  # Excel sheet names limited to 31 chars
+            
+            # Add formats
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#D3D3D3',
+                'border': 1
+            })
+            data_format = workbook.add_format({
+                'border': 1
+            })
+            
+            if data:
+                # Write headers
+                for col, header in enumerate(data[0].keys()):
+                    worksheet.write(0, col, header, header_format)
+                
+                # Write data
+                for row_idx, row in enumerate(data, start=1):
+                    for col_idx, value in enumerate(row.values()):
+                        worksheet.write(row_idx, col_idx, str(value), data_format)
+            
+            workbook.close()
+            output.seek(0)
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=f'{filename}.xlsx'
+            )
+        except ImportError:
+            flash('Excel export not available - xlsxwriter not installed', 'error')
+            return redirect(url_for('dashboard'))
 
     elif format == 'pdf':
-        output = BytesIO()
-        # Use landscape orientation for better table fit
-        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
-        elements = []
-
-        # Add title
-        styles = getSampleStyleSheet()
-        title_para = Paragraph(f"<h1>{title}</h1>", styles['Title'])
-        elements.append(title_para)
-        elements.append(Paragraph("<br/>", styles['Normal']))
-
-        # Prepare table data
-        if data:
-            headers = list(data[0].keys())
-            table_data = [headers]  # Header row
-
-            for row in data:
-                table_data.append([str(value) for value in row.values()])
-
-            # Calculate available width for table (landscape A4 width minus margins)
-            available_width = landscape(A4)[0] - 72  # 72 points = 1 inch margin on each side
-            num_columns = len(headers)
-
-            # Create table with calculated column widths
-            table = Table(table_data, colWidths=[available_width/num_columns] * num_columns)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),  # Reduced font size for headers
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),  # Reduced font size for data
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white]),  # Alternating row colors
-                ('WORDWRAP', (0, 0), (-1, -1), True),  # Enable word wrapping
-            ]))
-            elements.append(table)
-
-        doc.build(elements)
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'{filename}.pdf'
-        )
+        # Use fpdf2 instead of reportlab (~2-5MB vs 50-100MB)
+        try:
+            from fpdf import FPDF
+            output = BytesIO()
+            
+            # Create PDF
+            pdf = FPDF(orientation='L')  # Landscape
+            pdf.add_page()
+            pdf.set_font('Arial', 'B', 16)
+            
+            # Add title
+            pdf.cell(0, 10, title, ln=True, align='C')
+            pdf.ln(5)
+            
+            if data:
+                # Calculate column widths
+                headers = list(data[0].keys())
+                col_width = 270 / len(headers)  # 270mm landscape width
+                
+                # Add headers
+                pdf.set_font('Arial', 'B', 10)
+                for header in headers:
+                    pdf.cell(col_width, 8, str(header)[:20], border=1, align='C')
+                pdf.ln()
+                
+                # Add data
+                pdf.set_font('Arial', '', 8)
+                for row in data:
+                    for value in row.values():
+                        pdf.cell(col_width, 6, str(value)[:20], border=1, align='L')
+                    pdf.ln()
+            
+            pdf.output(output)
+            output.seek(0)
+            return send_file(
+                output,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f'{filename}.pdf'
+            )
+        except ImportError:
+            flash('PDF export not available - fpdf2 not installed', 'error')
+            return redirect(url_for('dashboard'))
 
     else:
         flash('Invalid format specified', 'error')
