@@ -73,7 +73,24 @@
                 <p class="card-text text-muted">Create backups, restore data, and manage database operations.</p>
                 <div class="mt-3">
                     <p><strong>Available Backups:</strong> {{ backup_files|length }}</p>
-                    <p><strong>Last Backup:</strong> {% if backup_files and backup_files[0]['created'] %}{{ backup_files[0]['created'].strftime('%Y-%m-%d %H:%M') }}{% else %}None{% endif %}</p>
+                    <p><strong>Last Backup:</strong> 
+                        {% if backup_files %}
+                            {% set latest_backup = None %}
+                            {% for backup in backup_files %}
+                                {% if backup.created %}
+                                    {% set latest_backup = backup %}
+                                    {% break %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if latest_backup %}
+                                {{ latest_backup.created.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                Available (date unknown)
+                            {% endif %}
+                        {% else %}
+                            None
+                        {% endif %}
+                    </p>
                 </div>
                 <a href="{{ url_for('database_management') }}" class="btn btn-warning">
                     <i class="fas fa-database"></i> Manage Database
