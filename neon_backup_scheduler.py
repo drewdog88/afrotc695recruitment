@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Enhanced Neon PostgreSQL Backup Scheduler for AFROTC 695 Recruitment System
-This script runs nightly backups and weekly full backups using Vercel Blob storage with proper folder structure.
+This script runs nightly backups and weekly full backups using Cloudflare R2 storage.
 """
 
 import os
@@ -19,7 +19,6 @@ import io
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from vercel_blob import put, list as blob_list, delete, head
 from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError
@@ -41,10 +40,10 @@ BACKUP_FOLDERS = {
     'full': 'backups/full'
 }
 
-# Get blob store configuration from environment
-BLOB_READ_WRITE_TOKEN = os.getenv('BLOB_READ_WRITE_TOKEN')
-if not BLOB_READ_WRITE_TOKEN:
-    print("Warning: BLOB_READ_WRITE_TOKEN not set - backup system unavailable")
+# R2 configuration check
+R2_ACCESS_KEY = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')
+if not R2_ACCESS_KEY:
+    print("Warning: CLOUDFLARE_R2_ACCESS_KEY_ID not set - backup system unavailable")
 
 def get_r2_client():
     """Get configured R2 client using boto3 with custom domain for enhanced security"""
@@ -89,29 +88,57 @@ def upload_backup_to_r2(backup_data, filename):
         return False
 
 def list_backup_files_r2():
-    """List backup files in R2 using boto3"""
+    """List backup files in R2 using boto3 with optimized list_objects_v2"""
     try:
         r2_client = get_r2_client()
         bucket_name = 'afrotc695recruitment'
 
-        response = r2_client.list_objects_v2(
-            Bucket=bucket_name
-            # Removed restrictive prefix filter to list all files
-        )
-
         files = []
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                # Only include backup-related files
-                if 'backup' in obj['Key'].lower() or 'afrotc695' in obj['Key'].lower():
-                    files.append({
-                        'filename': obj['Key'],
-                        'size': obj['Size'],
-                        'last_modified': obj['LastModified']
-                    })
+        paginator = r2_client.get_paginator('list_objects_v2')
+
+        # Use prefix filtering to reduce the number of objects we need to process
+        # This is much more efficient than filtering after listing all objects
+        backup_prefixes = [
+            'afrotc695_backup_',
+            'afrotc695_full_backup_',
+            'neon_backup_',
+            'emergency_backup_',
+            'test_backup_'
+        ]
+
+        for prefix in backup_prefixes:
+            try:
+                page_iterator = paginator.paginate(
+                    Bucket=bucket_name,
+                    Prefix=prefix,
+                    PaginationConfig={
+                        'MaxItems': 1000,  # Limit results per page
+                        'PageSize': 100    # Items per page
+                    }
+                )
+
+                for page in page_iterator:
+                    if 'Contents' in page:
+                        for obj in page['Contents']:
+                            files.append({
+                                'filename': obj['Key'],
+                                'size': obj['Size'],
+                                'last_modified': obj['LastModified']
+                            })
+            except Exception as e:
+                print(f"Error listing objects with prefix '{prefix}': {e}")
+                continue
+
+        # Sort by last_modified for consistent ordering
+        files.sort(key=lambda x: x['last_modified'], reverse=True)
+
+        print(f"R2 list_objects_v2: Found {len(files)} backup files using prefix filtering")
         return files
     except ClientError as e:
-        print(f"R2 list error: {e}")
+        print(f"R2 list_objects_v2 error: {e}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error in list_objects_v2: {e}")
         return []
 
 def download_backup_file_r2(filename):
@@ -269,78 +296,8 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 except Exception as e:
                     print(f"Error adding database backup to tar.gz: {e}")
 
-            # 2. Add all Vercel Blob contents (existing documents)
-            print("Adding all Vercel Blob contents to full backup...")
-            all_blob_files = blob_list()
-
-            # Fix blob list extraction - blob_list() returns dict with 'blobs' key
-            if isinstance(all_blob_files, dict) and 'blobs' in all_blob_files:
-                blob_files = all_blob_files['blobs']
-            elif isinstance(all_blob_files, list):
-                blob_files = all_blob_files
-            else:
-                print(f"Unexpected blob_list() response type: {type(all_blob_files)}")
-                blob_files = []
-
-            print(f"Found {len(blob_files)} files in Vercel Blob storage")
-
-            for blob_file in blob_files:
-                try:
-                    # Extract filename and URL from blob object
-                    if isinstance(blob_file, dict):
-                        filename = blob_file.get('pathname', '')
-                        blob_url = blob_file.get('url', '')
-                    else:
-                        filename = str(blob_file)
-                        blob_url = None
-
-                    # Skip the full backup we're creating (more robust check)
-                    if filename == tgz_filename or (filename.endswith('.tar.gz') and 'blob-backup-' in filename):
-                        print(f"Skipping self-reference: {filename}")
-                        continue
-
-                    # Skip any prior backup artifacts to avoid recursive growth
-                    # This excludes anything under backups/ (daily or full)
-                    if filename.startswith('backups/'):
-                        # Still allow including the database backup JSON we just created (added separately above)
-                        # All other backup artifacts are excluded from the full-blob archive
-                        print(f"Skipping backup artifact: {filename}")
-                        continue
-
-                    # Skip if no URL available
-                    if not blob_url:
-                        print(f"No URL available for {filename}, skipping")
-                        continue
-
-                    # Optional: Check blob store host if configured (for Vercel Blob security)
-                    # Since we're migrating to R2, this check is less critical but kept for security
-                    vercel_blob_host = os.getenv('BLOB_STORE_HOST', 'kre9xoivjggj03of.public.blob.vercel-storage.com')
-                    if vercel_blob_host:
-                        try:
-                            parsed = urlparse(blob_url)
-                            if parsed.netloc != vercel_blob_host:
-                                print(f"Skipping file from unexpected host {parsed.netloc}: {filename}")
-                                continue
-                        except Exception as e:
-                            print(f"Error parsing URL for {filename}: {e}")
-                            continue
-
-                    # Get the file content using the blob URL
-                    file_content = download_backup_file_by_url(blob_url)
-                    if file_content:
-                        # Create a path within the tar.gz that preserves folder structure
-                        tar_path = f"vercel_blob_contents/{filename}"
-                        # Create a TarInfo object for the file
-                        file_info = tarfile.TarInfo(name=tar_path)
-                        file_info.size = len(file_content)
-                        tar_file.addfile(file_info, io.BytesIO(file_content))
-                        print(f"Added Vercel Blob file to tar.gz: {filename} ({len(file_content)} bytes)")
-                    else:
-                        print(f"Failed to download content for {filename}")
-
-                except Exception as e:
-                    print(f"Error adding {filename} to tar.gz: {e}")
-                    continue
+            # 2. Skip Vercel Blob contents - backups use R2 storage only
+            print("Skipping Vercel Blob contents - backup system uses R2 storage only")
 
             # 3. Add all R2 backup files (existing backups)
             print("Adding all R2 backup files to full backup...")
@@ -566,28 +523,18 @@ def download_backup_file(filename):
         print(f"Error downloading backup file {filename} from R2: {e}")
         return None
 
-def download_backup_file_by_url(url):
-    """Download a file directly from its blob URL"""
-    try:
-        import requests
-        # Stream with sensible timeouts to avoid long hangs on huge files
-        with requests.get(url, stream=True, timeout=(10, 60)) as response:
-            if response.status_code != 200:
-                print(f"Failed to download file from {url}: HTTP {response.status_code}")
-                return None
-            content = io.BytesIO()
-            for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB chunks
-                if chunk:
-                    content.write(chunk)
-            return content.getvalue()
-    except Exception as e:
-        print(f"Error downloading file from {url}: {e}")
-        return None
+
 
 def delete_backup_file(filename):
-    """Delete a backup file from blob storage"""
+    """Delete a backup file from R2 storage"""
     try:
-        delete(filename)
+        r2_client = get_r2_client()
+        bucket_name = 'afrotc695recruitment'
+
+        r2_client.delete_object(
+            Bucket=bucket_name,
+            Key=filename
+        )
         print(f"Deleted backup file: {filename}")
         return True
     except Exception as e:

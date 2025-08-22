@@ -68,7 +68,7 @@ def backup_database(description="Manual backup"):
             import traceback
             traceback.print_exc()
             return None, None
-        
+
         result = backup_database_neon(description, "daily")
         print(f"backup_database_neon result: {result}")
         return result
@@ -95,7 +95,7 @@ def create_full_backup(description="Manual full backup"):
             import traceback
             traceback.print_exc()
             return None, None
-        
+
         result = create_full_backup_tgz(description)
         print(f"create_full_backup_tgz result: {result}")
         return result
@@ -134,19 +134,19 @@ def get_backup_files(page=1, per_page=10):
             import traceback
             traceback.print_exc()
             return [], 0
-        
+
         # Get all files first (they're already sorted by date, newest first)
         all_files = list_backup_files()
         total_count = len(all_files)
         print(f"Successfully retrieved {total_count} backup files from R2")
-        
+
         # Calculate pagination
         start_index = (page - 1) * per_page
         end_index = start_index + per_page
-        
+
         # Get the page of files
         page_files = all_files[start_index:end_index]
-        
+
         return page_files, total_count
     except Exception as e:
         print(f"Error getting backup files: {e}")
@@ -1197,22 +1197,22 @@ def database_management():
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         per_page = 10  # Show 10 backups per page
-        
+
         backup_files, total_count = get_backup_files(page=page, per_page=per_page)
 
         # Check if backup system is available (R2)
         backup_system_available = bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'))
-        
+
         # Additional checks for R2 configuration
         r2_account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
         r2_secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
         r2_bucket = os.getenv('CLOUDFLARE_R2_BUCKET_NAME', 'afrotc695recruitment')
-        
+
         # Calculate pagination info
         total_pages = (total_count + per_page - 1) // per_page
         has_prev = page > 1
         has_next = page < total_pages
-        
+
         # Determine backup system status
         backup_status = {
             'available': backup_system_available,
