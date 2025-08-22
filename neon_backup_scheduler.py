@@ -27,12 +27,13 @@ from botocore.exceptions import ClientError
 # Add the project directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import Flask app and database models
-try:
-    from app import app, db, User, PotentialRecruit, Cadet, UniversityContact, RecruitmentEvent, ExternalLink, RecruitmentDocument, ActivityLog, PasswordHistory
-except ImportError:
-    print("Error: Could not import Flask app. Make sure you're running from the project root.")
-    sys.exit(1)
+# Import Flask app and database models - REMOVED to prevent circular imports
+# The backup functions should work independently without importing the full Flask app
+# try:
+#     from app import app, db, User, PotentialRecruit, Cadet, UniversityContact, RecruitmentEvent, ExternalLink, RecruitmentDocument, ActivityLog, PasswordHistory
+# except ImportError:
+#     print("Error: Could not import Flask app. Make sure you're running from the project root.")
+#     sys.exit(1)
 
 # Backup folder structure constants
 BACKUP_FOLDERS = {

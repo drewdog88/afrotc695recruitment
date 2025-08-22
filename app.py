@@ -60,10 +60,22 @@ def backup_database(description="Manual backup"):
             return None, None
 
         # Import the Neon backup function from neon_backup_scheduler
-        from neon_backup_scheduler import backup_database_neon
-        return backup_database_neon(description, "daily")
+        try:
+            from neon_backup_scheduler import backup_database_neon
+            print("Successfully imported backup_database_neon from neon_backup_scheduler")
+        except ImportError as e:
+            print(f"Import error for backup_database_neon: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, None
+        
+        result = backup_database_neon(description, "daily")
+        print(f"backup_database_neon result: {result}")
+        return result
     except Exception as e:
         print(f"Error creating backup: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 def create_full_backup(description="Manual full backup"):
@@ -75,10 +87,22 @@ def create_full_backup(description="Manual full backup"):
             return None, None
 
         # Import the full backup function from neon_backup_scheduler
-        from neon_backup_scheduler import create_full_backup_tgz
-        return create_full_backup_tgz(description)
+        try:
+            from neon_backup_scheduler import create_full_backup_tgz
+            print("Successfully imported create_full_backup_tgz from neon_backup_scheduler")
+        except ImportError as e:
+            print(f"Import error for create_full_backup_tgz: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, None
+        
+        result = create_full_backup_tgz(description)
+        print(f"create_full_backup_tgz result: {result}")
+        return result
     except Exception as e:
         print(f"Error creating full backup: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 def restore_database(backup_file_path):
@@ -102,15 +126,18 @@ def get_backup_files():
             return []
 
         # Import the Neon backup function from neon_backup_scheduler
-        from neon_backup_scheduler import list_backup_files
+        try:
+            from neon_backup_scheduler import list_backup_files
+            print("Successfully imported list_backup_files from neon_backup_scheduler")
+        except ImportError as e:
+            print(f"Import error for list_backup_files: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+        
         files = list_backup_files()
         print(f"Successfully retrieved {len(files)} backup files from R2")
         return files
-    except ImportError as e:
-        print(f"Import error getting backup files: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
     except Exception as e:
         print(f"Error getting backup files: {e}")
         import traceback
