@@ -433,18 +433,22 @@ def list_backup_files():
                     description = metadata.get('description', 'Backup file')
                     user = metadata.get('user', 'System')
 
-                    # Parse timestamp from metadata
-                    timestamp = None
-                    if 'timestamp' in metadata:
-                        try:
-                            timestamp = datetime.fromisoformat(metadata['timestamp'].replace('Z', '+00:00'))
-                        except:
-                            pass
-                    elif 'created_at' in metadata:
-                        try:
-                            timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
-                        except:
-                            pass
+                     # Parse timestamp from metadata
+                     timestamp = None
+                     if 'timestamp' in metadata:
+                         try:
+                             timestamp = datetime.fromisoformat(metadata['timestamp'].replace('Z', '+00:00'))
+                         except:
+                             pass
+                     elif 'created_at' in metadata:
+                         try:
+                             timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
+                         except:
+                             pass
+                     
+                     # Ensure timestamp is timezone-naive for consistency
+                     if timestamp and timestamp.tzinfo:
+                         timestamp = timestamp.replace(tzinfo=None)
                 else:
                     # Legacy files without metadata - use filename parsing
                     backup_type = "unknown"
@@ -505,7 +509,11 @@ def list_backup_files():
 
                 # Use last_modified as fallback if no timestamp found
                 if not timestamp and last_modified:
-                    timestamp = last_modified
+                    # Ensure last_modified is timezone-naive for consistency
+                    if last_modified.tzinfo:
+                        timestamp = last_modified.replace(tzinfo=None)
+                    else:
+                        timestamp = last_modified
 
                 backup_files.append({
                     'filename': filename,
@@ -531,7 +539,7 @@ def list_backup_files():
                 })
                 continue
 
-        # Sort by creation date (newest first)
+        # Sort by creation date (newest first) - all timestamps are now timezone-naive
         backup_files.sort(key=lambda x: x['created'] if x['created'] else datetime.min, reverse=True)
 
         return backup_files
