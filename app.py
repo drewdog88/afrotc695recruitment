@@ -1184,7 +1184,7 @@ def admin():
         return redirect(url_for('dashboard'))
 
     users = User.query.all()
-    backup_files = get_backup_files()
+    backup_files, _ = get_backup_files()
     return render_template('admin.html', users=users, backup_files=backup_files)
 
 @app.route('/admin/database')
