@@ -1161,14 +1161,30 @@ def database_management():
 
         # Check if backup system is available (R2)
         backup_system_available = bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'))
+        
+        # Additional checks for R2 configuration
+        r2_account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
+        r2_secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
+        r2_bucket = os.getenv('CLOUDFLARE_R2_BUCKET_NAME', 'afrotc695recruitment')
+        
+        # Determine backup system status
+        backup_status = {
+            'available': backup_system_available,
+            'account_id_configured': bool(r2_account_id),
+            'secret_key_configured': bool(r2_secret_key),
+            'bucket_configured': bool(r2_bucket),
+            'files_count': len(backup_files) if backup_files else 0
+        }
 
         # If R2 is not available, show a helpful message
         if not backup_system_available:
             print("Warning: R2 backup system not available - CLOUDFLARE_R2_ACCESS_KEY_ID not configured")
+            flash('Backup system is not configured. Please check R2 environment variables.', 'warning')
 
         return render_template('database_management.html',
                              backup_files=backup_files,
-                             backup_system_available=backup_system_available)
+                             backup_system_available=backup_system_available,
+                             backup_status=backup_status)
     except Exception as e:
         print(f"Error in database management route: {e}")
         import traceback
@@ -1176,7 +1192,8 @@ def database_management():
         flash('Error loading backup files. Please check logs.', 'error')
         return render_template('database_management.html',
                              backup_files=[],
-                             backup_system_available=False)
+                             backup_system_available=False,
+                             backup_status={'available': False, 'error': str(e)})
 
 @app.route('/admin/activity-log')
 def activity_log():

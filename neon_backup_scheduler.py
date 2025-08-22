@@ -136,7 +136,7 @@ def download_backup_file_r2(filename):
             'emergency_backup_',
             'test_backup_'
         ]
-        
+
         if not any(filename.startswith(pattern) for pattern in valid_patterns):
             print(f"Security error: Filename does not match backup pattern: {filename}")
             return None
@@ -453,7 +453,7 @@ def list_backup_files():
                 if filename.endswith('.json'):
                     # Handle various timestamp patterns in filenames
                     timestamp_part = None
-                    
+
                     # Pattern 1: afrotc695_backup_daily_YYYYMMDD_HHMMSS.json
                     if 'afrotc695_backup_daily_' in filename:
                         timestamp_part = filename.replace('afrotc695_backup_daily_', '').replace('.json', '')
@@ -472,7 +472,7 @@ def list_backup_files():
                     # Pattern 6: test_backup_YYYYMMDD_HHMMSS.json
                     elif 'test_backup_' in filename:
                         timestamp_part = filename.replace('test_backup_', '').replace('.json', '')
-                    
+
                     if timestamp_part:
                         try:
                             timestamp = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
