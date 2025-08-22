@@ -1544,7 +1544,7 @@ def code_coverage():
         return redirect(url_for('dashboard'))
 
     from datetime import datetime
-    from vercel_blob import blob_list
+    from vercel_blob import list as blob_list
     import requests
 
     coverage_data = None
@@ -1679,42 +1679,41 @@ def quality_analysis():
     import json
     import os
     from datetime import datetime
+    from vercel_blob import list as blob_list
+    import requests
 
-    # Try to load quality summary
+    # Try to load quality summary from Vercel Blob
     quality_data = None
     last_updated = None
+    data_source = 'fallback'
+    blob_filename = 'No blob file available'
 
     try:
-        # Try multiple possible locations for quality data
-        possible_paths = [
-            "quality_reports/summary.json",
-            "test_data/quality_analysis_mock_report.json"
-        ]
+        blob_response = blob_list()
+        quality_blob = None
 
-        quality_data = None
-        last_updated = None
+        if blob_response and 'blobs' in blob_response:
+            quality_reports = []
+            for blob in blob_response['blobs']:
+                if blob.get('pathname', '').startswith('reports/quality-analysis_'):
+                    quality_reports.append(blob)
 
-        for summary_path in possible_paths:
-            if os.path.exists(summary_path):
-                with open(summary_path, 'r') as f:
-                    quality_data = json.load(f)
+            if quality_reports:
+                quality_reports.sort(key=lambda x: x.get('pathname', ''), reverse=True)
+                quality_blob = quality_reports[0]
+
+            if quality_blob:
+                response = requests.get(quality_blob['url'])
+                if response.status_code == 200:
+                    quality_data = response.json()
                     last_updated = quality_data.get('generated_at', datetime.now().isoformat())
-                break
-
-        # If no quality data found, use placeholder
-        if not quality_data:
-            quality_data = {
-                'code_quality_score': 85,
-                'test_coverage': 75,
-                'security_score': 90,
-                'performance_score': 88,
-                'generated_at': datetime.now().isoformat()
-            }
-            last_updated = datetime.now().isoformat()
-
+                    data_source = 'blob'
+                    blob_filename = quality_blob.get('pathname', 'Unknown file')
     except Exception as e:
-        print(f'Error loading quality data: {e}')
-        # Use fallback data
+        print(f"Error loading quality data from Blob: {e}")
+
+    # If no quality data found, use placeholder
+    if not quality_data:
         quality_data = {
             'code_quality_score': 85,
             'test_coverage': 75,
@@ -1726,7 +1725,9 @@ def quality_analysis():
 
     return render_template('quality_analysis.html',
                          quality_data=quality_data,
-                         last_updated=last_updated)
+                         last_updated=last_updated,
+                         data_source=data_source,
+                         blob_filename=blob_filename)
 
 @app.route('/admin/quality-analysis/run', methods=['POST'])
 def run_quality_analysis():
@@ -1764,44 +1765,41 @@ def vulnerability_scan():
     import json
     import os
     from datetime import datetime
+    from vercel_blob import list as blob_list
+    import requests
 
-    # Try to load vulnerability summary
+    # Try to load vulnerability summary from Vercel Blob
     vuln_data = None
     last_updated = None
+    data_source = 'fallback'
+    blob_filename = 'No blob file available'
 
     try:
-        # Try multiple possible locations for vulnerability data
-        possible_paths = [
-            "vulnerability_reports/summary.json",
-            "test_data/vulnerability_scan_mock_report.json"
-        ]
+        blob_response = blob_list()
+        vuln_blob = None
 
-        vuln_data = None
-        last_updated = None
+        if blob_response and 'blobs' in blob_response:
+            vuln_reports = []
+            for blob in blob_response['blobs']:
+                if blob.get('pathname', '').startswith('reports/vulnerability-scan_'):
+                    vuln_reports.append(blob)
 
-        for summary_path in possible_paths:
-            if os.path.exists(summary_path):
-                with open(summary_path, 'r') as f:
-                    vuln_data = json.load(f)
+            if vuln_reports:
+                vuln_reports.sort(key=lambda x: x.get('pathname', ''), reverse=True)
+                vuln_blob = vuln_reports[0]
+
+            if vuln_blob:
+                response = requests.get(vuln_blob['url'])
+                if response.status_code == 200:
+                    vuln_data = response.json()
                     last_updated = vuln_data.get('generated_at', datetime.now().isoformat())
-                break
-
-        # If no vulnerability data found, use placeholder
-        if not vuln_data:
-            vuln_data = {
-                'total_vulnerabilities': 0,
-                'critical': 0,
-                'high': 0,
-                'medium': 0,
-                'low': 0,
-                'generated_at': datetime.now().isoformat(),
-                'scan_status': 'completed'
-            }
-            last_updated = datetime.now().isoformat()
-
+                    data_source = 'blob'
+                    blob_filename = vuln_blob.get('pathname', 'Unknown file')
     except Exception as e:
-        print(f'Error loading vulnerability data: {e}')
-        # Use fallback data
+        print(f"Error loading vulnerability data from Blob: {e}")
+
+    # If no vulnerability data found, use placeholder
+    if not vuln_data:
         vuln_data = {
             'total_vulnerabilities': 0,
             'critical': 0,
@@ -1815,7 +1813,9 @@ def vulnerability_scan():
 
     return render_template('vulnerability_scan.html',
                          vuln_data=vuln_data,
-                         last_updated=last_updated)
+                         last_updated=last_updated,
+                         data_source=data_source,
+                         blob_filename=blob_filename)
 
 @app.route('/admin/vulnerability-scan/run', methods=['POST'])
 def run_vulnerability_scan():
