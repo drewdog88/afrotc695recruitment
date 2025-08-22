@@ -90,7 +90,9 @@ def get_backup_files():
 
         # Import the Neon backup function from neon_backup_scheduler
         from neon_backup_scheduler import list_backup_files
-        return list_backup_files()
+        files = list_backup_files()
+        print(f"Successfully retrieved {len(files)} backup files from R2")
+        return files
     except ImportError as e:
         print(f"Import error getting backup files: {e}")
         import traceback
@@ -1144,8 +1146,12 @@ def database_management():
     try:
         backup_files = get_backup_files()
 
-        # Check if backup system is available
-        backup_system_available = bool(os.getenv('BLOB_READ_WRITE_TOKEN'))
+        # Check if backup system is available (R2)
+        backup_system_available = bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'))
+        
+        # If R2 is not available, show a helpful message
+        if not backup_system_available:
+            print("Warning: R2 backup system not available - CLOUDFLARE_R2_ACCESS_KEY_ID not configured")
 
         return render_template('database_management.html',
                              backup_files=backup_files,
