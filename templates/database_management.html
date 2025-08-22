@@ -91,50 +91,50 @@
                 <tbody>
                     {% for backup in backup_files %}
                     <tr>
-                        <td><code>{{ backup.filename }}</code></td>
+                        <td><code>{{ backup['filename'] }}</code></td>
                         <td>
-                            {% if backup.backup_type == 'full_zip' %}
+                            {% if backup['backup_type'] == 'full_zip' %}
                                 <span class="badge bg-success">Full ZIP</span>
-                            {% elif backup.backup_type == 'full' %}
+                            {% elif backup['backup_type'] == 'full' %}
                                 <span class="badge bg-info">Full JSON</span>
-                            {% elif backup.backup_type == 'daily' %}
+                            {% elif backup['backup_type'] == 'daily' %}
                                 <span class="badge bg-primary">Daily</span>
                             {% else %}
-                                <span class="badge bg-secondary">{{ backup.backup_type }}</span>
+                                <span class="badge bg-secondary">{{ backup['backup_type'] }}</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if backup.created %}
-                                {{ backup.created.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% if backup['created'] %}
+                                {{ backup['created'].strftime('%Y-%m-%d %H:%M:%S') }}
                             {% else %}
                                 <span class="text-muted">Unknown</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if backup.size %}
-                                {% if backup.size > 1048576 %}
-                                    {{ "%.1f"|format(backup.size / 1048576) }} MB
+                            {% if backup['size'] %}
+                                {% if backup['size'] > 1048576 %}
+                                    {{ "%.1f"|format(backup['size'] / 1048576) }} MB
                                 {% else %}
-                                    {{ "%.1f"|format(backup.size / 1024) }} KB
+                                    {{ "%.1f"|format(backup['size'] / 1024) }} KB
                                 {% endif %}
                             {% else %}
                                 <span class="text-muted">Unknown</span>
                             {% endif %}
                         </td>
-                        <td>{{ backup.description or "System backup" }}</td>
-                        <td><span class="badge bg-primary">{{ backup.user or "System" }}</span></td>
+                        <td>{{ backup['description'] or "System backup" }}</td>
+                        <td><span class="badge bg-primary">{{ backup['user'] or "System" }}</span></td>
                         <td>
                             <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('download_backup', filename=backup.filename) }}" class="btn btn-outline-primary" title="Download">
+                                <a href="{{ url_for('download_backup', filename=backup['filename']) }}" class="btn btn-outline-primary" title="Download">
                                     <i class="fas fa-download"></i>
                                 </a>
-                                {% if backup.backup_type != 'full_zip' %}
+                                {% if backup['backup_type'] != 'full_zip' %}
                                 <!-- Restore button temporarily disabled - functionality not implemented -->
-                                <!-- <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup.filename }}')">
+                                <!-- <button class="btn btn-outline-warning" title="Restore" onclick="confirmRestore('{{ backup['filename'] }}')">
                                     <i class="fas fa-undo"></i>
                                 </button> -->
                                 {% endif %}
-                                <button class="btn btn-outline-danger" title="Delete" onclick="confirmDelete('{{ backup.filename }}')">
+                                <button class="btn btn-outline-danger" title="Delete" onclick="confirmDelete('{{ backup['filename'] }}')">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
