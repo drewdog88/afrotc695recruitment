@@ -432,7 +432,7 @@ def list_backup_files():
                     backup_type = metadata.get('backup_type', 'unknown')
                     description = metadata.get('description', 'Backup file')
                     user = metadata.get('user', 'System')
-                    
+
                     # Parse timestamp from metadata
                     timestamp = None
                     if 'timestamp' in metadata:
@@ -653,7 +653,7 @@ def update_all_backup_metadata():
     try:
         print("Starting metadata update for all backup files...")
         backup_files = list_backup_files()
-        
+
         if not backup_files:
             print("No backup files found to update")
             return
