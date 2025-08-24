@@ -327,10 +327,10 @@ def create_full_backup_tgz(description="Weekly full backup"):
             try:
                 from vercel_blob import list
                 import requests
-                
+
                 # List files in Vercel Blob
                 blob_response = list()
-                
+
                 # Handle different response structures
                 if hasattr(blob_response, '__iter__') and not isinstance(blob_response, (str, bytes)):
                     if isinstance(blob_response, dict):
@@ -342,46 +342,46 @@ def create_full_backup_tgz(description="Weekly full backup"):
                         files = list(blob_response)  # Convert to list
                 else:
                     files = []
-                
+
                 print(f"Found {len(files)} files in Vercel Blob")
-                
+
                 # Copy each file from Vercel Blob to the backup
                 for file_info in files:
                     try:
                         file_path = file_info.get('pathname', '')
                         file_url = file_info.get('url', '')
-                        
+
                         if not file_path or not file_url:
                             continue
-                        
+
                         # Download file content from Vercel Blob
                         response = requests.get(file_url)
                         if response.status_code != 200:
                             print(f"Failed to download {file_path}: {response.status_code}")
                             continue
-                        
+
                         file_content = response.content
-                        
+
                         # Add to tar.gz
                         tar_path = f"vercel_blob_files/{file_path}"
                         file_info_tar = tarfile.TarInfo(name=tar_path)
                         file_info_tar.size = len(file_content)
                         tar_file.addfile(file_info_tar, io.BytesIO(file_content))
-                        
+
                         vercel_blob_files.append({
                             'path': file_path,
                             'size': len(file_content),
                             'url': file_url
                         })
-                        
+
                         print(f"Added Vercel Blob file: {file_path} ({len(file_content)} bytes)")
-                        
+
                     except Exception as e:
                         print(f"Error adding Vercel Blob file {file_path}: {e}")
                         continue
-                
+
                 print(f"Successfully added {len(vercel_blob_files)} Vercel Blob files to backup")
-                
+
             except Exception as e:
                 print(f"Error processing Vercel Blob files: {e}")
                 vercel_blob_files = []
@@ -508,7 +508,7 @@ def list_backup_files():
                             timestamp = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
                         except:
                             pass
-                    
+
                     # Ensure timestamp is timezone-naive for consistency
                     if timestamp and timestamp.tzinfo:
                         timestamp = timestamp.replace(tzinfo=None)
