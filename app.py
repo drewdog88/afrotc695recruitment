@@ -131,19 +131,14 @@ def get_backup_files(page=1, per_page=10):
             print("Successfully imported list_backup_files from neon_backup_scheduler")
         except ImportError as e:
             print(f"Import error for list_backup_files: {e}")
-            return [], 0
-        except Exception as e:
-            print(f"Unexpected error importing list_backup_files: {e}")
+            import traceback
+            traceback.print_exc()
             return [], 0
 
         # Get all files first (they're already sorted by date, newest first)
-        try:
-            all_files = list_backup_files()
-            total_count = len(all_files)
-            print(f"Successfully retrieved {total_count} backup files from R2")
-        except Exception as e:
-            print(f"Error calling list_backup_files: {e}")
-            return [], 0
+        all_files = list_backup_files()
+        total_count = len(all_files)
+        print(f"Successfully retrieved {total_count} backup files from R2")
 
         # Calculate pagination
         start_index = (page - 1) * per_page
@@ -155,21 +150,15 @@ def get_backup_files(page=1, per_page=10):
         return page_files, total_count
     except Exception as e:
         print(f"Error getting backup files: {e}")
+        import traceback
+        traceback.print_exc()
         return [], 0
 
 def download_backup_content(filename):
     """Download backup file content from R2 storage"""
     try:
         # Import the download function from neon_backup_scheduler
-        try:
-            from neon_backup_scheduler import download_backup_file
-        except ImportError as e:
-            print(f"Import error for download_backup_file: {e}")
-            return None
-        except Exception as e:
-            print(f"Unexpected error importing download_backup_file: {e}")
-            return None
-            
+        from neon_backup_scheduler import download_backup_file
         return download_backup_file(filename)
     except Exception as e:
         print(f"Error downloading backup file: {e}")
