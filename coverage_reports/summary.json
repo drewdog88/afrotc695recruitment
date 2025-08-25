@@ -1,8 +1,39 @@
 {
-  "total_lines": 1667,
-  "covered_lines": 1250,
-  "coverage_percentage": 75.0,
-  "uncovered_lines": 417,
-  "generated_at": "2025-08-10T21:12:00",
-  "last_updated": "2025-08-10T21:12:00"
+  "generated_at": "2025-08-24T22:55:00",
+  "total_lines": 2784,
+  "covered_lines": 990,
+  "missing_lines": 1794,
+  "coverage_percentage": 36.0,
+  "files": {
+    "app.py": {
+      "total": 1715,
+      "covered": 426,
+      "percentage": 25.0,
+      "missing_lines": 1289
+    },
+    "neon_backup_scheduler.py": {
+      "total": 539,
+      "covered": 84,
+      "percentage": 16.0,
+      "missing_lines": 455
+    },
+    "tests/conftest.py": {
+      "total": 92,
+      "covered": 44,
+      "percentage": 48.0,
+      "missing_lines": 48
+    },
+    "tests/unit/test_auth.py": {
+      "total": 190,
+      "covered": 190,
+      "percentage": 100.0,
+      "missing_lines": 0
+    },
+    "tests/unit/test_recruit_management.py": {
+      "total": 248,
+      "covered": 246,
+      "percentage": 99.0,
+      "missing_lines": 2
+    }
+  }
 }

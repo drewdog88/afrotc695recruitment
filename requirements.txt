@@ -30,6 +30,14 @@ xlsxwriter>=3.0.0,<4.0.0  # Excel export (~5-10MB vs openpyxl's 20-30MB)
 fpdf2>=2.7.0,<3.0.0       # PDF export (~2-5MB vs reportlab's 50-100MB)
 # CSV export uses built-in 'csv' module (0MB)
 
+# Testing dependencies
+pytest>=7.0.0,<8.0.0
+pytest-flask>=1.2.0,<2.0.0
+pytest-cov>=4.0.0,<5.0.0
+pytest-mock>=3.10.0,<4.0.0
+factory-boy>=3.2.0,<4.0.0
+faker>=18.0.0,<19.0.0
+
 # Note: pandas, numpy, reportlab, openpyxl removed to reduce bundle size
 # These lightweight alternatives provide export functionality at ~10-15MB total
 # vs the original heavy packages at ~200MB+

@@ -458,11 +458,12 @@ def log_activity(action, table_name=None, record_id=None, record_description=Non
         )
 
         db.session.add(activity)
-        db.session.commit()
+        # Don't commit here - let the calling function handle the commit
+        # This prevents conflicts when called during user creation
     except Exception as e:
         print(f"Error logging activity: {e}")
         # Don't fail the main operation if logging fails
-        db.session.rollback()
+        # Don't rollback here as it might interfere with the main transaction
 
 # Password validation helper functions
 def validate_password(password, user_id=None):
@@ -1544,35 +1545,23 @@ def code_coverage():
         return redirect(url_for('dashboard'))
 
     from datetime import datetime
-    from vercel_blob import list as blob_list
-    import requests
+    import utils.r2_coverage_utils as r2_coverage
 
     coverage_data = None
     data_source = 'fallback'
-    blob_filename = 'No blob file available'
+    blob_filename = 'No R2 file available'
 
     try:
-        blob_response = blob_list()
-        coverage_blob = None
-
-        if blob_response and 'blobs' in blob_response:
-            coverage_reports = []
-            for blob in blob_response['blobs']:
-                if blob.get('pathname', '').startswith('reports/coverage-summary_'):
-                    coverage_reports.append(blob)
-
-            if coverage_reports:
-                coverage_reports.sort(key=lambda x: x.get('pathname', ''), reverse=True)
-                coverage_blob = coverage_reports[0]
-
-            if coverage_blob:
-                response = requests.get(coverage_blob['url'])
-                if response.status_code == 200:
-                    coverage_data = response.json()
-                    data_source = 'blob'
-                    blob_filename = coverage_blob.get('pathname', 'Unknown file')
+        # Try to load coverage data from R2
+        coverage_data = r2_coverage.get_latest_coverage_report()
+        if coverage_data:
+            data_source = 'r2'
+            # Get the filename from the latest report
+            reports = r2_coverage.list_coverage_reports(limit=1)
+            if reports:
+                blob_filename = reports[0]['filename']
     except Exception as e:
-        print(f"Error loading coverage data from Blob: {e}")
+        print(f"Error loading coverage data from R2: {e}")
 
     if not coverage_data:
         coverage_data = {
@@ -1586,7 +1575,7 @@ def code_coverage():
             }
         }
         data_source = 'fallback'
-        blob_filename = 'No blob file available'
+        blob_filename = 'No R2 file available'
     else:
         # Ensure all required fields exist in blob data
         if 'total_branches' not in coverage_data: coverage_data['total_branches'] = 0
@@ -1614,32 +1603,49 @@ def generate_coverage_report():
         return redirect(url_for('dashboard'))
 
     from datetime import datetime
-    from vercel_blob import put
-    import json
+    import utils.r2_coverage_utils as r2_coverage
+
+    import subprocess
+    import sys
 
     try:
-        coverage_data = {
-            'total_lines': 1268, 'covered_lines': 950, 'coverage_percentage': 74.9,
-            'uncovered_lines': 318, 'total_branches': 0, 'branches_covered': 0,
-            'branch_coverage_percentage': 0.0,
-            'generated_at': datetime.now().isoformat(),
-            'last_updated': datetime.now().isoformat(),
-            'files': {
-                'app_local.py': {'total': 450, 'covered': 380, 'percentage': 84.4, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0},
-                'app.py': {'total': 320, 'covered': 240, 'percentage': 75.0, 'branches': 0, 'branches_covered': 0, 'branch_percentage': 0.0, 'missing_lines': 0, 'missing_branches': 0}
-            }
-        }
+        # Run the coverage analysis
+        result = subprocess.run([
+            sys.executable, "coverage_runner.py"
+        ], capture_output=True, text=True, timeout=300)  # 5 minute timeout
 
-        coverage_json = json.dumps(coverage_data, indent=2)
-        filename = f"reports/coverage-summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        blob_response = put(filename, coverage_json.encode('utf-8'), {"addRandomSuffix": False})
+        if result.returncode == 0:
+            # Try to upload the generated coverage report to R2
+            try:
+                # The coverage_runner.py should have created a summary.json file
+                import json
+                import os
 
-        if blob_response and 'url' in blob_response:
-            flash('Code coverage report generated and stored successfully!', 'success')
+                summary_file = 'coverage_reports/summary.json'
+                if os.path.exists(summary_file):
+                    with open(summary_file, 'r') as f:
+                        coverage_data = json.load(f)
+
+                    # Validate and upload to R2
+                    if r2_coverage.validate_coverage_data(coverage_data):
+                        upload_result = r2_coverage.upload_coverage_report(coverage_data)
+                        if upload_result['success']:
+                            flash(f'Code coverage analysis completed and stored in R2: {upload_result["filename"]}', 'success')
+                        else:
+                            flash(f'Code coverage analysis completed but failed to store in R2: {upload_result["error"]}', 'warning')
+                    else:
+                        flash('Code coverage analysis completed but data validation failed', 'warning')
+                else:
+                    flash('Code coverage analysis completed but no summary file found', 'warning')
+            except Exception as e:
+                flash(f'Code coverage analysis completed but R2 upload failed: {e}', 'warning')
         else:
-            flash('Failed to store coverage report in Blob storage', 'error')
+            flash(f'Coverage analysis failed: {result.stderr}', 'error')
+
+    except subprocess.TimeoutExpired:
+        flash('Coverage analysis timed out after 5 minutes', 'error')
     except Exception as e:
-        flash(f'Error generating coverage report: {e}', 'error')
+        flash(f'Error running coverage analysis: {e}', 'error')
 
     return redirect(url_for('code_coverage'))
 
@@ -1676,41 +1682,26 @@ def quality_analysis():
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
 
-    import json
-    import os
     from datetime import datetime
-    from vercel_blob import list as blob_list
-    import requests
+    import utils.r2_quality_utils as r2_quality
 
-    # Try to load quality summary from Vercel Blob
+    # Try to load quality analysis summary from R2
     quality_data = None
     last_updated = None
     data_source = 'fallback'
-    blob_filename = 'No blob file available'
+    blob_filename = 'No R2 file available'
 
     try:
-        blob_response = blob_list()
-        quality_blob = None
-
-        if blob_response and 'blobs' in blob_response:
-            quality_reports = []
-            for blob in blob_response['blobs']:
-                if blob.get('pathname', '').startswith('reports/quality-analysis_'):
-                    quality_reports.append(blob)
-
-            if quality_reports:
-                quality_reports.sort(key=lambda x: x.get('pathname', ''), reverse=True)
-                quality_blob = quality_reports[0]
-
-            if quality_blob:
-                response = requests.get(quality_blob['url'])
-                if response.status_code == 200:
-                    quality_data = response.json()
-                    last_updated = quality_data.get('generated_at', datetime.now().isoformat())
-                    data_source = 'blob'
-                    blob_filename = quality_blob.get('pathname', 'Unknown file')
+        # Try to load quality data from R2
+        quality_data = r2_quality.get_latest_quality_report()
+        if quality_data:
+            data_source = 'r2'
+            # Get the filename from the latest report
+            reports = r2_quality.list_quality_reports(limit=1)
+            if reports:
+                blob_filename = reports[0]['filename']
     except Exception as e:
-        print(f"Error loading quality data from Blob: {e}")
+        print(f"Error loading quality data from R2: {e}")
 
     # If no quality data found, use placeholder
     if not quality_data:
@@ -1737,6 +1728,7 @@ def run_quality_analysis():
 
     import subprocess
     import sys
+    import utils.r2_quality_utils as r2_quality
 
     try:
         # Run the quality analysis
@@ -1745,7 +1737,30 @@ def run_quality_analysis():
         ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
 
         if result.returncode == 0:
-            flash('Quality analysis completed successfully!', 'success')
+            # Try to upload the generated quality report to R2
+            try:
+                # The quality_analyzer.py should have created a summary.json file
+                import json
+                import os
+
+                summary_file = 'quality_reports/summary.json'
+                if os.path.exists(summary_file):
+                    with open(summary_file, 'r') as f:
+                        quality_data = json.load(f)
+
+                    # Validate and upload to R2
+                    if r2_quality.validate_quality_data(quality_data):
+                        upload_result = r2_quality.upload_quality_report(quality_data)
+                        if upload_result['success']:
+                            flash(f'Quality analysis completed and stored in R2: {upload_result["filename"]}', 'success')
+                        else:
+                            flash(f'Quality analysis completed but failed to store in R2: {upload_result["error"]}', 'warning')
+                    else:
+                        flash('Quality analysis completed but data validation failed', 'warning')
+                else:
+                    flash('Quality analysis completed but no summary file found', 'warning')
+            except Exception as e:
+                flash(f'Quality analysis completed but R2 upload failed: {e}', 'warning')
         else:
             flash(f'Quality analysis failed: {result.stderr}', 'error')
 
@@ -1762,41 +1777,26 @@ def vulnerability_scan():
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('dashboard'))
 
-    import json
-    import os
     from datetime import datetime
-    from vercel_blob import list as blob_list
-    import requests
+    import utils.r2_vulnerability_utils as r2_vuln
 
-    # Try to load vulnerability summary from Vercel Blob
+    # Try to load vulnerability summary from R2
     vuln_data = None
     last_updated = None
     data_source = 'fallback'
-    blob_filename = 'No blob file available'
+    blob_filename = 'No R2 file available'
 
     try:
-        blob_response = blob_list()
-        vuln_blob = None
-
-        if blob_response and 'blobs' in blob_response:
-            vuln_reports = []
-            for blob in blob_response['blobs']:
-                if blob.get('pathname', '').startswith('reports/vulnerability-scan_'):
-                    vuln_reports.append(blob)
-
-            if vuln_reports:
-                vuln_reports.sort(key=lambda x: x.get('pathname', ''), reverse=True)
-                vuln_blob = vuln_reports[0]
-
-            if vuln_blob:
-                response = requests.get(vuln_blob['url'])
-                if response.status_code == 200:
-                    vuln_data = response.json()
-                    last_updated = vuln_data.get('generated_at', datetime.now().isoformat())
-                    data_source = 'blob'
-                    blob_filename = vuln_blob.get('pathname', 'Unknown file')
+        # Try to load vulnerability data from R2
+        vuln_data = r2_vuln.get_latest_vulnerability_report()
+        if vuln_data:
+            data_source = 'r2'
+            # Get the filename from the latest report
+            reports = r2_vuln.list_vulnerability_reports(limit=1)
+            if reports:
+                blob_filename = reports[0]['filename']
     except Exception as e:
-        print(f"Error loading vulnerability data from Blob: {e}")
+        print(f"Error loading vulnerability data from R2: {e}")
 
     # If no vulnerability data found, use placeholder
     if not vuln_data:
@@ -1825,6 +1825,7 @@ def run_vulnerability_scan():
 
     import subprocess
     import sys
+    import utils.r2_vulnerability_utils as r2_vuln
 
     try:
         # Run the vulnerability scan
@@ -1833,7 +1834,30 @@ def run_vulnerability_scan():
         ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
 
         if result.returncode == 0:
-            flash('Vulnerability scan completed successfully!', 'success')
+            # Try to upload the generated vulnerability report to R2
+            try:
+                # The vulnerability_scanner.py should have created a summary.json file
+                import json
+                import os
+
+                summary_file = 'vulnerability_reports/summary.json'
+                if os.path.exists(summary_file):
+                    with open(summary_file, 'r') as f:
+                        vuln_data = json.load(f)
+
+                    # Validate and upload to R2
+                    if r2_vuln.validate_vulnerability_data(vuln_data):
+                        upload_result = r2_vuln.upload_vulnerability_report(vuln_data)
+                        if upload_result['success']:
+                            flash(f'Vulnerability scan completed and stored in R2: {upload_result["filename"]}', 'success')
+                        else:
+                            flash(f'Vulnerability scan completed but failed to store in R2: {upload_result["error"]}', 'warning')
+                    else:
+                        flash('Vulnerability scan completed but data validation failed', 'warning')
+                else:
+                    flash('Vulnerability scan completed but no summary file found', 'warning')
+            except Exception as e:
+                flash(f'Vulnerability scan completed but R2 upload failed: {e}', 'warning')
         else:
             flash(f'Vulnerability scan failed: {result.stderr}', 'error')
 
@@ -2499,54 +2523,67 @@ def add_document():
             flash('Title is required.', 'error')
             return render_template('add_document.html')
 
-        # Check file type
-        allowed_extensions = {'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
-        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        # Import R2 utilities
+        try:
+            from utils.r2_document_utils import (
+                upload_document_to_r2, validate_file_type, validate_file_size,
+                is_r2_configured, get_file_size_mb
+            )
+        except ImportError:
+            flash('Document storage system not available. Please contact administrator.', 'error')
+            return render_template('add_document.html')
 
-        if file_extension not in allowed_extensions:
+        # Check if R2 is configured
+        if not is_r2_configured():
+            flash('Document storage system not configured. Please contact administrator.', 'error')
+            return render_template('add_document.html')
+
+        # Validate file type
+        if not validate_file_type(file.filename):
             flash('Invalid file type. Allowed types: PDF, PPT, PPTX, DOC, DOCX, XLS, XLSX, TXT', 'error')
+            return render_template('add_document.html')
+
+        # Validate file size (10MB limit)
+        if not validate_file_size(file, max_size_mb=10.0):
+            file_size_mb = get_file_size_mb(file)
+            flash(f'File too large. Maximum size is 10MB, your file is {file_size_mb:.1f}MB.', 'error')
             return render_template('add_document.html')
 
         try:
             sort_order = int(sort_order) if sort_order else 0
 
-            # Create documents directory if it doesn't exist
-            documents_dir = os.path.join(app.root_path, 'documents')
-            if not os.path.exists(documents_dir):
-                os.makedirs(documents_dir)
+            # Upload file to R2
+            r2_url, r2_filename, error = upload_document_to_r2(file, file.filename)
+            if error:
+                flash(f'Error uploading document to cloud storage: {error}', 'error')
+                return render_template('add_document.html')
 
-            # Generate unique filename
-            import uuid
-            unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
-            file_path = os.path.join(documents_dir, unique_filename)
+            # Get file size
+            file_size = int(get_file_size_mb(file) * 1024 * 1024)  # Convert to bytes
+            file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
 
-            # Save file
-            file.save(file_path)
-            file_size = os.path.getsize(file_path)
-
+            # Create document record
             document = RecruitmentDocument(
                 title=title,
                 description=description,
-                filename=unique_filename,
+                filename=r2_filename,
                 original_filename=file.filename,
                 file_size=file_size,
                 file_type=file_extension,
                 category=category,
-                sort_order=sort_order
+                sort_order=sort_order,
+                blob_url=r2_url
             )
 
             db.session.add(document)
             db.session.commit()
 
             log_activity('CREATE', 'recruitment_document', document.id, f"Document: {title}")
-            flash('Document uploaded successfully.', 'success')
+            flash('Document uploaded successfully to cloud storage.', 'success')
             return redirect(url_for('materials'))
 
         except Exception as e:
             db.session.rollback()
-            # Clean up uploaded file if database operation fails
-            if 'file_path' in locals() and os.path.exists(file_path):
-                os.remove(file_path)
             flash(f'Error uploading document: {str(e)}', 'error')
 
     return render_template('add_document.html')
@@ -2607,18 +2644,35 @@ def delete_document(document_id):
     filename = document.filename
 
     try:
-        # Delete file from filesystem
-        documents_dir = os.path.join(app.root_path, 'documents')
-        file_path = os.path.join(documents_dir, filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Import R2 utilities
+        try:
+            from utils.r2_document_utils import delete_document_from_r2, is_r2_configured
+        except ImportError:
+            flash('Document storage system not available. Please contact administrator.', 'error')
+            return redirect(url_for('materials'))
+
+        # Check if R2 is configured
+        if not is_r2_configured():
+            flash('Document storage system not configured. Please contact administrator.', 'error')
+            return redirect(url_for('materials'))
+
+        # Delete from R2 if it's an R2 document
+        if document.blob_url and 'r2.cloudflarestorage.com' in document.blob_url:
+            if not delete_document_from_r2(document.filename):
+                flash('Warning: Document deleted from database but may still exist in cloud storage.', 'warning')
+        else:
+            # Fallback: Delete from local filesystem for legacy documents
+            documents_dir = os.path.join(app.root_path, 'documents')
+            file_path = os.path.join(documents_dir, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
         # Delete from database
         db.session.delete(document)
         db.session.commit()
 
         log_activity('DELETE', 'recruitment_document', document_id, f"Document: {title}")
-        flash('Document deleted successfully.', 'success')
+        flash('Document deleted successfully from cloud storage.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting document: {str(e)}', 'error')
@@ -2637,13 +2691,34 @@ def download_document(document_id):
         return redirect(url_for('materials'))
 
     try:
-        # Check if document has a blob URL
-        if document.blob_url:
-            # Redirect to blob URL for direct download
+        # Import R2 utilities
+        try:
+            from utils.r2_document_utils import generate_presigned_url, is_r2_configured
+        except ImportError:
+            flash('Document storage system not available. Please contact administrator.', 'error')
+            return redirect(url_for('materials'))
+
+        # Check if R2 is configured
+        if not is_r2_configured():
+            flash('Document storage system not configured. Please contact administrator.', 'error')
+            return redirect(url_for('materials'))
+
+        # Check if document has an R2 filename
+        if document.filename and 'r2.cloudflarestorage.com' in document.blob_url:
+            # Generate presigned URL for secure download
+            presigned_url = generate_presigned_url(document.filename, expiration=3600)  # 1 hour expiration
+            if presigned_url:
+                log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
+                return redirect(presigned_url)
+            else:
+                flash('Error generating download link. Please try again.', 'error')
+                return redirect(url_for('materials'))
+        elif document.blob_url:
+            # Fallback to direct blob URL (for legacy documents)
             log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
             return redirect(document.blob_url)
         else:
-            # Document not found in blob storage
+            # Document not found in cloud storage
             flash('Document not available in cloud storage.', 'error')
             return redirect(url_for('materials'))
     except Exception as e:

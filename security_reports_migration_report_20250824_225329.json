@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-08-24T22:53:29.096526",
+  "quality_analysis": {
+    "success": true,
+    "migrated_count": 1,
+    "skipped_count": 0,
+    "error_count": 0,
+    "details": [
+      {
+        "pathname": "reports/quality-analysis_20250819_055144.json",
+        "status": "migrated",
+        "r2_filename": "reports/quality-analysis_20250819_055144.json",
+        "size": 1103
+      }
+    ]
+  },
+  "vulnerability_scan": {
+    "success": true,
+    "migrated_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "details": []
+  },
+  "total_migrated": 1,
+  "total_errors": 0
+}

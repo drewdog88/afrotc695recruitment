@@ -13,7 +13,7 @@ Streamlines recruitment operations for Air Force ROTC Detachment 695 with compre
 - **Cadet Management**: Status tracking (active/inactive/graduated) with unenrollment dates
 - **Contact Management**: High school and university contact database
 - **Event Calendar**: Recruitment event scheduling and management
-- **Document Storage**: Secure file management with Vercel Blob storage
+- **Document Storage**: Secure file management with Cloudflare R2 storage
 
 ### 🔐 **Security & Authentication**
 - **Session-based Authentication**: Secure login with role-based access (Admin/Recruiter)
@@ -39,7 +39,7 @@ Streamlines recruitment operations for Air Force ROTC Detachment 695 with compre
 - **Backend**: Python Flask 3.1.1 with SQLAlchemy ORM
 - **Database**: Neon PostgreSQL (serverless, auto-scaling)
 - **Deployment**: Vercel (serverless functions)
-- **Storage**: Vercel Blob (documents) + Cloudflare R2 (backups)
+- **Storage**: Cloudflare R2 (documents and backups)
 - **Frontend**: Bootstrap 5, Chart.js, Jinja2 templates
 - **Authentication**: Werkzeug password hashing with session management
 
@@ -71,7 +71,7 @@ pip install -r requirements.txt
 ```bash
 # Copy and configure environment variables
 cp .env.example .env
-# Edit .env with your Neon PostgreSQL and Vercel Blob credentials
+# Edit .env with your Neon PostgreSQL and Cloudflare R2 credentials
 ```
 
 3. **Database initialization:**

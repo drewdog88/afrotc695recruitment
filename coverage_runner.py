@@ -24,7 +24,8 @@ def run_coverage_analysis():
 
     # Run tests with coverage
     test_files = [
-        "tests/test_database_migration.py"
+        "tests/unit/test_auth.py",
+        "tests/unit/test_recruit_management.py"
     ]
 
     # Run each test file

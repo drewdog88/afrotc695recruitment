@@ -291,7 +291,7 @@ def backup_database_neon(description="Nightly automatic backup", backup_type="da
         return None, None
 
 def create_full_backup_tgz(description="Weekly full backup"):
-    """Create a full backup that includes database, Vercel Blob contents, and R2 backup files using tar.gz format"""
+    """Create a full backup that includes database and R2 backup files using tar.gz format (NO Vercel Blob)"""
     try:
         # Use flat R2 filename structure (no folders)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # e.g., 20250110_143022
@@ -321,73 +321,61 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 except Exception as e:
                     print(f"Error adding database backup to tar.gz: {e}")
 
-            # 2. Add Vercel Blob contents
-            print("Adding Vercel Blob contents to full backup...")
-            vercel_blob_files = []
+            # 2. Add R2 document files (from documents folder in R2)
+            print("Adding R2 document files to full backup...")
+            r2_document_files = []
             try:
-                from vercel_blob import list
-                import requests
+                r2_client = get_r2_client()
+                if r2_client:
+                    # List documents in R2 (documents/ prefix)
+                    response = r2_client.list_objects_v2(
+                        Bucket=R2_BUCKET_NAME,
+                        Prefix='documents/'
+                    )
 
-                # List files in Vercel Blob
-                blob_response = list()
+                    if 'Contents' in response:
+                        for obj in response['Contents']:
+                            try:
+                                filename = obj['Key']
 
-                # Handle different response structures
-                if hasattr(blob_response, '__iter__') and not isinstance(blob_response, (str, bytes)):
-                    if isinstance(blob_response, dict):
-                        if 'blobs' in blob_response:
-                            files = blob_response['blobs']
-                        else:
-                            files = [blob_response]  # Single file
-                    else:
-                        files = list(blob_response)  # Convert to list
+                                # Skip if it's a directory marker
+                                if filename.endswith('/'):
+                                    continue
+
+                                # Download document content from R2
+                                doc_response = r2_client.get_object(
+                                    Bucket=R2_BUCKET_NAME,
+                                    Key=filename
+                                )
+                                file_content = doc_response['Body'].read()
+
+                                # Add to tar.gz
+                                tar_path = f"r2_documents/{filename}"
+                                file_info_tar = tarfile.TarInfo(name=tar_path)
+                                file_info_tar.size = len(file_content)
+                                tar_file.addfile(file_info_tar, io.BytesIO(file_content))
+
+                                r2_document_files.append({
+                                    'path': filename,
+                                    'size': len(file_content)
+                                })
+
+                                print(f"Added R2 document: {filename} ({len(file_content)} bytes)")
+
+                            except Exception as e:
+                                print(f"Error adding R2 document {filename}: {e}")
+                                continue
+
+                    print(f"Successfully added {len(r2_document_files)} R2 document files to backup")
                 else:
-                    files = []
-
-                print(f"Found {len(files)} files in Vercel Blob")
-
-                # Copy each file from Vercel Blob to the backup
-                for file_info in files:
-                    try:
-                        file_path = file_info.get('pathname', '')
-                        file_url = file_info.get('url', '')
-
-                        if not file_path or not file_url:
-                            continue
-
-                        # Download file content from Vercel Blob
-                        response = requests.get(file_url)
-                        if response.status_code != 200:
-                            print(f"Failed to download {file_path}: {response.status_code}")
-                            continue
-
-                        file_content = response.content
-
-                        # Add to tar.gz
-                        tar_path = f"vercel_blob_files/{file_path}"
-                        file_info_tar = tarfile.TarInfo(name=tar_path)
-                        file_info_tar.size = len(file_content)
-                        tar_file.addfile(file_info_tar, io.BytesIO(file_content))
-
-                        vercel_blob_files.append({
-                            'path': file_path,
-                            'size': len(file_content),
-                            'url': file_url
-                        })
-
-                        print(f"Added Vercel Blob file: {file_path} ({len(file_content)} bytes)")
-
-                    except Exception as e:
-                        print(f"Error adding Vercel Blob file {file_path}: {e}")
-                        continue
-
-                print(f"Successfully added {len(vercel_blob_files)} Vercel Blob files to backup")
+                    print("R2 client not available for document backup")
 
             except Exception as e:
-                print(f"Error processing Vercel Blob files: {e}")
-                vercel_blob_files = []
+                print(f"Error processing R2 document files: {e}")
+                r2_document_files = []
 
-            # 3. Add all R2 backup files (existing backups)
-            print("Adding all R2 backup files to full backup...")
+            # 3. Add all R2 backup files (existing backups) - CAREFUL: Prevent recursive backup
+            print("Adding all R2 backup files to full backup (excluding full backups to prevent recursion)...")
             r2_backup_files = list_backup_files_r2()
             print(f"Found {len(r2_backup_files)} backup files in R2 storage")
 
@@ -395,14 +383,19 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 try:
                     filename = r2_file['filename']
 
-                    # Skip the full backup we're creating (prevent recursive backup)
+                    # CRITICAL: Skip the full backup we're creating (prevent recursive backup)
                     if filename == tgz_filename:
                         print(f"Skipping self-reference: {filename}")
                         continue
 
-                    # Skip other full backups to prevent recursive growth
+                    # CRITICAL: Skip other full backups to prevent recursive growth
                     if filename.startswith('afrotc695_backup_full_'):
-                        print(f"Skipping existing full backup: {filename}")
+                        print(f"Skipping existing full backup to prevent recursion: {filename}")
+                        continue
+
+                    # CRITICAL: Skip any backup files that contain other backups (prevent nested recursion)
+                    if 'backup' in filename.lower() and any(pattern in filename for pattern in ['full', 'daily', 'weekly']):
+                        print(f"Skipping backup file to prevent recursion: {filename}")
                         continue
 
                     # Get the file content from R2
@@ -430,10 +423,11 @@ def create_full_backup_tgz(description="Weekly full backup"):
                 'created_at': datetime.now().isoformat(),
                 'contents': {
                     'database_backup': backup_filename if backup_filename else None,
-                    'vercel_blob_files_count': len(vercel_blob_files),
-                    'vercel_blob_files': vercel_blob_files,
+                    'r2_document_files_count': len(r2_document_files),
+                    'r2_document_files': r2_document_files,
                     'r2_backup_files_count': len(r2_backup_files) if r2_backup_files else 0,
-                    'total_size': tgz_buffer.tell()
+                    'total_size': tgz_buffer.tell(),
+                    'note': 'Full backup using Cloudflare R2 only - no Vercel Blob contents'
                 }
             }
 
@@ -450,7 +444,8 @@ def create_full_backup_tgz(description="Weekly full backup"):
             'timestamp': datetime.now().isoformat(),
             'user': 'System',
             'created_at': datetime.now().isoformat(),
-            'format': 'tar.gz'
+            'format': 'tar.gz',
+            'storage': 'cloudflare_r2_only'
         }
 
         # Upload the tar.gz file to R2 with metadata
@@ -461,6 +456,7 @@ def create_full_backup_tgz(description="Weekly full backup"):
 
         if success:
             print(f"Full backup tar.gz uploaded successfully to R2: {tgz_filename}")
+            print("✅ Full backup completed - Cloudflare R2 only, no Vercel Blob contents")
             return tgz_filename, f"r2://{tgz_filename}"  # Placeholder URL
         else:
             print("Failed to upload full backup tar.gz to R2 storage")
