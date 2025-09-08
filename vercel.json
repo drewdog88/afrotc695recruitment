@@ -44,9 +44,6 @@
     "api/app.py": {
       "maxDuration": 60
     },
-    "api/cron/database-monitor.js": {
-      "maxDuration": 30
-    },
     "api/backup/nightly.py": {
       "maxDuration": 300
     },
@@ -69,10 +66,6 @@
     {
       "path": "/api/backup/cleanup",
       "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/cron/database-monitor",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
