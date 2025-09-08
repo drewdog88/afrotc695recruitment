@@ -5,7 +5,7 @@ def handler(request):
     """Vercel serverless function handler for nightly backup"""
     try:
         print(f"Nightly backup CRON started at {datetime.now().isoformat()}")
-        
+
         return {
             'statusCode': 200,
             'body': {
@@ -14,7 +14,7 @@ def handler(request):
                 'timestamp': datetime.now().isoformat()
             }
         }
-            
+
     except Exception as e:
         print(f"Error in nightly backup CRON: {e}")
         return {
