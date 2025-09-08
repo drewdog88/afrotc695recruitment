@@ -1,14 +1,21 @@
 # Serverless entry point for Vercel CRON backup
 
-import json
-from datetime import datetime
-from flask import Flask, jsonify
+import sys
+import os
 
-app = Flask(__name__)
+# Add the parent directory to the path so we can import from the main app
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-@app.route('/')
+# Import the Flask app from the main app.py
+from app import app
+
+# Add a route for the backup
+@app.route('/api/backup_nightly')
 def backup_handler():
     """Handle the CRON backup request"""
+    from datetime import datetime
+    from flask import jsonify
+    
     try:
         return jsonify({
             'success': True,
@@ -22,5 +29,6 @@ def backup_handler():
             'timestamp': datetime.now().isoformat()
         }), 500
 
+# Export the app for Vercel
 if __name__ == '__main__':
     app.run()
