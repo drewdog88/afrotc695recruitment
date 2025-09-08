@@ -11,12 +11,12 @@ def handler(request):
     try:
         # Import the backup function from the main app
         from neon_backup_scheduler import backup_database_neon
-        
+
         print(f"Nightly backup CRON started at {datetime.now().isoformat()}")
-        
+
         # Run the backup
         backup_filename, backup_url = backup_database_neon("Nightly automatic backup")
-        
+
         if backup_filename:
             print(f"Nightly backup completed: {backup_filename}")
             return {
@@ -38,7 +38,7 @@ def handler(request):
                     'timestamp': datetime.now().isoformat()
                 }
             }
-            
+
     except Exception as e:
         print(f"Error in nightly backup CRON: {e}")
         return {

@@ -6,14 +6,6 @@
       "destination": "/static/$1"
     },
     {
-      "source": "/api/backup/(.*)",
-      "destination": "/api/backup/$1"
-    },
-    {
-      "source": "/api/test_cron",
-      "destination": "/api/test_cron"
-    },
-    {
       "source": "/(.*)",
       "destination": "/api/app.py"
     }
@@ -51,21 +43,12 @@
   "functions": {
     "api/app.py": {
       "maxDuration": 60
-    },
-    "api/backup_nightly.py": {
-      "maxDuration": 300
-    },
-    "api/backup/full-weekly.py": {
-      "maxDuration": 600
-    },
-    "api/backup/cleanup.py": {
-      "maxDuration": 180
     }
   },
   "crons": [
     {
-      "path": "/api/backup/nightly",
-      "schedule": "40 19 * * *"
+      "path": "/api/cron_test",
+      "schedule": "45 19 * * *"
     },
     {
       "path": "/api/backup/full-weekly",
