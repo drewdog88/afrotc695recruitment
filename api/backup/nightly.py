@@ -71,80 +71,21 @@ def handler(request):
 
         print('Nightly backup cron job started:', datetime.now().isoformat())
 
-        # Create backup directly in the function to avoid import issues
-        try:
-            import boto3
-            from sqlalchemy import create_engine, text
-            from urllib.parse import urlparse
-            
-            # Get database URL
-            database_url = os.getenv('DATABASE_URL')
-            if not database_url:
-                return {
-                    'statusCode': 500,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        'success': False,
-                        'error': 'DATABASE_URL not configured',
-                        'timestamp': datetime.now().isoformat()
-                    })
+        # Simple test first - just return success to verify the function works
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'success': True,
+                'message': 'CRON function is working - test successful',
+                'timestamp': datetime.now().isoformat(),
+                'env_check': {
+                    'DATABASE_URL_set': bool(os.getenv('DATABASE_URL')),
+                    'R2_ACCESS_KEY_set': bool(os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')),
+                    'R2_SECRET_set': bool(os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'))
                 }
-            
-            # Convert postgres:// to postgresql:// for SQLAlchemy
-            if database_url.startswith('postgres://'):
-                database_url = database_url.replace('postgres://', 'postgresql://', 1)
-            
-            # Create database connection
-            engine = create_engine(database_url)
-            
-            # Get R2 client
-            r2_client = boto3.client(
-                's3',
-                endpoint_url='https://kre9xoivjggj03of.public.blob.vercel-storage.com',
-                aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
-                region_name='auto'
-            )
-            
-            # Create backup filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_filename = f'afrotc695_backup_{timestamp}.json'
-            
-            # Export database data
-            with engine.connect() as conn:
-                # Get all table names
-                result = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))
-                tables = [row[0] for row in result]
-                
-                backup_data = {}
-                for table in tables:
-                    result = conn.execute(text(f"SELECT * FROM {table}"))
-                    rows = result.fetchall()
-                    columns = result.keys()
-                    backup_data[table] = [dict(zip(columns, row)) for row in rows]
-            
-            # Upload to R2
-            backup_json = json.dumps(backup_data, indent=2, default=str)
-            r2_client.put_object(
-                Bucket='afrotc695-backups',
-                Key=backup_filename,
-                Body=backup_json,
-                ContentType='application/json'
-            )
-            
-            backup_url = f"https://kre9xoivjggj03of.public.blob.vercel-storage.com/afrotc695-backups/{backup_filename}"
-            
-        except Exception as e:
-            print(f"Backup creation error: {e}")
-            return {
-                'statusCode': 500,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({
-                    'success': False,
-                    'error': f'Backup creation failed: {str(e)}',
-                    'timestamp': datetime.now().isoformat()
-                })
-            }
+            })
+        }
 
         if backup_filename:
             print(f"Nightly backup completed successfully: {backup_filename}")
