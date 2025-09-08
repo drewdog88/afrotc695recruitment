@@ -16,6 +16,3 @@ def handler(request):
             'timestamp': datetime.now().isoformat()
         })
     }
-
-def main(request):
-    return handler(request)
