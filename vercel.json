@@ -44,7 +44,7 @@
     "api/app.py": {
       "maxDuration": 60
     },
-    "api/backup/nightly.py": {
+    "api/backup_nightly.py": {
       "maxDuration": 300
     },
     "api/backup/full-weekly.py": {
@@ -56,7 +56,7 @@
   },
   "crons": [
     {
-      "path": "/api/backup/nightly",
+      "path": "/api/backup_nightly",
       "schedule": "15 17 * * *"
     },
     {
