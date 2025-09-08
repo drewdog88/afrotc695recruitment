@@ -65,7 +65,7 @@
   "crons": [
     {
       "path": "/api/backup/nightly",
-      "schedule": "35 19 * * *"
+      "schedule": "40 19 * * *"
     },
     {
       "path": "/api/backup/full-weekly",
