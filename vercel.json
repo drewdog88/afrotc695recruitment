@@ -6,8 +6,8 @@
       "destination": "/static/$1"
     },
     {
-      "source": "/api/cron_test",
-      "destination": "/api/cron_test"
+      "source": "/api/backup_cron",
+      "destination": "/api/backup_cron"
     },
     {
       "source": "/(.*)",
@@ -51,8 +51,8 @@
   },
   "crons": [
     {
-      "path": "/api/cron_test",
-      "schedule": "45 19 * * *"
+      "path": "/api/backup_cron",
+      "schedule": "50 19 * * *"
     },
     {
       "path": "/api/backup/full-weekly",
