@@ -41,18 +41,5 @@
       "maxDuration": 60
     }
   },
-  "crons": [
-    {
-      "path": "/api/backup_cron",
-      "schedule": "50 19 * * *"
-    },
-    {
-      "path": "/api/backup/full-weekly",
-      "schedule": "0 3 * * 0"
-    },
-    {
-      "path": "/api/backup/cleanup",
-      "schedule": "0 4 * * *"
-    }
-  ]
+  "crons": []
 }

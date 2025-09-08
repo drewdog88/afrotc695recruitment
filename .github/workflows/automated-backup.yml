@@ -1,0 +1,63 @@
+name: Automated Database Backup
+
+on:
+  schedule:
+    # Run at 2:00 AM UTC every day (nightly backup)
+    - cron: '0 2 * * *'
+    # Run every 6 hours for more frequent backups
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual triggers from GitHub UI
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          pip install requests
+          
+      - name: Trigger Nightly Backup
+        env:
+          BACKUP_URL: https://afrotc695recruitment.vercel.app/api/backup/nightly
+        run: |
+          echo "Starting automated backup at $(date)"
+          
+          # Make the backup request
+          response=$(curl -s -w "\n%{http_code}" -X GET "$BACKUP_URL" \
+            -H "User-Agent: GitHub-Actions/1.0" \
+            -H "Accept: application/json")
+          
+          # Extract response body and status code
+          http_code=$(echo "$response" | tail -n1)
+          response_body=$(echo "$response" | head -n -1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $response_body"
+          
+          # Check if backup was successful
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Backup completed successfully"
+            echo "$response_body" | jq '.'
+          else
+            echo "❌ Backup failed with status $http_code"
+            echo "$response_body"
+            exit 1
+          fi
+          
+      - name: Backup Status
+        if: always()
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Automated backup completed successfully"
+          else
+            echo "❌ Automated backup failed"
+          fi
