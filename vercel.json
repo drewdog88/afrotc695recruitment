@@ -6,6 +6,10 @@
       "destination": "/static/$1"
     },
     {
+      "source": "/api/cron_test",
+      "destination": "/api/cron_test"
+    },
+    {
       "source": "/(.*)",
       "destination": "/api/app.py"
     }
