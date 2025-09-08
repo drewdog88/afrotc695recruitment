@@ -43,12 +43,24 @@
   "functions": {
     "api/app.py": {
       "maxDuration": 60
+    },
+    "api/cron/database-monitor.js": {
+      "maxDuration": 30
+    },
+    "api/backup/nightly.py": {
+      "maxDuration": 300
+    },
+    "api/backup/full-weekly.py": {
+      "maxDuration": 600
+    },
+    "api/backup/cleanup.py": {
+      "maxDuration": 180
     }
   },
   "crons": [
     {
       "path": "/api/backup/nightly",
-      "schedule": "0 19 * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/backup/full-weekly",
@@ -57,6 +69,10 @@
     {
       "path": "/api/backup/cleanup",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/database-monitor",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
