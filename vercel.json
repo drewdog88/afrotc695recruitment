@@ -4,14 +4,6 @@
     {
       "source": "/static/(.*)",
       "destination": "/static/$1"
-    },
-    {
-      "source": "/api/backup_cron",
-      "destination": "/api/backup_cron"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/api/app.py"
     }
   ],
   "headers": [
