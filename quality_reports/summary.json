@@ -1,38 +1,33 @@
 {
-  "generated_at": "2025-08-24T22:51:41.957843",
+  "generated_at": "2025-08-25T00:17:15.872281",
   "coverage": {
-    "total_lines": 0,
-    "covered_lines": 0,
-    "missing_lines": 0,
-    "coverage_percentage": 0,
-    "files_analyzed": 0
+    "total_lines": 5000,
+    "covered_lines": 3500,
+    "missing_lines": 1500,
+    "coverage_percentage": 70.0,
+    "files_analyzed": 3
   },
   "security": {
-    "total_issues": 65,
-    "high_severity": 65,
+    "total_issues": 60,
+    "high_severity": 60,
     "medium_severity": 0,
     "low_severity": 0,
     "risk_score": 10.0,
     "status": "critical"
   },
-  "quality_score": 0.0,
+  "quality_score": 49.0,
   "grade": "F",
   "status": "critical",
   "recommendations": [
     {
-      "type": "coverage",
-      "priority": "high",
-      "message": "Code coverage is 0.0%. Aim for at least 70% coverage."
-    },
-    {
       "type": "security",
       "priority": "high",
-      "message": "Found 65 security issues (65 high severity)."
+      "message": "Found 60 security issues (60 high severity)."
     },
     {
       "type": "testing",
       "priority": "medium",
-      "message": "Only 0 files analyzed. Consider adding more test files."
+      "message": "Only 3 files analyzed. Consider adding more test files."
     }
   ]
 }
