@@ -3,13 +3,13 @@
  * Runs every 5 minutes to check database health and send alerts
  */
 
-import { spawn } from 'child_process';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+const { spawn } = require('child_process');
+const { promisify } = require('util');
+const { exec } = require('child_process');
 
 const execAsync = promisify(exec);
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     console.log('Database monitoring cron job started:', new Date().toISOString());
 
