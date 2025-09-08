@@ -87,31 +87,6 @@ def handler(request):
             })
         }
 
-        if backup_filename:
-            print(f"Nightly backup completed successfully: {backup_filename}")
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({
-                    'success': True,
-                    'message': 'Nightly backup completed successfully',
-                    'backup_filename': backup_filename,
-                    'backup_url': backup_url,
-                    'timestamp': datetime.now().isoformat()
-                })
-            }
-        else:
-            print("Nightly backup failed")
-            return {
-                'statusCode': 500,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({
-                    'success': False,
-                    'error': 'Backup creation failed',
-                    'timestamp': datetime.now().isoformat()
-                })
-            }
-
     except Exception as e:
         print(f"Nightly backup error: {e}")
         return {
