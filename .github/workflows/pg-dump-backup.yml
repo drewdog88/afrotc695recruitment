@@ -1,93 +1,74 @@
-name: PostgreSQL pg_dump Backup
+name: Nightly Postgres Backup
 
 on:
   schedule:
-    # Run weekly on Sundays at 3:00 AM UTC
-    - cron: '0 3 * * 0'
-  workflow_dispatch:  # Allow manual triggers
+    - cron: '0 2 * * *' # Runs daily at 2 AM UTC
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+env:
+  # Define environment variables for your database and Cloudflare R2
+  DATABASE_URL: ${{ secrets.DATABASE_URL }} # PostgreSQL connection string
+  R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+  R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+  R2_ENDPOINT_URL: "https://kre9xoivjggj03of.public.blob.vercel-storage.com"
+  FOLDER_NAME: postgres-backups
+  RETENTION: 30 # Number of days to retain backups
 
 jobs:
-  pg-dump-backup:
+  backup:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client (version 17)
+      - name: Install PostgreSQL client
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget ca-certificates
-          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          sudo apt-get install -y postgresql-client
 
       - name: Install AWS CLI
         run: |
           pip install awscli
 
-      - name: Create pg_dump backup
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Configure AWS CLI for Cloudflare R2
         run: |
-          echo "Creating pg_dump backup at $(date)"
+          aws configure set aws_access_key_id ${{ env.R2_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ env.R2_SECRET_ACCESS_KEY }}
+          aws configure set default.region auto
 
-          # Create timestamp for filename
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          BACKUP_FILE="afrotc695_pgdump_${TIMESTAMP}.sql"
-
-          # Run pg_dump
-          pg_dump "$DATABASE_URL" > "$BACKUP_FILE"
-
-          # Check if backup was created successfully
-          if [ -s "$BACKUP_FILE" ]; then
-            echo "✅ pg_dump backup created successfully: $BACKUP_FILE"
-            echo "Backup size: $(du -h $BACKUP_FILE | cut -f1)"
-          else
-            echo "❌ pg_dump backup failed - file is empty or doesn't exist"
-            exit 1
-          fi
-
-          # Also create a compressed version
-          gzip "$BACKUP_FILE"
-          echo "✅ Compressed backup: ${BACKUP_FILE}.gz"
-
-      - name: Upload to R2 Storage
-        env:
-          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
-          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+      - name: Create backup folder in R2 if it doesn't exist
         run: |
-          # Configure AWS CLI for R2
-          aws configure set aws_access_key_id "$CLOUDFLARE_R2_ACCESS_KEY_ID"
-          aws configure set aws_secret_access_key "$CLOUDFLARE_R2_SECRET_ACCESS_KEY"
+          aws s3api head-object --bucket ${{ env.R2_BUCKET_NAME }} --key "${{ env.FOLDER_NAME }}/" --endpoint-url="${{ env.R2_ENDPOINT_URL }}" 2>/dev/null || \
+          aws s3api put-object --bucket ${{ env.R2_BUCKET_NAME }} --key "${{ env.FOLDER_NAME }}/" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
 
-          # Upload to R2
-          aws s3 cp "afrotc695_pgdump_${TIMESTAMP}.sql.gz" \
-            "s3://$CLOUDFLARE_R2_BUCKET_NAME/backups/pgdump/" \
-            --endpoint-url="https://kre9xoivjggj03of.public.blob.vercel-storage.com"
-
-          echo "✅ Backup uploaded to R2: afrotc695_pgdump_${TIMESTAMP}.sql.gz"
-
-      - name: Cleanup old backups (keep last 4 weeks)
-        env:
-          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
-          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+      - name: Run pg_dump and gzip
         run: |
-          # List and delete old pg_dump backups (keep last 4)
-          aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET_NAME/backups/pgdump/" \
-            --endpoint-url="https://kre9xoivjggj03of.public.blob.vercel-storage.com" \
-            --recursive | sort -r | tail -n +5 | awk '{print $4}' | \
-            xargs -I {} aws s3 rm "s3://$CLOUDFLARE_R2_BUCKET_NAME/{}" \
-            --endpoint-url="https://kre9xoivjggj03of.public.blob.vercel-storage.com"
+          GZIP_NAME="${{ env.FOLDER_NAME }}/$(date +%Y-%m-%d_%H-%M-%S).sql.gz"
+          pg_dump "${{ env.DATABASE_URL }}" | gzip > "${GZIP_NAME}"
+          echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
 
-          echo "✅ Cleaned up old pg_dump backups"
+      - name: Cleanup old backups
+        run: |
+          THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
+          aws s3api list-objects --bucket ${{ env.R2_BUCKET_NAME }} --prefix "${{ env.FOLDER_NAME }}/" \
+            --endpoint-url="${{ env.R2_ENDPOINT_URL }}" \
+            --query "Contents[?LastModified<'${THRESHOLD_DATE}'] | [?ends_with(Key, '.gz')].{Key: Key}" --output text | \
+            while read -r file; do 
+              if [ ! -z "$file" ]; then
+                aws s3 rm "s3://${{ env.R2_BUCKET_NAME }}/${file}" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
+                echo "Deleted old backup: $file"
+              fi
+            done
+
+      - name: Upload to R2
+        run: |
+          aws s3 cp "${{ env.GZIP_NAME }}" "s3://${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }}" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
+          echo "✅ Uploaded backup to Cloudflare R2: ${{ env.GZIP_NAME }}"
 
       - name: Backup Summary
         run: |
-          echo "🎉 Weekly pg_dump backup completed successfully!"
-          echo "📁 Backup file: afrotc695_pgdump_${TIMESTAMP}.sql.gz"
+          echo "🎉 Daily pg_dump backup completed successfully!"
+          echo "📁 Backup file: ${{ env.GZIP_NAME }}"
           echo "📅 Date: $(date)"
           echo "💾 Storage: Cloudflare R2"
