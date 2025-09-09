@@ -63,15 +63,26 @@ jobs:
           echo "DB_DUMP_NAME=${DB_DUMP_NAME}" >> $GITHUB_ENV
           echo "✅ Created fresh database dump: ${DB_DUMP_NAME}"
 
-                  - name: Download all documents from R2
+                  - name: Test R2 connectivity and list contents
                     run: |
-                      # First, list what's actually in the R2 bucket to see the structure
+                      # Test basic connectivity first
+                      echo "🔍 Testing R2 connectivity..."
+                      echo "Bucket name: ${{ env.R2_BUCKET_NAME }}"
+                      echo "Endpoint: ${{ env.R2_ENDPOINT_URL }}"
+                      
+                      # Test if we can access the bucket at all
+                      echo "📋 Testing bucket access..."
+                      rclone lsd r2: || echo "❌ Cannot list buckets - check credentials and endpoint"
+                      
+                      # Try to list bucket contents
                       echo "📋 Listing R2 bucket contents (all files):"
-                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "Could not list bucket contents"
+                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "❌ Could not list bucket contents"
                       
                       echo "📋 Listing documents folder specifically:"
-                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "Could not list documents folder"
-                      
+                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "❌ Could not list documents folder"
+
+                  - name: Download all documents from R2
+                    run: |
                       # Try to download from documents folder first
                       echo "📁 Attempting to download from /documents/ folder..."
                       if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
