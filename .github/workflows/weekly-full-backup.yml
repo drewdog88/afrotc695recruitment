@@ -11,7 +11,7 @@ env:
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
   R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-              R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+  R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
   FOLDER_NAME: weekly-full-backups
 
 jobs:
@@ -34,20 +34,19 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
 
-
-                  - name: Configure rclone for Cloudflare R2
-                    run: |
-                      mkdir -p ~/.config/rclone
-                      cat > ~/.config/rclone/rclone.conf << EOF
-                      [r2]
-                      type = s3
-                      provider = Other
-                      access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
-                      secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
-                      endpoint = ${{ env.R2_ENDPOINT_URL }}
-                      acl = private
-                      no_check_bucket = true
-                      EOF
+      - name: Configure rclone for Cloudflare R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Other
+          access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ env.R2_ENDPOINT_URL }}
+          acl = private
+          no_check_bucket = true
+          EOF
 
       - name: Create backup directory structure
         run: |
@@ -63,55 +62,55 @@ jobs:
           echo "DB_DUMP_NAME=${DB_DUMP_NAME}" >> $GITHUB_ENV
           echo "✅ Created fresh database dump: ${DB_DUMP_NAME}"
 
-                  - name: Test R2 connectivity and list contents
-                    run: |
-                      # Test basic connectivity first
-                      echo "🔍 Testing R2 connectivity..."
-                      echo "Bucket name: ${{ env.R2_BUCKET_NAME }}"
-                      echo "Endpoint: ${{ env.R2_ENDPOINT_URL }}"
+      - name: Test R2 connectivity and list contents
+        run: |
+          # Test basic connectivity first
+          echo "🔍 Testing R2 connectivity..."
+          echo "Bucket name: ${{ env.R2_BUCKET_NAME }}"
+          echo "Endpoint: ${{ env.R2_ENDPOINT_URL }}"
+          
+          # Test if we can access the bucket at all
+          echo "📋 Testing bucket access..."
+          rclone lsd r2: || echo "❌ Cannot list buckets - check credentials and endpoint"
+          
+          # Try to list bucket contents
+          echo "📋 Listing R2 bucket contents (all files):"
+          rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "❌ Could not list bucket contents"
+          
+          echo "📋 Listing documents folder specifically:"
+          rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "❌ Could not list documents folder"
 
-                      # Test if we can access the bucket at all
-                      echo "📋 Testing bucket access..."
-                      rclone lsd r2: || echo "❌ Cannot list buckets - check credentials and endpoint"
+      - name: Download all documents from R2
+        run: |
+          # Try to download from documents folder first
+          echo "📁 Attempting to download from /documents/ folder..."
+          if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
+            echo "✅ Downloaded documents from /documents/ folder"
+          else
+            echo "⚠️  /documents/ folder not found, trying root directory..."
+            # If documents folder doesn't exist, try downloading from root
+            rclone copy r2:${{ env.R2_BUCKET_NAME }}/ "${{ env.FOLDER_NAME }}/documents/" --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found in root directory"
+            echo "✅ Downloaded documents from root directory"
+          fi
 
-                      # Try to list bucket contents
-                      echo "📋 Listing R2 bucket contents (all files):"
-                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "❌ Could not list bucket contents"
-
-                      echo "📋 Listing documents folder specifically:"
-                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "❌ Could not list documents folder"
-
-                  - name: Download all documents from R2
-                    run: |
-                      # Try to download from documents folder first
-                      echo "📁 Attempting to download from /documents/ folder..."
-                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
-                        echo "✅ Downloaded documents from /documents/ folder"
-                      else
-                        echo "⚠️  /documents/ folder not found, trying root directory..."
-                        # If documents folder doesn't exist, try downloading from root
-                        rclone copy r2:${{ env.R2_BUCKET_NAME }}/ "${{ env.FOLDER_NAME }}/documents/" --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found in root directory"
-                        echo "✅ Downloaded documents from root directory"
-                      fi
-
-                  - name: Download existing backups from R2
-                    run: |
-                      # Download all existing backup files from R2 (if they exist)
-                      echo "📁 Attempting to download existing postgres backups..."
-                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/postgres-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.gz" 2>/dev/null; then
-                        echo "✅ Downloaded existing postgres backups"
-                      else
-                        echo "⚠️  No existing postgres backups found (this is normal for first run)"
-                      fi
-
-                      echo "📁 Attempting to download existing weekly backups..."
-                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz" 2>/dev/null; then
-                        echo "✅ Downloaded existing weekly backups"
-                      else
-                        echo "⚠️  No existing weekly backups found (this is normal for first run)"
-                      fi
-
-                      echo "✅ Completed existing backup download attempt"
+      - name: Download existing backups from R2
+        run: |
+          # Download all existing backup files from R2 (if they exist)
+          echo "📁 Attempting to download existing postgres backups..."
+          if rclone copy r2:${{ env.R2_BUCKET_NAME }}/postgres-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.gz" 2>/dev/null; then
+            echo "✅ Downloaded existing postgres backups"
+          else
+            echo "⚠️  No existing postgres backups found (this is normal for first run)"
+          fi
+          
+          echo "📁 Attempting to download existing weekly backups..."
+          if rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz" 2>/dev/null; then
+            echo "✅ Downloaded existing weekly backups"
+          else
+            echo "⚠️  No existing weekly backups found (this is normal for first run)"
+          fi
+          
+          echo "✅ Completed existing backup download attempt"
 
       - name: Create comprehensive tar.gz backup
         run: |
