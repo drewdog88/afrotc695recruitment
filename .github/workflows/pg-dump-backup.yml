@@ -11,7 +11,7 @@ env:
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
   R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-              R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
+  R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
   FOLDER_NAME: postgres-backups
 
 jobs:
@@ -34,19 +34,19 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
 
-                  - name: Configure rclone for Cloudflare R2
-                    run: |
-                      mkdir -p ~/.config/rclone
-                      cat > ~/.config/rclone/rclone.conf << EOF
-                      [r2]
-                      type = s3
-                      provider = Other
-                      access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
-                      secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
-                      endpoint = ${{ env.R2_ENDPOINT_URL }}
-                      acl = private
-                      no_check_bucket = true
-                      EOF
+      - name: Configure rclone for Cloudflare R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Other
+          access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ env.R2_ENDPOINT_URL }}
+          acl = private
+          no_check_bucket = true
+          EOF
 
       - name: Run pg_dump and gzip
         run: |
@@ -54,7 +54,6 @@ jobs:
           GZIP_NAME="${{ env.FOLDER_NAME }}/$(date +%Y-%m-%d_%H-%M-%S).sql.gz"
           /usr/lib/postgresql/17/bin/pg_dump "${{ env.DATABASE_URL }}" | gzip > "${GZIP_NAME}"
           echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
-
 
       - name: Upload to R2
         run: |
