@@ -14,7 +14,7 @@ psycopg2-binary==2.9.10
 bcrypt==4.0.1
 pyotp==2.9.0
 qrcode==7.4.2
-Pillow==10.0.0
+Pillow==11.3.0
 cryptography==41.0.7
 
 # R2 Storage
