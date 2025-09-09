@@ -9,6 +9,7 @@ env:
   # Define environment variables for your database and Cloudflare R2
   DATABASE_URL: ${{ secrets.DATABASE_URL }} # PostgreSQL connection string
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
   FOLDER_NAME: postgres-backups
   RETENTION: 30 # Number of days to retain backups
 
@@ -43,6 +44,7 @@ jobs:
       - name: Cleanup old backups
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
           # List old backups and delete them
@@ -58,6 +60,7 @@ jobs:
       - name: Upload to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           wrangler r2 object put ${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }} --file="${{ env.GZIP_NAME }}"
           echo "✅ Uploaded backup to Cloudflare R2: ${{ env.GZIP_NAME }}"
