@@ -12,9 +12,6 @@ env:
   R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
   R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT_URL }}
-  BLOB_STORE_ID: ${{ secrets.BLOB_STORE_ID }}
-  BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
-  BLOB_KEY: ${{ secrets.BLOB_KEY }}
   FOLDER_NAME: weekly-full-backups
 
 jobs:
@@ -37,10 +34,6 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install boto3 requests
 
       - name: Configure rclone for Cloudflare R2
         run: |
@@ -70,58 +63,11 @@ jobs:
           echo "DB_DUMP_NAME=${DB_DUMP_NAME}" >> $GITHUB_ENV
           echo "✅ Created fresh database dump: ${DB_DUMP_NAME}"
 
-      - name: Download all documents from blob storage
+      - name: Download all documents from R2
         run: |
-          python3 << 'EOF'
-          import os
-          import requests
-          import json
-          from pathlib import Path
-
-          # Get blob storage credentials from environment
-          store_id = os.environ['BLOB_STORE_ID']
-          base_url = os.environ['BLOB_BASE_URL']
-          blob_key = os.environ['BLOB_KEY']
-          
-          # Create documents directory
-          docs_dir = Path("${{ env.FOLDER_NAME }}/documents")
-          docs_dir.mkdir(parents=True, exist_ok=True)
-          
-          # List all blobs
-          list_url = f"{base_url}/list"
-          headers = {
-              "Authorization": f"Bearer {blob_key}",
-              "Content-Type": "application/json"
-          }
-          
-          try:
-              response = requests.post(list_url, headers=headers, json={"limit": 1000})
-              response.raise_for_status()
-              blobs = response.json()
-              
-              print(f"Found {len(blobs)} documents to download")
-              
-              for blob in blobs:
-                  blob_id = blob['url'].split('/')[-1]
-                  download_url = f"{base_url}/{blob_id}"
-                  
-                  # Download the file
-                  file_response = requests.get(download_url, headers={"Authorization": f"Bearer {blob_key}"})
-                  file_response.raise_for_status()
-                  
-                  # Save to documents directory
-                  file_path = docs_dir / blob_id
-                  with open(file_path, 'wb') as f:
-                      f.write(file_response.content)
-                  
-                  print(f"Downloaded: {blob_id}")
-              
-              print("✅ All documents downloaded successfully")
-              
-          except Exception as e:
-              print(f"❌ Error downloading documents: {e}")
-              exit(1)
-          EOF
+          # Download all documents from the /documents folder in R2
+          rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/"
+          echo "✅ Downloaded all documents from R2"
 
       - name: Download existing backups from R2
         run: |
@@ -150,6 +96,6 @@ jobs:
           echo "💾 Storage: Cloudflare R2 via rclone"
           echo "📊 Contents:"
           echo "   - Fresh database dump"
-          echo "   - All documents from blob storage"
+          echo "   - All documents from R2 storage"
           echo "   - All existing backup files"
           echo "   - Compressed into single tar.gz archive"
