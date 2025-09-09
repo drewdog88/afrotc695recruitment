@@ -49,6 +49,7 @@ jobs:
 
       - name: Run pg_dump and gzip
         run: |
+          mkdir -p "${{ env.FOLDER_NAME }}"
           GZIP_NAME="${{ env.FOLDER_NAME }}/$(date +%Y-%m-%d_%H-%M-%S).sql.gz"
           /usr/lib/postgresql/17/bin/pg_dump "${{ env.DATABASE_URL }}" | gzip > "${GZIP_NAME}"
           echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
