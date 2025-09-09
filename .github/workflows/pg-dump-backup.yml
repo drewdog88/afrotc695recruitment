@@ -34,19 +34,19 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
 
-      - name: Configure rclone for Cloudflare R2
-        run: |
-          mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf << EOF
-          [r2]
-          type = s3
-          provider = Cloudflare
-          access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
-          endpoint = ${{ env.R2_ENDPOINT_URL }}
-          acl = private
-          no_check_bucket = true
-          EOF
+                  - name: Configure rclone for Cloudflare R2
+                    run: |
+                      mkdir -p ~/.config/rclone
+                      cat > ~/.config/rclone/rclone.conf << EOF
+                      [r2]
+                      type = s3
+                      provider = Other
+                      access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
+                      secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
+                      endpoint = ${{ env.R2_ENDPOINT_URL }}
+                      acl = private
+                      no_check_bucket = true
+                      EOF
 
       - name: Run pg_dump and gzip
         run: |
