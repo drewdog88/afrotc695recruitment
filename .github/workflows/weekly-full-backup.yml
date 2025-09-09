@@ -11,7 +11,7 @@ env:
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
   R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
   R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-  R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT_URL }}
+              R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
   FOLDER_NAME: weekly-full-backups
 
 jobs:
@@ -69,15 +69,15 @@ jobs:
                       echo "🔍 Testing R2 connectivity..."
                       echo "Bucket name: ${{ env.R2_BUCKET_NAME }}"
                       echo "Endpoint: ${{ env.R2_ENDPOINT_URL }}"
-                      
+
                       # Test if we can access the bucket at all
                       echo "📋 Testing bucket access..."
                       rclone lsd r2: || echo "❌ Cannot list buckets - check credentials and endpoint"
-                      
+
                       # Try to list bucket contents
                       echo "📋 Listing R2 bucket contents (all files):"
                       rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "❌ Could not list bucket contents"
-                      
+
                       echo "📋 Listing documents folder specifically:"
                       rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "❌ Could not list documents folder"
 
