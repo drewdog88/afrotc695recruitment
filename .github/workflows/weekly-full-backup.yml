@@ -65,9 +65,20 @@ jobs:
 
       - name: Download all documents from R2
         run: |
-          # Download all documents from the /documents folder in R2
-          rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/"
-          echo "✅ Downloaded all documents from R2"
+          # First, list what's in the R2 bucket to see the structure
+          echo "📋 Listing R2 bucket contents:"
+          rclone ls r2:${{ env.R2_BUCKET_NAME }}/ --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found with common extensions"
+          
+          # Try to download from documents folder first
+          echo "📁 Attempting to download from /documents/ folder..."
+          if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
+            echo "✅ Downloaded documents from /documents/ folder"
+          else
+            echo "⚠️  /documents/ folder not found, trying root directory..."
+            # If documents folder doesn't exist, try downloading from root
+            rclone copy r2:${{ env.R2_BUCKET_NAME }}/ "${{ env.FOLDER_NAME }}/documents/" --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found in root directory"
+            echo "✅ Downloaded documents from root directory"
+          fi
 
       - name: Download existing backups from R2
         run: |
