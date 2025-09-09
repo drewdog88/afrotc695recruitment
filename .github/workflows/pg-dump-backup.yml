@@ -29,8 +29,10 @@ jobs:
           npm install -g wrangler
 
       - name: Configure Wrangler for R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          wrangler config --api-token ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          echo "Wrangler configured with API token"
 
       - name: Run pg_dump and gzip
         run: |
@@ -39,6 +41,8 @@ jobs:
           echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
 
       - name: Cleanup old backups
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
           # List old backups and delete them
@@ -52,6 +56,8 @@ jobs:
           done
 
       - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           wrangler r2 object put ${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }} --file="${{ env.GZIP_NAME }}"
           echo "✅ Uploaded backup to Cloudflare R2: ${{ env.GZIP_NAME }}"
