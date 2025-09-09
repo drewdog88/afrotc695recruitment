@@ -72,7 +72,7 @@ jobs:
         env:
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOOUDFLARE_R2_BUCKET_NAME }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
         run: |
           # List and delete old pg_dump backups (keep last 4)
           aws s3 ls "s3://$CLOUDFLARE_R2_BUCKET_NAME/backups/pgdump/" \
