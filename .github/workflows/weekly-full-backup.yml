@@ -65,9 +65,12 @@ jobs:
 
                   - name: Download all documents from R2
                     run: |
-                      # First, list what's in the R2 bucket to see the structure
-                      echo "📋 Listing R2 bucket contents:"
-                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found with common extensions"
+                      # First, list what's actually in the R2 bucket to see the structure
+                      echo "📋 Listing R2 bucket contents (all files):"
+                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "Could not list bucket contents"
+                      
+                      echo "📋 Listing documents folder specifically:"
+                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "Could not list documents folder"
                       
                       # Try to download from documents folder first
                       echo "📁 Attempting to download from /documents/ folder..."
@@ -89,14 +92,14 @@ jobs:
                       else
                         echo "⚠️  No existing postgres backups found (this is normal for first run)"
                       fi
-                      
+
                       echo "📁 Attempting to download existing weekly backups..."
                       if rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz" 2>/dev/null; then
                         echo "✅ Downloaded existing weekly backups"
                       else
                         echo "⚠️  No existing weekly backups found (this is normal for first run)"
                       fi
-                      
+
                       echo "✅ Completed existing backup download attempt"
 
       - name: Create comprehensive tar.gz backup
