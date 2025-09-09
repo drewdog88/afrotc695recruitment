@@ -1,0 +1,155 @@
+name: Weekly Full System Backup
+
+on:
+  schedule:
+    - cron: '0 7 * * 6' # Runs weekly on Saturday at 7 AM UTC (Friday 11 PM PST)
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+env:
+  # Define environment variables for your database and storage
+  DATABASE_URL: ${{ secrets.DATABASE_URL }} # PostgreSQL connection string
+  R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
+  R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+  R2_ENDPOINT_URL: ${{ secrets.CLOUDFLARE_R2_ENDPOINT_URL }}
+  BLOB_STORE_ID: ${{ secrets.BLOB_STORE_ID }}
+  BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+  BLOB_KEY: ${{ secrets.BLOB_KEY }}
+  FOLDER_NAME: weekly-full-backups
+
+jobs:
+  full-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client (version 17)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget ca-certificates
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 requests
+
+      - name: Configure rclone for Cloudflare R2
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ env.R2_ENDPOINT_URL }}
+          acl = private
+          no_check_bucket = true
+          EOF
+
+      - name: Create backup directory structure
+        run: |
+          mkdir -p "${{ env.FOLDER_NAME }}/database"
+          mkdir -p "${{ env.FOLDER_NAME }}/documents"
+          mkdir -p "${{ env.FOLDER_NAME }}/existing-backups"
+          echo "Created backup directory structure"
+
+      - name: Create fresh database dump
+        run: |
+          DB_DUMP_NAME="${{ env.FOLDER_NAME }}/database/$(date +%Y-%m-%d_%H-%M-%S)_database.sql.gz"
+          /usr/lib/postgresql/17/bin/pg_dump "${{ env.DATABASE_URL }}" | gzip > "${DB_DUMP_NAME}"
+          echo "DB_DUMP_NAME=${DB_DUMP_NAME}" >> $GITHUB_ENV
+          echo "✅ Created fresh database dump: ${DB_DUMP_NAME}"
+
+      - name: Download all documents from blob storage
+        run: |
+          python3 << 'EOF'
+          import os
+          import requests
+          import json
+          from pathlib import Path
+
+          # Get blob storage credentials from environment
+          store_id = os.environ['BLOB_STORE_ID']
+          base_url = os.environ['BLOB_BASE_URL']
+          blob_key = os.environ['BLOB_KEY']
+          
+          # Create documents directory
+          docs_dir = Path("${{ env.FOLDER_NAME }}/documents")
+          docs_dir.mkdir(parents=True, exist_ok=True)
+          
+          # List all blobs
+          list_url = f"{base_url}/list"
+          headers = {
+              "Authorization": f"Bearer {blob_key}",
+              "Content-Type": "application/json"
+          }
+          
+          try:
+              response = requests.post(list_url, headers=headers, json={"limit": 1000})
+              response.raise_for_status()
+              blobs = response.json()
+              
+              print(f"Found {len(blobs)} documents to download")
+              
+              for blob in blobs:
+                  blob_id = blob['url'].split('/')[-1]
+                  download_url = f"{base_url}/{blob_id}"
+                  
+                  # Download the file
+                  file_response = requests.get(download_url, headers={"Authorization": f"Bearer {blob_key}"})
+                  file_response.raise_for_status()
+                  
+                  # Save to documents directory
+                  file_path = docs_dir / blob_id
+                  with open(file_path, 'wb') as f:
+                      f.write(file_response.content)
+                  
+                  print(f"Downloaded: {blob_id}")
+              
+              print("✅ All documents downloaded successfully")
+              
+          except Exception as e:
+              print(f"❌ Error downloading documents: {e}")
+              exit(1)
+          EOF
+
+      - name: Download existing backups from R2
+        run: |
+          # Download all existing backup files from R2
+          rclone copy r2:${{ env.R2_BUCKET_NAME }}/postgres-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.gz"
+          rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz"
+          echo "✅ Downloaded existing backups from R2"
+
+      - name: Create comprehensive tar.gz backup
+        run: |
+          BACKUP_NAME="afrotc695_full_backup_$(date +%Y-%m-%d_%H-%M-%S).tar.gz"
+          tar -czf "${BACKUP_NAME}" "${{ env.FOLDER_NAME }}/"
+          echo "BACKUP_NAME=${BACKUP_NAME}" >> $GITHUB_ENV
+          echo "✅ Created comprehensive backup: ${BACKUP_NAME}"
+
+      - name: Upload comprehensive backup to R2
+        run: |
+          rclone copy "${{ env.BACKUP_NAME }}" r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/
+          echo "✅ Uploaded comprehensive backup to Cloudflare R2: ${{ env.BACKUP_NAME }}"
+
+      - name: Backup Summary
+        run: |
+          echo "🎉 Weekly full system backup completed successfully!"
+          echo "📁 Backup file: ${{ env.BACKUP_NAME }}"
+          echo "📅 Date: $(date)"
+          echo "💾 Storage: Cloudflare R2 via rclone"
+          echo "📊 Contents:"
+          echo "   - Fresh database dump"
+          echo "   - All documents from blob storage"
+          echo "   - All existing backup files"
+          echo "   - Compressed into single tar.gz archive"
