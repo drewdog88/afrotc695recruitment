@@ -9,9 +9,6 @@ env:
   # Define environment variables for your database and Cloudflare R2
   DATABASE_URL: ${{ secrets.DATABASE_URL }} # PostgreSQL connection string
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
-  R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
-  R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-  R2_ENDPOINT_URL: "https://kre9xoivjggj03of.public.blob.vercel-storage.com"
   FOLDER_NAME: postgres-backups
   RETENTION: 30 # Number of days to retain backups
 
@@ -27,20 +24,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Install AWS CLI
+      - name: Install Wrangler CLI
         run: |
-          pip install awscli
+          npm install -g wrangler
 
-      - name: Configure AWS CLI for Cloudflare R2
+      - name: Configure Wrangler for R2
         run: |
-          aws configure set aws_access_key_id ${{ env.R2_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ env.R2_SECRET_ACCESS_KEY }}
-          aws configure set default.region auto
-
-      - name: Create backup folder in R2 if it doesn't exist
-        run: |
-          aws s3api head-object --bucket ${{ env.R2_BUCKET_NAME }} --key "${{ env.FOLDER_NAME }}/" --endpoint-url="${{ env.R2_ENDPOINT_URL }}" 2>/dev/null || \
-          aws s3api put-object --bucket ${{ env.R2_BUCKET_NAME }} --key "${{ env.FOLDER_NAME }}/" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
+          wrangler config --api-token ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Run pg_dump and gzip
         run: |
@@ -51,19 +41,19 @@ jobs:
       - name: Cleanup old backups
         run: |
           THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
-          aws s3api list-objects --bucket ${{ env.R2_BUCKET_NAME }} --prefix "${{ env.FOLDER_NAME }}/" \
-            --endpoint-url="${{ env.R2_ENDPOINT_URL }}" \
-            --query "Contents[?LastModified<'${THRESHOLD_DATE}'] | [?ends_with(Key, '.gz')].{Key: Key}" --output text | \
-            while read -r file; do 
-              if [ ! -z "$file" ]; then
-                aws s3 rm "s3://${{ env.R2_BUCKET_NAME }}/${file}" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
-                echo "Deleted old backup: $file"
-              fi
-            done
+          # List old backups and delete them
+          wrangler r2 object list ${{ env.R2_BUCKET_NAME }} --prefix="${{ env.FOLDER_NAME }}/" --json | \
+          jq -r ".[] | select(.uploaded < \"$THRESHOLD_DATE\") | select(.key | endswith(\".gz\")) | .key" | \
+          while read -r file; do
+            if [ ! -z "$file" ]; then
+              wrangler r2 object delete ${{ env.R2_BUCKET_NAME }} "$file"
+              echo "Deleted old backup: $file"
+            fi
+          done
 
       - name: Upload to R2
         run: |
-          aws s3 cp "${{ env.GZIP_NAME }}" "s3://${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }}" --endpoint-url="${{ env.R2_ENDPOINT_URL }}"
+          wrangler r2 object put ${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }} --file="${{ env.GZIP_NAME }}"
           echo "✅ Uploaded backup to Cloudflare R2: ${{ env.GZIP_NAME }}"
 
       - name: Backup Summary
