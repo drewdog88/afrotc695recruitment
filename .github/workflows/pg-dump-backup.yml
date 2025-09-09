@@ -9,7 +9,9 @@ env:
   # Define environment variables for your database and Cloudflare R2
   DATABASE_URL: ${{ secrets.DATABASE_URL }} # PostgreSQL connection string
   R2_BUCKET_NAME: ${{ secrets.CLOUDFLARE_R2_BUCKET_NAME }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+  R2_ENDPOINT_URL: "https://kre9xoivjggj03of.public.blob.vercel-storage.com"
   FOLDER_NAME: postgres-backups
   RETENTION: 30 # Number of days to retain backups
 
@@ -25,15 +27,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Install Wrangler CLI
+      - name: Install rclone
         run: |
-          npm install -g wrangler
+          curl https://rclone.org/install.sh | sudo bash
 
-      - name: Configure Wrangler for R2
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Configure rclone for Cloudflare R2
         run: |
-          echo "Wrangler configured with API token"
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ env.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ env.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ env.R2_ENDPOINT_URL }}
+          region = auto
+          EOF
 
       - name: Run pg_dump and gzip
         run: |
@@ -42,27 +51,26 @@ jobs:
           echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
 
       - name: Cleanup old backups
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
           # List old backups and delete them
-          wrangler r2 object list ${{ env.R2_BUCKET_NAME }} --prefix="${{ env.FOLDER_NAME }}/" --json | \
-          jq -r ".[] | select(.uploaded < \"$THRESHOLD_DATE\") | select(.key | endswith(\".gz\")) | .key" | \
-          while read -r file; do
+          rclone lsf r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/ --include "*.gz" | while read -r file; do
             if [ ! -z "$file" ]; then
-              wrangler r2 object delete ${{ env.R2_BUCKET_NAME }} "$file"
-              echo "Deleted old backup: $file"
+              # Get file modification time and compare
+              FILE_DATE=$(rclone lsl r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/$file | awk '{print $2, $3}')
+              FILE_TIMESTAMP=$(date -d "$FILE_DATE" +%s)
+              THRESHOLD_TIMESTAMP=$(date -d "$THRESHOLD_DATE" +%s)
+              
+              if [ "$FILE_TIMESTAMP" -lt "$THRESHOLD_TIMESTAMP" ]; then
+                rclone delete r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/$file
+                echo "Deleted old backup: $file"
+              fi
             fi
           done
 
       - name: Upload to R2
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          wrangler r2 object put ${{ env.R2_BUCKET_NAME }}/${{ env.GZIP_NAME }} --file="${{ env.GZIP_NAME }}"
+          rclone copy "${{ env.GZIP_NAME }}" r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/
           echo "✅ Uploaded backup to Cloudflare R2: ${{ env.GZIP_NAME }}"
 
       - name: Backup Summary
@@ -70,4 +78,4 @@ jobs:
           echo "🎉 Daily pg_dump backup completed successfully!"
           echo "📁 Backup file: ${{ env.GZIP_NAME }}"
           echo "📅 Date: $(date)"
-          echo "💾 Storage: Cloudflare R2"
+          echo "💾 Storage: Cloudflare R2 via rclone"
