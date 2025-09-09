@@ -17,7 +17,7 @@ def upload_new_documents():
     if not is_r2_configured():
         print("❌ R2 not configured properly")
         return
-    
+
     # Documents to upload (excluding ones already in system)
     new_documents = [
         {
@@ -45,48 +45,48 @@ def upload_new_documents():
             'category': 'programs'
         }
     ]
-    
+
     documents_folder = Path('documents')
-    
+
     with app.app_context():
         for doc_info in new_documents:
             file_path = documents_folder / doc_info['filename']
-            
+
             if not file_path.exists():
                 print(f"❌ File not found: {file_path}")
                 continue
-            
+
             print(f"\n📄 Processing: {doc_info['title']}")
             print(f"   File: {file_path}")
-            
+
             # Validate file type
             if not validate_file_type(doc_info['filename']):
                 print(f"   ❌ Invalid file type: {doc_info['filename']}")
                 continue
-            
+
             # Check file size
             file_size_mb = get_file_size_mb(open(file_path, 'rb'))
             if file_size_mb > 10.0:  # 10MB limit
                 print(f"   ❌ File too large: {file_size_mb:.2f}MB (max 10MB)")
                 continue
-            
+
             print(f"   📊 File size: {file_size_mb:.2f}MB")
-            
+
             try:
                 # Upload to R2
                 with open(file_path, 'rb') as f:
                     from werkzeug.datastructures import FileStorage
                     file_storage = FileStorage(f, filename=doc_info['filename'])
-                    
+
                     r2_url, r2_filename, error = upload_document_to_r2(file_storage, doc_info['filename'])
-                    
+
                     if error:
                         print(f"   ❌ Upload failed: {error}")
                         continue
-                    
+
                     print(f"   ✅ Uploaded to R2: {r2_filename}")
                     print(f"   🔗 R2 URL: {r2_url}")
-                
+
                 # Add to database
                 document = RecruitmentDocument(
                     title=doc_info['title'],
@@ -100,12 +100,12 @@ def upload_new_documents():
                     is_active=True,
                     sort_order=0
                 )
-                
+
                 db.session.add(document)
                 db.session.commit()
-                
+
                 print(f"   ✅ Added to database with ID: {document.id}")
-                
+
             except Exception as e:
                 print(f"   ❌ Error processing {doc_info['filename']}: {e}")
                 db.session.rollback()
@@ -118,16 +118,16 @@ def replace_program_overview():
         program_overview = RecruitmentDocument.query.filter_by(
             title='AFROTC Program Overview'
         ).first()
-        
+
         if program_overview:
             print(f"\n🔄 Replacing AFROTC Program Overview with AFROTC Handout")
             print(f"   Current title: {program_overview.title}")
-            
+
             # Update the title and description
             program_overview.title = 'AFROTC Handout'
             program_overview.description = 'Comprehensive AFROTC program information and requirements'
             program_overview.category = 'general'
-            
+
             db.session.commit()
             print(f"   ✅ Updated to: {program_overview.title}")
         else:

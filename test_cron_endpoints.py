@@ -29,7 +29,7 @@ def test_nightly_backup():
         if not cron_secret:
             print("❌ CRON_SECRET not set in environment variables")
             return False
-            
+
         class MockRequest:
             def __init__(self):
                 self.method = 'GET'
@@ -68,7 +68,7 @@ def test_cleanup_endpoint():
         if not cron_secret:
             print("❌ CRON_SECRET not set in environment variables")
             return False
-            
+
         class MockRequest:
             def __init__(self):
                 self.method = 'GET'

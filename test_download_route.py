@@ -16,18 +16,18 @@ def test_download_logic():
         if not is_r2_configured():
             print("❌ R2 not configured")
             return
-        
+
         docs = RecruitmentDocument.query.filter(
             RecruitmentDocument.blob_url.isnot(None),
             RecruitmentDocument.blob_url != ''
         ).all()
-        
+
         print(f"🧪 Testing download logic for {len(docs)} documents...")
-        
+
         for doc in docs:
             print(f"\n📄 Testing: {doc.title}")
             print(f"   Blob URL: {doc.blob_url}")
-            
+
             # Simulate the download route logic
             if doc.filename and doc.blob_url and 'r2.cloudflarestorage.com' in doc.blob_url:
                 # Extract R2 key from blob_url
@@ -37,9 +37,9 @@ def test_download_logic():
                     r2_key = url_parts[1]
                 else:
                     r2_key = doc.blob_url.split('/')[-1]
-                
+
                 print(f"   Extracted R2 key: {r2_key}")
-                
+
                 # Generate presigned URL
                 presigned_url = generate_presigned_url(r2_key, expiration=3600)
                 if presigned_url:

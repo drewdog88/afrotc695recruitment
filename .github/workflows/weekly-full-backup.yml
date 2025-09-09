@@ -68,15 +68,15 @@ jobs:
           echo "🔍 Testing R2 connectivity..."
           echo "Bucket name: ${{ env.R2_BUCKET_NAME }}"
           echo "Endpoint: ${{ env.R2_ENDPOINT_URL }}"
-          
+
           # Test if we can access the bucket at all
           echo "📋 Testing bucket access..."
           rclone lsd r2: || echo "❌ Cannot list buckets - check credentials and endpoint"
-          
+
           # Try to list bucket contents
           echo "📋 Listing R2 bucket contents (all files):"
           rclone ls r2:${{ env.R2_BUCKET_NAME }}/ || echo "❌ Could not list bucket contents"
-          
+
           echo "📋 Listing documents folder specifically:"
           rclone ls r2:${{ env.R2_BUCKET_NAME }}/documents/ || echo "❌ Could not list documents folder"
 
@@ -102,14 +102,14 @@ jobs:
           else
             echo "⚠️  No existing postgres backups found (this is normal for first run)"
           fi
-          
+
           echo "📁 Attempting to download existing weekly backups..."
           if rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz" 2>/dev/null; then
             echo "✅ Downloaded existing weekly backups"
           else
             echo "⚠️  No existing weekly backups found (this is normal for first run)"
           fi
-          
+
           echo "✅ Completed existing backup download attempt"
 
       - name: Create comprehensive tar.gz backup
