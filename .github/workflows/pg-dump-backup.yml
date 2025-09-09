@@ -13,7 +13,6 @@ env:
   R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
   R2_ENDPOINT_URL: "https://kre9xoivjggj03of.public.blob.vercel-storage.com"
   FOLDER_NAME: postgres-backups
-  RETENTION: 30 # Number of days to retain backups
 
 jobs:
   backup:
@@ -54,23 +53,6 @@ jobs:
           pg_dump "${{ env.DATABASE_URL }}" | gzip > "${GZIP_NAME}"
           echo "GZIP_NAME=${GZIP_NAME}" >> $GITHUB_ENV
 
-      - name: Cleanup old backups
-        run: |
-          THRESHOLD_DATE=$(date -d "-${{ env.RETENTION }} days" +%Y-%m-%dT%H:%M:%SZ)
-          # List old backups and delete them
-          rclone lsf r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/ --include "*.gz" | while read -r file; do
-            if [ ! -z "$file" ]; then
-              # Get file modification time and compare
-              FILE_DATE=$(rclone lsl r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/$file | awk '{print $2, $3}')
-              FILE_TIMESTAMP=$(date -d "$FILE_DATE" +%s)
-              THRESHOLD_TIMESTAMP=$(date -d "$THRESHOLD_DATE" +%s)
-
-              if [ "$FILE_TIMESTAMP" -lt "$THRESHOLD_TIMESTAMP" ]; then
-                rclone delete r2:${{ env.R2_BUCKET_NAME }}/${{ env.FOLDER_NAME }}/$file
-                echo "Deleted old backup: $file"
-              fi
-            fi
-          done
 
       - name: Upload to R2
         run: |
