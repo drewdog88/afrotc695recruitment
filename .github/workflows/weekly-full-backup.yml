@@ -63,29 +63,41 @@ jobs:
           echo "DB_DUMP_NAME=${DB_DUMP_NAME}" >> $GITHUB_ENV
           echo "✅ Created fresh database dump: ${DB_DUMP_NAME}"
 
-      - name: Download all documents from R2
-        run: |
-          # First, list what's in the R2 bucket to see the structure
-          echo "📋 Listing R2 bucket contents:"
-          rclone ls r2:${{ env.R2_BUCKET_NAME }}/ --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found with common extensions"
-          
-          # Try to download from documents folder first
-          echo "📁 Attempting to download from /documents/ folder..."
-          if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
-            echo "✅ Downloaded documents from /documents/ folder"
-          else
-            echo "⚠️  /documents/ folder not found, trying root directory..."
-            # If documents folder doesn't exist, try downloading from root
-            rclone copy r2:${{ env.R2_BUCKET_NAME }}/ "${{ env.FOLDER_NAME }}/documents/" --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found in root directory"
-            echo "✅ Downloaded documents from root directory"
-          fi
+                  - name: Download all documents from R2
+                    run: |
+                      # First, list what's in the R2 bucket to see the structure
+                      echo "📋 Listing R2 bucket contents:"
+                      rclone ls r2:${{ env.R2_BUCKET_NAME }}/ --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found with common extensions"
+                      
+                      # Try to download from documents folder first
+                      echo "📁 Attempting to download from /documents/ folder..."
+                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/documents/ "${{ env.FOLDER_NAME }}/documents/" 2>/dev/null; then
+                        echo "✅ Downloaded documents from /documents/ folder"
+                      else
+                        echo "⚠️  /documents/ folder not found, trying root directory..."
+                        # If documents folder doesn't exist, try downloading from root
+                        rclone copy r2:${{ env.R2_BUCKET_NAME }}/ "${{ env.FOLDER_NAME }}/documents/" --include "*.pdf" --include "*.doc" --include "*.docx" --include "*.txt" --include "*.jpg" --include "*.png" --include "*.gif" || echo "No documents found in root directory"
+                        echo "✅ Downloaded documents from root directory"
+                      fi
 
-      - name: Download existing backups from R2
-        run: |
-          # Download all existing backup files from R2
-          rclone copy r2:${{ env.R2_BUCKET_NAME }}/postgres-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.gz"
-          rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz"
-          echo "✅ Downloaded existing backups from R2"
+                  - name: Download existing backups from R2
+                    run: |
+                      # Download all existing backup files from R2 (if they exist)
+                      echo "📁 Attempting to download existing postgres backups..."
+                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/postgres-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.gz" 2>/dev/null; then
+                        echo "✅ Downloaded existing postgres backups"
+                      else
+                        echo "⚠️  No existing postgres backups found (this is normal for first run)"
+                      fi
+                      
+                      echo "📁 Attempting to download existing weekly backups..."
+                      if rclone copy r2:${{ env.R2_BUCKET_NAME }}/weekly-full-backups/ "${{ env.FOLDER_NAME }}/existing-backups/" --include "*.tar.gz" 2>/dev/null; then
+                        echo "✅ Downloaded existing weekly backups"
+                      else
+                        echo "⚠️  No existing weekly backups found (this is normal for first run)"
+                      fi
+                      
+                      echo "✅ Completed existing backup download attempt"
 
       - name: Create comprehensive tar.gz backup
         run: |
