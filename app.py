@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, time, timezone, timedelta
 import os
+import uuid
 # Removed sqlite3 import - using Neon PostgreSQL exclusively
 from dotenv import load_dotenv
 from io import BytesIO
@@ -1454,19 +1455,21 @@ def restore():
     if request.method == 'POST':
         if 'backup_file' not in request.files:
             flash('No file selected for restore.', 'error')
-            return redirect(request.url)
+            return redirect(url_for('admin_backup_restore'))
 
         backup_file = request.files['backup_file']
         if backup_file.filename == '':
             flash('No selected file', 'error')
-            return redirect(request.url)
+            return redirect(url_for('admin_backup_restore'))
 
         # Check for JSON backup files (our new format)
         if backup_file and backup_file.filename.endswith('.json'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
-                temp_backup_path = os.path.join(temp_dir, backup_file.filename)
+                # Generate a safe filename to prevent path traversal attacks
+                safe_filename = f"backup_{uuid.uuid4().hex}.json"
+                temp_backup_path = os.path.join(temp_dir, safe_filename)
                 backup_file.save(temp_backup_path)
 
                 if restore_database(temp_backup_path):

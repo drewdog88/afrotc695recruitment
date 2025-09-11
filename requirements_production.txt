@@ -30,5 +30,7 @@ vercel-blob==0.4.2
 xlsxwriter==3.1.9
 fpdf2==2.7.8
 
-# Note: pandas, numpy, reportlab, openpyxl excluded to reduce bundle size
+# Note: pandas, numpy, openpyxl excluded to reduce bundle size
+# reportlab@4.4.3+ pinned to avoid vulnerable pillow dependency
+reportlab>=4.4.3,<5.0.0
 # These can be added back if data export functionality is needed in production

@@ -1,6 +1,7 @@
 import os
 import tempfile
 import zipfile
+import uuid
 from datetime import datetime, timedelta, timezone, date, time
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -904,7 +905,8 @@ def restore_database(backup_url):
         # Clear existing data
         for table_name in reversed(backup_data['tables'].keys()):
             try:
-                db.session.execute(text(f'DELETE FROM "{table_name}"'))
+                # Use parameterized query to prevent SQL injection
+                db.session.execute(text('DELETE FROM :table_name'), {'table_name': table_name})
             except Exception as e:
                 print(f"Error clearing table {table_name}: {e}")
 
@@ -922,12 +924,12 @@ def restore_database(backup_url):
                                 except:
                                     pass
 
-                        # Build INSERT statement
+                        # Build INSERT statement with parameterized query
                         columns = ', '.join([f'"{k}"' for k in row.keys()])
-                        placeholders = ', '.join(['%s'] * len(row))
+                        placeholders = ', '.join([f':{k}' for k in row.keys()])
                         sql = f'INSERT INTO "{table_name}" ({columns}) VALUES ({placeholders})'
 
-                        db.session.execute(text(sql), list(row.values()))
+                        db.session.execute(text(sql), row)
 
                 except Exception as e:
                     print(f"Error restoring table {table_name}: {e}")
@@ -1830,8 +1832,14 @@ def download_document(document_id):
 
         log_activity('DOWNLOAD', 'recruitment_document', document.id, f"Document downloaded: {document.title}")
 
-        # Redirect to the blob download URL
-        return redirect(blob_meta.get('downloadUrl', blob_url))
+        # Redirect to the blob download URL (validate URL to prevent open redirect)
+        download_url = blob_meta.get('downloadUrl', blob_url)
+        # Only allow redirects to known blob storage domains
+        if download_url.startswith(('https://', 'http://')) and any(domain in download_url for domain in ['vercel-storage.com', 'blob.vercel-storage.com']):
+            return redirect(download_url)
+        else:
+            flash('Invalid download URL.', 'error')
+            return redirect(url_for('materials'))
     except Exception as e:
         flash(f'Error downloading document: {str(e)}', 'error')
         return redirect(url_for('materials'))
@@ -2135,8 +2143,14 @@ def download_backup(filename):
 
         log_activity('DOWNLOAD_BACKUP', 'database', None, f'Downloaded backup: {filename}')
 
-        # Redirect to the blob download URL
-        return redirect(blob_meta.get('downloadUrl', blob_url))
+        # Redirect to the blob download URL (validate URL to prevent open redirect)
+        download_url = blob_meta.get('downloadUrl', blob_url)
+        # Only allow redirects to known blob storage domains
+        if download_url.startswith(('https://', 'http://')) and any(domain in download_url for domain in ['vercel-storage.com', 'blob.vercel-storage.com']):
+            return redirect(download_url)
+        else:
+            flash('Invalid download URL.', 'error')
+            return redirect(url_for('database_management'))
     except Exception as e:
         print(f"Error downloading backup: {e}")
         flash('Error downloading backup file.', 'error')
@@ -2172,18 +2186,20 @@ def restore():
     if request.method == 'POST':
         if 'backup_file' not in request.files:
             flash('No file selected for restore.', 'error')
-            return redirect(request.url)
+            return redirect(url_for('admin_backup_restore'))
 
         backup_file = request.files['backup_file']
         if backup_file.filename == '':
             flash('No selected file', 'error')
-            return redirect(request.url)
+            return redirect(url_for('admin_backup_restore'))
 
         if backup_file and backup_file.filename.endswith('.json'):
             try:
                 # Create a temporary file to hold the uploaded backup
                 temp_dir = tempfile.mkdtemp()
-                temp_backup_path = os.path.join(temp_dir, backup_file.filename)
+                # Generate a safe filename to prevent path traversal attacks
+                safe_filename = f"backup_{uuid.uuid4().hex}.json"
+                temp_backup_path = os.path.join(temp_dir, safe_filename)
                 backup_file.save(temp_backup_path)
 
                 # Read the JSON backup
